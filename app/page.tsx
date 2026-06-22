@@ -1,84 +1,119 @@
 'use client';
-import { useState } from 'react';
 
-type Customer = { name: string; phone: string; email: string; address: string };
-type Job = { customer: string; service: string; date: string; status: string; amount: string };
+import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+
+type Customer = { id?: number; name: string; phone: string; email: string; address: string };
+type Job = { id?: number; customer: string; service: string; job_date: string; amount: string; status: string };
 
 export default function Home() {
-  const [customers, setCustomers] = useState<Customer[]>([{ name: 'Sample Customer', phone: '832-210-4248', email: 'customer@email.com', address: 'Dallas, TX' }]);
-  const [jobs, setJobs] = useState<Job[]>([{ customer: 'Sample Customer', service: 'TV Installation', date: '2026-06-22', status: 'Quoted', amount: '250' }]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [customer, setCustomer] = useState<Customer>({ name: '', phone: '', email: '', address: '' });
-  const [job, setJob] = useState<Job>({ customer: '', service: '', date: '', status: 'New', amount: '' });
+  const [job, setJob] = useState<Job>({ customer: '', service: '', job_date: '', amount: '', status: 'New' });
 
-  function addCustomer() {
+  async function loadData() {
+    const { data: customerData } = await supabase.from('customers').select('*').order('id', { ascending: false });
+    const { data: jobData } = await supabase.from('jobs').select('*').order('id', { ascending: false });
+    setCustomers(customerData || []);
+    setJobs(jobData || []);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function saveCustomer() {
     if (!customer.name) return alert('Enter customer name');
-    setCustomers([...customers, customer]);
+    const { error } = await supabase.from('customers').insert([customer]);
+    if (error) return alert(error.message);
     setCustomer({ name: '', phone: '', email: '', address: '' });
+    loadData();
   }
 
-  function addJob() {
+  async function saveJob() {
     if (!job.customer || !job.service) return alert('Enter customer and service');
-    setJobs([...jobs, job]);
-    setJob({ customer: '', service: '', date: '', status: 'New', amount: '' });
+    const { error } = await supabase.from('jobs').insert([job]);
+    if (error) return alert(error.message);
+    setJob({ customer: '', service: '', job_date: '', amount: '', status: 'New' });
+    loadData();
   }
 
-  function downloadCsv(filename: string, rows: string[][]) {
-    const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
-  }
-
-  function exportCustomers() {
-    downloadCsv('manager-customers.csv', [['Name','Email','Phone','Address'], ...customers.map(c => [c.name,c.email,c.phone,c.address])]);
-  }
-
-  function exportInvoices() {
-    downloadCsv('manager-invoices.csv', [['Customer','Invoice Number','Date','Description','Amount','Status'], ...jobs.map((j,i) => [j.customer, `ASH-2026-${String(i+1).padStart(4,'0')}`, j.date, j.service, j.amount, j.status])]);
-  }
-
-  const totalRevenue = jobs.reduce((sum, j) => sum + Number(j.amount || 0), 0);
+  const revenue = jobs.reduce((sum, j) => sum + Number(j.amount || 0), 0);
 
   return (
-    <main>
-      <div className="header">
-        <div><h1>Aashan ERP Web</h1><p>Aashan & Co LLC - Service, Quotes, Invoices & Manager.io Export</p></div>
-        <div>Phase 1</div>
-      </div>
-      <div className="container">
-        <div className="nav"><span>Dashboard</span><span>Customers</span><span>Jobs</span><span>Invoices</span><span>CSV Export</span></div>
-        <div className="grid">
-          <div className="card"><h3>Total Customers</h3><div className="big">{customers.length}</div></div>
-          <div className="card"><h3>Total Jobs</h3><div className="big">{jobs.length}</div></div>
-          <div className="card"><h3>Open Invoices</h3><div className="big">{jobs.filter(j => j.status !== 'Paid').length}</div></div>
-          <div className="card"><h3>Revenue</h3><div className="big">${totalRevenue.toFixed(2)}</div></div>
+    <main style={{ fontFamily: 'Arial', background: '#f4f6f8', minHeight: '100vh' }}>
+      <header style={{ background: '#0f172a', color: 'white', padding: 20 }}>
+        <h1>Aashan ERP Web</h1>
+        <p>Aashan & Co LLC - Service, Quotes, Invoices & Manager.io Export</p>
+      </header>
+
+      <section style={{ maxWidth: 1200, margin: '30px auto', padding: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+          <Card title="Total Customers" value={customers.length} />
+          <Card title="Total Jobs" value={jobs.length} />
+          <Card title="Open Invoices" value={jobs.length} />
+          <Card title="Revenue" value={`$${revenue.toFixed(2)}`} />
         </div>
-        <div className="two">
-          <div className="card">
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 25 }}>
+          <div style={box}>
             <h2>Add Customer</h2>
-            <label>Name</label><input value={customer.name} onChange={e=>setCustomer({...customer,name:e.target.value})}/>
-            <label>Phone</label><input value={customer.phone} onChange={e=>setCustomer({...customer,phone:e.target.value})}/>
-            <label>Email</label><input value={customer.email} onChange={e=>setCustomer({...customer,email:e.target.value})}/>
-            <label>Address</label><textarea value={customer.address} onChange={e=>setCustomer({...customer,address:e.target.value})}/>
-            <button className="button" onClick={addCustomer}>Save Customer</button>
+            <Input label="Name" value={customer.name} onChange={(v) => setCustomer({ ...customer, name: v })} />
+            <Input label="Phone" value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} />
+            <Input label="Email" value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} />
+            <Input label="Address" value={customer.address} onChange={(v) => setCustomer({ ...customer, address: v })} />
+            <button onClick={saveCustomer} style={buttonBlue}>Save Customer</button>
           </div>
-          <div className="card">
+
+          <div style={box}>
             <h2>Add Job / Quote</h2>
-            <label>Customer</label><input value={job.customer} onChange={e=>setJob({...job,customer:e.target.value})}/>
-            <label>Service</label><input value={job.service} onChange={e=>setJob({...job,service:e.target.value})}/>
-            <label>Date</label><input type="date" value={job.date} onChange={e=>setJob({...job,date:e.target.value})}/>
-            <label>Amount</label><input value={job.amount} onChange={e=>setJob({...job,amount:e.target.value})}/>
-            <label>Status</label><select value={job.status} onChange={e=>setJob({...job,status:e.target.value})}><option>New</option><option>Quoted</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select>
-            <button className="button secondary" onClick={addJob}>Save Job</button>
+            <Input label="Customer" value={job.customer} onChange={(v) => setJob({ ...job, customer: v })} />
+            <Input label="Service" value={job.service} onChange={(v) => setJob({ ...job, service: v })} />
+            <Input label="Date" type="date" value={job.job_date} onChange={(v) => setJob({ ...job, job_date: v })} />
+            <Input label="Amount" value={job.amount} onChange={(v) => setJob({ ...job, amount: v })} />
+            <label>Status</label>
+            <select value={job.status} onChange={(e) => setJob({ ...job, status: e.target.value })} style={input}>
+              <option>New</option>
+              <option>Quoted</option>
+              <option>Completed</option>
+              <option>Invoiced</option>
+              <option>Paid</option>
+            </select>
+            <button onClick={saveJob} style={buttonGreen}>Save Job</button>
           </div>
         </div>
-        <div className="card" style={{marginTop:16}}>
+
+        <div style={{ ...box, marginTop: 25 }}>
+          <h2>Customers</h2>
+          {customers.map((c) => (
+            <p key={c.id}><b>{c.name}</b> - {c.phone} - {c.email}</p>
+          ))}
+
           <h2>Jobs & Invoices</h2>
-          <table><thead><tr><th>Customer</th><th>Service</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>{jobs.map((j,i)=><tr key={i}><td>{j.customer}</td><td>{j.service}</td><td>{j.date}</td><td>${j.amount}</td><td><span className="badge">{j.status}</span></td></tr>)}</tbody></table>
-          <br/><button className="button" onClick={exportCustomers}>Export Customers CSV</button>{' '}<button className="button secondary" onClick={exportInvoices}>Export Invoices CSV</button>
+          {jobs.map((j) => (
+            <p key={j.id}><b>{j.customer}</b> - {j.service} - ${j.amount} - {j.status}</p>
+          ))}
         </div>
-      </div>
+      </section>
     </main>
   );
 }
+
+function Card({ title, value }: { title: string; value: any }) {
+  return <div style={box}><b>{title}</b><h1>{value}</h1></div>;
+}
+
+function Input({ label, value, onChange, type = 'text' }: any) {
+  return (
+    <>
+      <label>{label}</label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} style={input} />
+    </>
+  );
+}
+
+const box = { background: 'white', padding: 20, borderRadius: 12, boxShadow: '0 4px 15px #ddd' };
+const input = { width: '100%', padding: 10, margin: '8px 0 15px', border: '1px solid #ccc', borderRadius: 6 };
+const buttonBlue = { background: '#2563eb', color: 'white', padding: '10px 15px', border: 0, borderRadius: 6 };
+const buttonGreen = { background: '#059669', color: 'white', padding: '10px 15px', border: 0, borderRadius: 6 };
