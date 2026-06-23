@@ -30,6 +30,12 @@ type Payment = {
   notes: string;
 };
 
+type CompanySettings = { id?: number; company_name: string; phone: string; email: string; website: string; address: string; logo_url: string; tax_rate: string; payment_terms: string; payment_instructions: string };
+type NumberSequence = { id?: number; document_type: string; prefix: string; next_number: string; padding: string };
+type Account = { id?: number; account_code: string; account_name: string; account_type: string; normal_balance: string; is_active: boolean };
+type EmailSettings = { id?: number; from_name: string; from_email: string; reply_to_email: string; bcc_email: string };
+type EmailTemplate = { id?: number; template_name: string; subject: string; body: string };
+
 const LOGO_SRC = '/aashan-logo.png';
 
 const emptyCustomer: Customer = { name: '', phone: '', email: '', address: '' };
@@ -48,9 +54,14 @@ const emptyInvoice: Invoice = {
   customer_address: '',
 };
 const emptyPayment: Payment = { invoice_id: null, invoice_no: '', customer: '', payment_date: '', amount: '', payment_method: 'Cash', notes: '' };
+const emptyCompany: CompanySettings = { company_name: 'Aashan & Co LLC', phone: '(832) 210-4248', email: 'support@aashan.co', website: 'www.aashan.co', address: 'Dallas, Texas', logo_url: '/aashan-logo.png', tax_rate: '0', payment_terms: 'Payment due within agreed terms.', payment_instructions: 'Please contact Aashan & Co LLC for payment options.' };
+const emptySequence: NumberSequence = { document_type: '', prefix: '', next_number: '1001', padding: '4' };
+const emptyAccount: Account = { account_code: '', account_name: '', account_type: 'Revenue', normal_balance: 'Credit', is_active: true };
+const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_email: 'support@aashan.co', reply_to_email: 'support@aashan.co', bcc_email: '' };
+const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'jobs' | 'invoices' | 'payments'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'jobs' | 'invoices' | 'payments' | 'masters'>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -59,11 +70,22 @@ export default function Home() {
   const [job, setJob] = useState<Job>(emptyJob);
   const [invoice, setInvoice] = useState<Invoice>(emptyInvoice);
   const [payment, setPayment] = useState<Payment>(emptyPayment);
+  const [company, setCompany] = useState<CompanySettings>(emptyCompany);
+  const [sequences, setSequences] = useState<NumberSequence[]>([]);
+  const [sequence, setSequence] = useState<NumberSequence>(emptySequence);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [account, setAccount] = useState<Account>(emptyAccount);
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>(emptyEmailSettings);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [template, setTemplate] = useState<EmailTemplate>(emptyTemplate);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
+  const [editingSequenceId, setEditingSequenceId] = useState<number | null>(null);
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -73,6 +95,11 @@ export default function Home() {
     const { data: jobData, error: jobError } = await supabase.from('jobs').select('*').order('id', { ascending: false });
     const { data: invoiceData, error: invoiceError } = await supabase.from('invoices').select('*').order('id', { ascending: false });
     const { data: paymentData, error: paymentError } = await supabase.from('payments').select('*').order('id', { ascending: false });
+    const { data: companyData } = await supabase.from('company_settings').select('*').limit(1);
+    const { data: sequenceData } = await supabase.from('number_sequences').select('*').order('id', { ascending: true });
+    const { data: accountData } = await supabase.from('chart_of_accounts').select('*').order('account_code', { ascending: true });
+    const { data: emailSettingsData } = await supabase.from('email_settings').select('*').limit(1);
+    const { data: templateData } = await supabase.from('email_templates').select('*').order('template_name', { ascending: true });
 
     if (customerError) alert(customerError.message);
     if (jobError) alert(jobError.message);
@@ -83,6 +110,11 @@ export default function Home() {
     setJobs((jobData || []).map((j: any) => ({ ...j, amount: String(j.amount || '') })));
     setInvoices((invoiceData || []).map((i: any) => ({ ...i, amount: String(i.amount || '') })));
     setPayments((paymentData || []).map((p: any) => ({ ...p, amount: String(p.amount || '') })));
+    if (companyData && companyData.length > 0) setCompany({ ...emptyCompany, ...companyData[0], tax_rate: String(companyData[0].tax_rate || 0) });
+    setSequences((sequenceData || []).map((s: any) => ({ ...s, next_number: String(s.next_number || ''), padding: String(s.padding || 4) })));
+    setAccounts(accountData || []);
+    if (emailSettingsData && emailSettingsData.length > 0) setEmailSettings({ ...emptyEmailSettings, ...emailSettingsData[0] });
+    setTemplates(templateData || []);
     setLoading(false);
   }
 
@@ -353,6 +385,55 @@ export default function Home() {
     }
   }
 
+
+  async function saveCompany() {
+    const payload = { company_name: company.company_name, phone: company.phone, email: company.email, website: company.website, address: company.address, logo_url: company.logo_url, tax_rate: Number(company.tax_rate || 0), payment_terms: company.payment_terms, payment_instructions: company.payment_instructions };
+    const res = company.id ? await supabase.from('company_settings').update(payload).eq('id', company.id) : await supabase.from('company_settings').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    alert('Company settings saved');
+    await loadData();
+  }
+  async function saveSequence() {
+    if (!sequence.document_type.trim()) return alert('Enter document type');
+    const payload = { document_type: sequence.document_type, prefix: sequence.prefix, next_number: Number(sequence.next_number || 1), padding: Number(sequence.padding || 4) };
+    const res = editingSequenceId ? await supabase.from('number_sequences').update(payload).eq('id', editingSequenceId) : await supabase.from('number_sequences').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    setSequence(emptySequence); setEditingSequenceId(null); await loadData();
+  }
+  function editSequence(s: NumberSequence) { setSequence({ ...s, next_number: String(s.next_number || ''), padding: String(s.padding || 4) }); setEditingSequenceId(s.id || null); }
+  async function deleteSequence(id?: number) { if (!id || !confirm('Delete this number sequence?')) return; const { error } = await supabase.from('number_sequences').delete().eq('id', id); if (error) return alert(error.message); await loadData(); }
+  async function saveAccount() {
+    if (!account.account_code.trim() || !account.account_name.trim()) return alert('Enter account code and name');
+    const payload = { account_code: account.account_code, account_name: account.account_name, account_type: account.account_type, normal_balance: account.normal_balance, is_active: account.is_active };
+    const res = editingAccountId ? await supabase.from('chart_of_accounts').update(payload).eq('id', editingAccountId) : await supabase.from('chart_of_accounts').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    setAccount(emptyAccount); setEditingAccountId(null); await loadData();
+  }
+  function editAccount(a: Account) { setAccount(a); setEditingAccountId(a.id || null); }
+  async function deleteAccount(id?: number) { if (!id || !confirm('Delete this account?')) return; const { error } = await supabase.from('chart_of_accounts').delete().eq('id', id); if (error) return alert(error.message); await loadData(); }
+  async function saveEmailSettings() {
+    const payload = { from_name: emailSettings.from_name, from_email: emailSettings.from_email, reply_to_email: emailSettings.reply_to_email, bcc_email: emailSettings.bcc_email };
+    const res = emailSettings.id ? await supabase.from('email_settings').update(payload).eq('id', emailSettings.id) : await supabase.from('email_settings').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    alert('Email settings saved'); await loadData();
+  }
+  async function saveTemplate() {
+    if (!template.template_name.trim()) return alert('Enter template name');
+    const payload = { template_name: template.template_name, subject: template.subject, body: template.body };
+    const res = editingTemplateId ? await supabase.from('email_templates').update(payload).eq('id', editingTemplateId) : await supabase.from('email_templates').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    setTemplate(emptyTemplate); setEditingTemplateId(null); await loadData();
+  }
+  function editTemplate(t: EmailTemplate) { setTemplate(t); setEditingTemplateId(t.id || null); }
+  async function deleteTemplate(id?: number) { if (!id || !confirm('Delete this template?')) return; const { error } = await supabase.from('email_templates').delete().eq('id', id); if (error) return alert(error.message); await loadData(); }
+  function loadDefaultMasters() {
+    setCompany(emptyCompany);
+    setSequence({ document_type: 'Invoice', prefix: 'INV-', next_number: '1001', padding: '4' });
+    setAccount({ account_code: '4000', account_name: 'Service Revenue', account_type: 'Revenue', normal_balance: 'Credit', is_active: true });
+    setEmailSettings(emptyEmailSettings);
+    setTemplate({ template_name: 'Invoice Email', subject: 'Invoice {{invoice_no}} from Aashan & Co LLC', body: 'Hi {{customer}},\n\nPlease find your invoice {{invoice_no}} for ${{amount}}.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC' });
+  }
+
   function exportCsv(filename: string, rows: any[][]) {
     const csv = rows.map((r) => r.map((v) => `"${String(v || '').replaceAll('"', '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -386,12 +467,12 @@ export default function Home() {
             <h1 style={styles.headerTitle}>Aashan ERP Web</h1>
             <p style={styles.headerSub}>Aashan & Co LLC - Customers, Jobs, Invoices, Payments & Manager.io Export</p>
           </div>
-          <div style={styles.phaseBadge}>Phase 5 PDF Invoice</div>
+          <div style={styles.phaseBadge}>Phase 6 Masters</div>
         </header>
 
         <section style={styles.container}>
           <div style={styles.toolbar}>
-            {(['dashboard', 'customers', 'jobs', 'invoices', 'payments'] as const).map((tab) => (
+            {(['dashboard', 'customers', 'jobs', 'invoices', 'payments', 'masters'] as const).map((tab) => (
               <button key={tab} style={activeTab === tab ? styles.tabActive : styles.tab} onClick={() => setActiveTab(tab)}>
                 {tab[0].toUpperCase() + tab.slice(1)}
               </button>
@@ -508,6 +589,74 @@ export default function Home() {
               </DataTable>
             </>
           )}
+
+          {(activeTab === 'masters') && (
+            <>
+              <SectionCard title="Company Details">
+                <div style={styles.formGrid2}>
+                  <Input label="Company Name" value={company.company_name} onChange={(v: string) => setCompany({ ...company, company_name: v })} />
+                  <Input label="Phone" value={company.phone} onChange={(v: string) => setCompany({ ...company, phone: v })} />
+                  <Input label="Email" value={company.email} onChange={(v: string) => setCompany({ ...company, email: v })} />
+                  <Input label="Website" value={company.website} onChange={(v: string) => setCompany({ ...company, website: v })} />
+                  <Input label="Address" value={company.address} onChange={(v: string) => setCompany({ ...company, address: v })} />
+                  <Input label="Logo URL / Path" value={company.logo_url} onChange={(v: string) => setCompany({ ...company, logo_url: v })} />
+                  <Input label="Tax Rate %" value={company.tax_rate} onChange={(v: string) => setCompany({ ...company, tax_rate: v })} />
+                  <Input label="Payment Terms" value={company.payment_terms} onChange={(v: string) => setCompany({ ...company, payment_terms: v })} />
+                  <Input label="Payment Instructions" value={company.payment_instructions} onChange={(v: string) => setCompany({ ...company, payment_instructions: v })} />
+                </div>
+                <ButtonRow><button onClick={saveCompany} style={styles.primaryBtn}>Save Company Details</button><button onClick={loadDefaultMasters} style={styles.greenBtn}>Load Sample Defaults</button></ButtonRow>
+              </SectionCard>
+
+              <SectionCard title={editingSequenceId ? 'Edit Number Sequence' : 'Number Sequence Setup'}>
+                <div style={styles.formGrid2}>
+                  <Field label="Document Type"><select value={sequence.document_type} onChange={(e) => setSequence({ ...sequence, document_type: e.target.value })} style={styles.input}><option value="">Select Type</option><option>Customer</option><option>Job</option><option>Quote</option><option>Invoice</option><option>Payment</option></select></Field>
+                  <Input label="Prefix" value={sequence.prefix} onChange={(v: string) => setSequence({ ...sequence, prefix: v })} />
+                  <Input label="Next Number" value={sequence.next_number} onChange={(v: string) => setSequence({ ...sequence, next_number: v })} />
+                  <Input label="Padding" value={sequence.padding} onChange={(v: string) => setSequence({ ...sequence, padding: v })} />
+                </div>
+                <ButtonRow><button onClick={saveSequence} style={styles.primaryBtn}>{editingSequenceId ? 'Update Sequence' : 'Save Sequence'}</button>{editingSequenceId && <button onClick={() => { setSequence(emptySequence); setEditingSequenceId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+              </SectionCard>
+              <DataTable title="Number Sequences" headers={['Document Type', 'Prefix', 'Next Number', 'Padding', 'Actions']}>
+                {sequences.map((s) => <tr key={s.id}><Td>{s.document_type}</Td><Td>{s.prefix}</Td><Td>{s.next_number}</Td><Td>{s.padding}</Td><Td><button style={styles.smallBtn} onClick={() => editSequence(s)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteSequence(s.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+
+              <SectionCard title={editingAccountId ? 'Edit Chart of Account' : 'Chart of Accounts'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Account Code" value={account.account_code} onChange={(v: string) => setAccount({ ...account, account_code: v })} />
+                  <Input label="Account Name" value={account.account_name} onChange={(v: string) => setAccount({ ...account, account_name: v })} />
+                  <Field label="Account Type"><select value={account.account_type} onChange={(e) => setAccount({ ...account, account_type: e.target.value })} style={styles.input}><option>Asset</option><option>Liability</option><option>Equity</option><option>Revenue</option><option>Expense</option><option>COGS</option></select></Field>
+                  <Field label="Normal Balance"><select value={account.normal_balance} onChange={(e) => setAccount({ ...account, normal_balance: e.target.value })} style={styles.input}><option>Debit</option><option>Credit</option></select></Field>
+                  <Field label="Active"><select value={account.is_active ? 'Yes' : 'No'} onChange={(e) => setAccount({ ...account, is_active: e.target.value === 'Yes' })} style={styles.input}><option>Yes</option><option>No</option></select></Field>
+                </div>
+                <ButtonRow><button onClick={saveAccount} style={styles.primaryBtn}>{editingAccountId ? 'Update Account' : 'Save Account'}</button>{editingAccountId && <button onClick={() => { setAccount(emptyAccount); setEditingAccountId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+              </SectionCard>
+              <DataTable title="Chart of Accounts" headers={['Code', 'Name', 'Type', 'Normal Balance', 'Active', 'Actions']}>
+                {accounts.map((a) => <tr key={a.id}><Td>{a.account_code}</Td><Td>{a.account_name}</Td><Td>{a.account_type}</Td><Td>{a.normal_balance}</Td><Td>{a.is_active ? 'Yes' : 'No'}</Td><Td><button style={styles.smallBtn} onClick={() => editAccount(a)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteAccount(a.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+
+              <SectionCard title="Email Setup">
+                <div style={styles.formGrid2}>
+                  <Input label="From Name" value={emailSettings.from_name} onChange={(v: string) => setEmailSettings({ ...emailSettings, from_name: v })} />
+                  <Input label="From Email" value={emailSettings.from_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, from_email: v })} />
+                  <Input label="Reply-To Email" value={emailSettings.reply_to_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, reply_to_email: v })} />
+                  <Input label="BCC Email" value={emailSettings.bcc_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, bcc_email: v })} />
+                </div>
+                <ButtonRow><button onClick={saveEmailSettings} style={styles.primaryBtn}>Save Email Setup</button></ButtonRow>
+              </SectionCard>
+
+              <SectionCard title={editingTemplateId ? 'Edit Email Template' : 'Email Templates'}>
+                <div style={styles.formGrid2}>
+                  <Field label="Template Name"><select value={template.template_name} onChange={(e) => setTemplate({ ...template, template_name: e.target.value })} style={styles.input}><option value="">Select Template</option><option>Invoice Email</option><option>Quote Email</option><option>Payment Receipt Email</option><option>Overdue Reminder Email</option></select></Field>
+                  <Input label="Subject" value={template.subject} onChange={(v: string) => setTemplate({ ...template, subject: v })} />
+                </div>
+                <Field label="Body"><textarea value={template.body} onChange={(e) => setTemplate({ ...template, body: e.target.value })} style={{ ...styles.input, minHeight: 150, resize: 'vertical' }} /></Field>
+                <ButtonRow><button onClick={saveTemplate} style={styles.primaryBtn}>{editingTemplateId ? 'Update Template' : 'Save Template'}</button>{editingTemplateId && <button onClick={() => { setTemplate(emptyTemplate); setEditingTemplateId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+              </SectionCard>
+              <DataTable title="Email Templates" headers={['Template Name', 'Subject', 'Actions']}>
+                {templates.map((t) => <tr key={t.id}><Td>{t.template_name}</Td><Td>{t.subject}</Td><Td><button style={styles.smallBtn} onClick={() => editTemplate(t)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteTemplate(t.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
         </section>
       </div>
 
@@ -516,14 +665,14 @@ export default function Home() {
           <div className="invoice-page">
             <div className="invoice-header">
               <div>
-                <img src={LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
-                <h1>Aashan & Co LLC</h1>
-                <p>Quality Work Through Dedication</p>
+                <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
+                <h1>{company.company_name || 'Aashan & Co LLC'}</h1>
+                <p>{company.website || 'Quality Work Through Dedication'}</p>
               </div>
               <div className="invoice-company">
-                <p><b>Phone:</b> (832) 210-4248</p>
-                <p><b>Email:</b> support@aashan.co</p>
-                <p><b>Location:</b> Dallas, Texas</p>
+                <p><b>Phone:</b> {company.phone || '(832) 210-4248'}</p>
+                <p><b>Email:</b> {company.email || 'support@aashan.co'}</p>
+                <p><b>Address:</b> {company.address || 'Dallas, Texas'}</p>
               </div>
             </div>
 
