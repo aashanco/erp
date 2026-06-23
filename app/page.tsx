@@ -14,6 +14,10 @@ type Invoice = {
   invoice_date: string;
   due_date: string;
   status: string;
+  notes?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  customer_address?: string;
 };
 type Payment = {
   id?: number;
@@ -26,9 +30,23 @@ type Payment = {
   notes: string;
 };
 
+const LOGO_SRC = '/aashan-logo.png';
+
 const emptyCustomer: Customer = { name: '', phone: '', email: '', address: '' };
 const emptyJob: Job = { customer: '', service: '', job_date: '', amount: '', status: 'New' };
-const emptyInvoice: Invoice = { invoice_no: '', customer: '', job_id: null, amount: '', invoice_date: '', due_date: '', status: 'Draft' };
+const emptyInvoice: Invoice = {
+  invoice_no: '',
+  customer: '',
+  job_id: null,
+  amount: '',
+  invoice_date: '',
+  due_date: '',
+  status: 'Draft',
+  notes: 'Thank you for choosing Aashan & Co LLC.',
+  customer_phone: '',
+  customer_email: '',
+  customer_address: '',
+};
 const emptyPayment: Payment = { invoice_id: null, invoice_no: '', customer: '', payment_date: '', amount: '', payment_method: 'Cash', notes: '' };
 
 export default function Home() {
@@ -41,6 +59,7 @@ export default function Home() {
   const [job, setJob] = useState<Job>(emptyJob);
   const [invoice, setInvoice] = useState<Invoice>(emptyInvoice);
   const [payment, setPayment] = useState<Payment>(emptyPayment);
+  const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
@@ -50,7 +69,6 @@ export default function Home() {
 
   async function loadData() {
     setLoading(true);
-
     const { data: customerData, error: customerError } = await supabase.from('customers').select('*').order('id', { ascending: false });
     const { data: jobData, error: jobError } = await supabase.from('jobs').select('*').order('id', { ascending: false });
     const { data: invoiceData, error: invoiceError } = await supabase.from('invoices').select('*').order('id', { ascending: false });
@@ -70,11 +88,17 @@ export default function Home() {
 
   useEffect(() => { loadData(); }, []);
 
+  useEffect(() => {
+    if (printInvoice) {
+      setTimeout(() => window.print(), 250);
+    }
+  }, [printInvoice]);
+
   function nextInvoiceNo() {
     const maxNo = invoices.reduce((max, inv) => {
       const num = Number(String(inv.invoice_no || '').replace(/[^0-9]/g, ''));
       return Number.isFinite(num) && num > max ? num : max;
-    }, 0);
+    }, 1000);
     return `INV-${String(maxNo + 1).padStart(4, '0')}`;
   }
 
@@ -86,6 +110,14 @@ export default function Home() {
 
   function invoiceBalance(inv: Invoice) {
     return Math.max(Number(inv.amount || 0) - invoicePaidAmount(inv.id, inv.invoice_no), 0);
+  }
+
+  function getCustomerByName(name: string) {
+    return customers.find((c) => c.name === name);
+  }
+
+  function getJobById(jobId?: number | null) {
+    return jobs.find((j) => Number(j.id) === Number(jobId));
   }
 
   async function refreshInvoicePaymentStatus(inv: Invoice) {
@@ -159,6 +191,8 @@ export default function Home() {
     const selected = jobs.find((j) => String(j.id) === jobIdValue);
     if (!selected) return;
     const today = new Date().toISOString().slice(0, 10);
+    const c = getCustomerByName(selected.customer);
+
     setInvoice({
       invoice_no: invoice.invoice_no || nextInvoiceNo(),
       customer: selected.customer,
@@ -167,6 +201,21 @@ export default function Home() {
       invoice_date: invoice.invoice_date || today,
       due_date: invoice.due_date || today,
       status: invoice.status || 'Draft',
+      notes: invoice.notes || 'Thank you for choosing Aashan & Co LLC.',
+      customer_phone: c?.phone || '',
+      customer_email: c?.email || '',
+      customer_address: c?.address || '',
+    });
+  }
+
+  function fillInvoiceCustomer(customerName: string) {
+    const c = getCustomerByName(customerName);
+    setInvoice({
+      ...invoice,
+      customer: customerName,
+      customer_phone: c?.phone || '',
+      customer_email: c?.email || '',
+      customer_address: c?.address || '',
     });
   }
 
@@ -174,6 +223,7 @@ export default function Home() {
     if (!invoice.customer.trim()) return alert('Select customer');
     if (!invoice.amount) return alert('Enter invoice amount');
 
+    const c = getCustomerByName(invoice.customer);
     const payload = {
       invoice_no: invoice.invoice_no || nextInvoiceNo(),
       customer: invoice.customer,
@@ -182,6 +232,10 @@ export default function Home() {
       invoice_date: invoice.invoice_date || null,
       due_date: invoice.due_date || null,
       status: invoice.status,
+      notes: invoice.notes || '',
+      customer_phone: invoice.customer_phone || c?.phone || '',
+      customer_email: invoice.customer_email || c?.email || '',
+      customer_address: invoice.customer_address || c?.address || '',
     };
 
     const res = editingInvoiceId
@@ -198,7 +252,14 @@ export default function Home() {
   }
 
   function editInvoice(inv: Invoice) {
-    setInvoice({ ...inv, amount: String(inv.amount || '') });
+    const c = getCustomerByName(inv.customer);
+    setInvoice({
+      ...inv,
+      amount: String(inv.amount || ''),
+      customer_phone: inv.customer_phone || c?.phone || '',
+      customer_email: inv.customer_email || c?.email || '',
+      customer_address: inv.customer_address || c?.address || '',
+    });
     setEditingInvoiceId(inv.id || null);
     setActiveTab('invoices');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -257,7 +318,6 @@ export default function Home() {
     const relatedInvoice = invoices.find((i) => Number(i.id) === Number(payload.invoice_id));
     setPayment(emptyPayment);
     setEditingPaymentId(null);
-
     await loadData();
 
     if (relatedInvoice) {
@@ -318,135 +378,209 @@ export default function Home() {
 
   return (
     <main style={styles.page}>
-      <header style={styles.header}>
-        <div>
-          <h1 style={styles.headerTitle}>Aashan ERP Web</h1>
-          <p style={styles.headerSub}>Aashan & Co LLC - Customers, Jobs, Invoices, Payments & Manager.io Export</p>
+      <style>{printCss}</style>
+
+      <div className="app-screen">
+        <header style={styles.header}>
+          <div>
+            <h1 style={styles.headerTitle}>Aashan ERP Web</h1>
+            <p style={styles.headerSub}>Aashan & Co LLC - Customers, Jobs, Invoices, Payments & Manager.io Export</p>
+          </div>
+          <div style={styles.phaseBadge}>Phase 5 PDF Invoice</div>
+        </header>
+
+        <section style={styles.container}>
+          <div style={styles.toolbar}>
+            {(['dashboard', 'customers', 'jobs', 'invoices', 'payments'] as const).map((tab) => (
+              <button key={tab} style={activeTab === tab ? styles.tabActive : styles.tab} onClick={() => setActiveTab(tab)}>
+                {tab[0].toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+            <button style={styles.tab} onClick={() => exportCsv('manager-customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
+            <button style={styles.tab} onClick={() => exportCsv('manager-invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
+            <button style={styles.tab} onClick={() => exportCsv('manager-payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
+          </div>
+
+          <input placeholder="Search customer, job, invoice, payment, status..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
+          {loading && <p>Loading...</p>}
+
+          <div style={styles.cards}>
+            <Card title="Customers" value={customers.length} />
+            <Card title="Jobs" value={jobs.length} />
+            <Card title="Invoices" value={invoices.length} />
+            <Card title="Open Invoices" value={openInvoices} />
+            <Card title="Outstanding" value={`$${outstanding.toFixed(2)}`} />
+            <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
+            <Card title="In Progress" value={jobsInProgress} />
+            <Card title="Completed Jobs" value={completedJobs} />
+          </div>
+
+          {(activeTab === 'dashboard' || activeTab === 'customers') && (
+            <>
+              <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Name" value={customer.name} onChange={(v: string) => setCustomer({ ...customer, name: v })} />
+                  <Input label="Phone" value={customer.phone} onChange={(v: string) => setCustomer({ ...customer, phone: v })} />
+                  <Input label="Email" value={customer.email} onChange={(v: string) => setCustomer({ ...customer, email: v })} />
+                  <Input label="Address" value={customer.address} onChange={(v: string) => setCustomer({ ...customer, address: v })} />
+                </div>
+                <ButtonRow>
+                  <button onClick={saveCustomer} style={styles.primaryBtn}>{editingCustomerId ? 'Update Customer' : 'Save Customer'}</button>
+                  {editingCustomerId && <button onClick={() => { setCustomer(emptyCustomer); setEditingCustomerId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Customer List" headers={['Name', 'Phone', 'Email', 'Address', 'Actions']}>
+                {filteredCustomers.map((c) => <tr key={c.id}><Td>{c.name}</Td><Td>{c.phone}</Td><Td>{c.email}</Td><Td>{c.address}</Td><Td><button style={styles.smallBtn} onClick={() => editCustomer(c)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteCustomer(c.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'dashboard' || activeTab === 'jobs') && (
+            <>
+              <SectionCard title={editingJobId ? 'Edit Job / Quote' : 'Add Job / Quote'}>
+                <div style={styles.formGrid2}>
+                  <Field label="Customer"><select value={job.customer} onChange={(e) => setJob({ ...job, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                  <Input label="Service" value={job.service} onChange={(v: string) => setJob({ ...job, service: v })} />
+                  <Input label="Date" type="date" value={job.job_date} onChange={(v: string) => setJob({ ...job, job_date: v })} />
+                  <Input label="Amount" value={job.amount} onChange={(v: string) => setJob({ ...job, amount: v })} />
+                  <Field label="Status"><select value={job.status} onChange={(e) => setJob({ ...job, status: e.target.value })} style={styles.input}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Field>
+                </div>
+                <ButtonRow>
+                  <button onClick={saveJob} style={styles.greenBtn}>{editingJobId ? 'Update Job' : 'Save Job'}</button>
+                  {editingJobId && <button onClick={() => { setJob(emptyJob); setEditingJobId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Jobs & Quotes" headers={['Customer', 'Service', 'Date', 'Amount', 'Status', 'Quick Status', 'Actions']}>
+                {filteredJobs.map((j) => <tr key={j.id}><Td>{j.customer}</Td><Td>{j.service}</Td><Td>{j.job_date}</Td><Td>${Number(j.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={j.status} /></Td><Td><select value={j.status} onChange={(e) => quickJobStatus(j.id, e.target.value)} style={styles.smallSelect}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Td><Td><button style={styles.smallBtn} onClick={() => editJob(j)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJob(j.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'dashboard' || activeTab === 'invoices') && (
+            <>
+              <SectionCard title={editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}>
+                <div style={styles.formGrid2}>
+                  <Field label="From Job"><select value={invoice.job_id ? String(invoice.job_id) : ''} onChange={(e) => fillInvoiceFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{availableInvoiceJobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service} - ${j.amount}</option>)}</select></Field>
+                  <Input label="Invoice No" value={invoice.invoice_no} onChange={(v: string) => setInvoice({ ...invoice, invoice_no: v })} />
+                  <Field label="Customer"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                  <Input label="Invoice Date" type="date" value={invoice.invoice_date} onChange={(v: string) => setInvoice({ ...invoice, invoice_date: v })} />
+                  <Input label="Due Date" type="date" value={invoice.due_date} onChange={(v: string) => setInvoice({ ...invoice, due_date: v })} />
+                  <Input label="Amount" value={invoice.amount} onChange={(v: string) => setInvoice({ ...invoice, amount: v })} />
+                  <Input label="Customer Phone" value={invoice.customer_phone || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_phone: v })} />
+                  <Input label="Customer Email" value={invoice.customer_email || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_email: v })} />
+                  <Input label="Customer Address" value={invoice.customer_address || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_address: v })} />
+                  <Field label="Status"><select value={invoice.status} onChange={(e) => setInvoice({ ...invoice, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></Field>
+                  <Input label="Notes" value={invoice.notes || ''} onChange={(v: string) => setInvoice({ ...invoice, notes: v })} />
+                </div>
+                <ButtonRow>
+                  <button onClick={saveInvoice} style={styles.primaryBtn}>{editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</button>
+                  {editingInvoiceId && <button onClick={() => { setInvoice(emptyInvoice); setEditingInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
+                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => setPrintInvoice(i)}>Print</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'dashboard' || activeTab === 'payments') && (
+            <>
+              <SectionCard title={editingPaymentId ? 'Edit Payment' : 'Record Payment'}>
+                <div style={styles.formGrid2}>
+                  <Field label="Invoice"><select value={payment.invoice_id ? String(payment.invoice_id) : ''} onChange={(e) => fillPaymentFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{payableInvoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer} - Balance ${invoiceBalance(i).toFixed(2)}</option>)}</select></Field>
+                  <Input label="Customer" value={payment.customer} onChange={(v: string) => setPayment({ ...payment, customer: v })} />
+                  <Input label="Payment Date" type="date" value={payment.payment_date} onChange={(v: string) => setPayment({ ...payment, payment_date: v })} />
+                  <Input label="Amount" value={payment.amount} onChange={(v: string) => setPayment({ ...payment, amount: v })} />
+                  <Field label="Payment Method"><select value={payment.payment_method} onChange={(e) => setPayment({ ...payment, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                  <Input label="Notes" value={payment.notes} onChange={(v: string) => setPayment({ ...payment, notes: v })} />
+                </div>
+                <ButtonRow>
+                  <button onClick={savePayment} style={styles.primaryBtn}>{editingPaymentId ? 'Update Payment' : 'Save Payment'}</button>
+                  {editingPaymentId && <button onClick={() => { setPayment(emptyPayment); setEditingPaymentId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Notes', 'Actions']}>
+                {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+        </section>
+      </div>
+
+      {printInvoice && (
+        <div className="invoice-print">
+          <div className="invoice-page">
+            <div className="invoice-header">
+              <div>
+                <img src={LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
+                <h1>Aashan & Co LLC</h1>
+                <p>Quality Work Through Dedication</p>
+              </div>
+              <div className="invoice-company">
+                <p><b>Phone:</b> (832) 210-4248</p>
+                <p><b>Email:</b> support@aashan.co</p>
+                <p><b>Location:</b> Dallas, Texas</p>
+              </div>
+            </div>
+
+            <div className="invoice-title-row">
+              <div>
+                <h2>INVOICE</h2>
+                <p><b>Invoice #:</b> {printInvoice.invoice_no}</p>
+                <p><b>Status:</b> {printInvoice.status}</p>
+              </div>
+              <div>
+                <p><b>Invoice Date:</b> {printInvoice.invoice_date}</p>
+                <p><b>Due Date:</b> {printInvoice.due_date}</p>
+              </div>
+            </div>
+
+            <div className="invoice-billto">
+              <h3>Bill To</h3>
+              <p><b>{printInvoice.customer}</b></p>
+              <p>{printInvoice.customer_address || getCustomerByName(printInvoice.customer)?.address}</p>
+              <p>{printInvoice.customer_phone || getCustomerByName(printInvoice.customer)?.phone}</p>
+              <p>{printInvoice.customer_email || getCustomerByName(printInvoice.customer)?.email}</p>
+            </div>
+
+            <table className="invoice-table">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{getJobById(printInvoice.job_id)?.service || 'Service'}</td>
+                  <td>${Number(printInvoice.amount || 0).toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="invoice-total">
+              <p><span>Subtotal:</span> <b>${Number(printInvoice.amount || 0).toFixed(2)}</b></p>
+              <p><span>Paid:</span> <b>${invoicePaidAmount(printInvoice.id, printInvoice.invoice_no).toFixed(2)}</b></p>
+              <p><span>Balance Due:</span> <b>${invoiceBalance(printInvoice).toFixed(2)}</b></p>
+            </div>
+
+            <div className="invoice-notes">
+              <h3>Notes</h3>
+              <p>{printInvoice.notes || 'Thank you for choosing Aashan & Co LLC.'}</p>
+              <p>Payment due within agreed terms.</p>
+            </div>
+
+            <div className="invoice-footer">
+              Thank you for choosing Aashan & Co LLC.
+            </div>
+          </div>
+          <button className="close-print" onClick={() => setPrintInvoice(null)}>Close Print Preview</button>
         </div>
-        <div style={styles.phaseBadge}>Phase 4 Payments</div>
-      </header>
-
-      <section style={styles.container}>
-        <div style={styles.toolbar}>
-          {(['dashboard', 'customers', 'jobs', 'invoices', 'payments'] as const).map((tab) => (
-            <button key={tab} style={activeTab === tab ? styles.tabActive : styles.tab} onClick={() => setActiveTab(tab)}>
-              {tab[0].toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-          <button style={styles.tab} onClick={() => exportCsv('manager-customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
-          <button style={styles.tab} onClick={() => exportCsv('manager-invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
-          <button style={styles.tab} onClick={() => exportCsv('manager-payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
-        </div>
-
-        <input placeholder="Search customer, job, invoice, payment, status..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
-        {loading && <p>Loading...</p>}
-
-        <div style={styles.cards}>
-          <Card title="Customers" value={customers.length} />
-          <Card title="Jobs" value={jobs.length} />
-          <Card title="Invoices" value={invoices.length} />
-          <Card title="Open Invoices" value={openInvoices} />
-          <Card title="Outstanding" value={`$${outstanding.toFixed(2)}`} />
-          <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
-          <Card title="In Progress" value={jobsInProgress} />
-          <Card title="Completed Jobs" value={completedJobs} />
-        </div>
-
-        {(activeTab === 'dashboard' || activeTab === 'customers') && (
-          <>
-            <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
-              <div style={styles.formGrid2}>
-                <Input label="Name" value={customer.name} onChange={(v: string) => setCustomer({ ...customer, name: v })} />
-                <Input label="Phone" value={customer.phone} onChange={(v: string) => setCustomer({ ...customer, phone: v })} />
-                <Input label="Email" value={customer.email} onChange={(v: string) => setCustomer({ ...customer, email: v })} />
-                <Input label="Address" value={customer.address} onChange={(v: string) => setCustomer({ ...customer, address: v })} />
-              </div>
-              <ButtonRow>
-                <button onClick={saveCustomer} style={styles.primaryBtn}>{editingCustomerId ? 'Update Customer' : 'Save Customer'}</button>
-                {editingCustomerId && <button onClick={() => { setCustomer(emptyCustomer); setEditingCustomerId(null); }} style={styles.grayBtn}>Cancel</button>}
-              </ButtonRow>
-            </SectionCard>
-
-            <DataTable title="Customer List" headers={['Name', 'Phone', 'Email', 'Address', 'Actions']}>
-              {filteredCustomers.map((c) => <tr key={c.id}><Td>{c.name}</Td><Td>{c.phone}</Td><Td>{c.email}</Td><Td>{c.address}</Td><Td><button style={styles.smallBtn} onClick={() => editCustomer(c)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteCustomer(c.id)}>Delete</button></Td></tr>)}
-            </DataTable>
-          </>
-        )}
-
-        {(activeTab === 'dashboard' || activeTab === 'jobs') && (
-          <>
-            <SectionCard title={editingJobId ? 'Edit Job / Quote' : 'Add Job / Quote'}>
-              <div style={styles.formGrid2}>
-                <Field label="Customer"><select value={job.customer} onChange={(e) => setJob({ ...job, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
-                <Input label="Service" value={job.service} onChange={(v: string) => setJob({ ...job, service: v })} />
-                <Input label="Date" type="date" value={job.job_date} onChange={(v: string) => setJob({ ...job, job_date: v })} />
-                <Input label="Amount" value={job.amount} onChange={(v: string) => setJob({ ...job, amount: v })} />
-                <Field label="Status"><select value={job.status} onChange={(e) => setJob({ ...job, status: e.target.value })} style={styles.input}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Field>
-              </div>
-              <ButtonRow>
-                <button onClick={saveJob} style={styles.greenBtn}>{editingJobId ? 'Update Job' : 'Save Job'}</button>
-                {editingJobId && <button onClick={() => { setJob(emptyJob); setEditingJobId(null); }} style={styles.grayBtn}>Cancel</button>}
-              </ButtonRow>
-            </SectionCard>
-
-            <DataTable title="Jobs & Quotes" headers={['Customer', 'Service', 'Date', 'Amount', 'Status', 'Quick Status', 'Actions']}>
-              {filteredJobs.map((j) => <tr key={j.id}><Td>{j.customer}</Td><Td>{j.service}</Td><Td>{j.job_date}</Td><Td>${Number(j.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={j.status} /></Td><Td><select value={j.status} onChange={(e) => quickJobStatus(j.id, e.target.value)} style={styles.smallSelect}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Td><Td><button style={styles.smallBtn} onClick={() => editJob(j)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJob(j.id)}>Delete</button></Td></tr>)}
-            </DataTable>
-          </>
-        )}
-
-        {(activeTab === 'dashboard' || activeTab === 'invoices') && (
-          <>
-            <SectionCard title={editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}>
-              <div style={styles.formGrid2}>
-                <Field label="From Job"><select value={invoice.job_id ? String(invoice.job_id) : ''} onChange={(e) => fillInvoiceFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{availableInvoiceJobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service} - ${j.amount}</option>)}</select></Field>
-                <Input label="Invoice No" value={invoice.invoice_no} onChange={(v: string) => setInvoice({ ...invoice, invoice_no: v })} />
-                <Field label="Customer"><select value={invoice.customer} onChange={(e) => setInvoice({ ...invoice, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
-                <Input label="Invoice Date" type="date" value={invoice.invoice_date} onChange={(v: string) => setInvoice({ ...invoice, invoice_date: v })} />
-                <Input label="Due Date" type="date" value={invoice.due_date} onChange={(v: string) => setInvoice({ ...invoice, due_date: v })} />
-                <Input label="Amount" value={invoice.amount} onChange={(v: string) => setInvoice({ ...invoice, amount: v })} />
-                <Field label="Status"><select value={invoice.status} onChange={(e) => setInvoice({ ...invoice, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></Field>
-              </div>
-              <ButtonRow>
-                <button onClick={saveInvoice} style={styles.primaryBtn}>{editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</button>
-                {editingInvoiceId && <button onClick={() => { setInvoice(emptyInvoice); setEditingInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}
-              </ButtonRow>
-            </SectionCard>
-
-            <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Quick Status', 'Actions']}>
-              {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><select value={i.status} onChange={(e) => quickInvoiceStatus(i.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></Td><Td><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
-            </DataTable>
-          </>
-        )}
-
-        {(activeTab === 'dashboard' || activeTab === 'payments') && (
-          <>
-            <SectionCard title={editingPaymentId ? 'Edit Payment' : 'Record Payment'}>
-              <div style={styles.formGrid2}>
-                <Field label="Invoice">
-                  <select value={payment.invoice_id ? String(payment.invoice_id) : ''} onChange={(e) => fillPaymentFromInvoice(e.target.value)} style={styles.input}>
-                    <option value="">Select Invoice</option>
-                    {payableInvoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer} - Balance ${invoiceBalance(i).toFixed(2)}</option>)}
-                  </select>
-                </Field>
-                <Input label="Customer" value={payment.customer} onChange={(v: string) => setPayment({ ...payment, customer: v })} />
-                <Input label="Payment Date" type="date" value={payment.payment_date} onChange={(v: string) => setPayment({ ...payment, payment_date: v })} />
-                <Input label="Amount" value={payment.amount} onChange={(v: string) => setPayment({ ...payment, amount: v })} />
-                <Field label="Payment Method"><select value={payment.payment_method} onChange={(e) => setPayment({ ...payment, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
-                <Input label="Notes" value={payment.notes} onChange={(v: string) => setPayment({ ...payment, notes: v })} />
-              </div>
-              <ButtonRow>
-                <button onClick={savePayment} style={styles.primaryBtn}>{editingPaymentId ? 'Update Payment' : 'Save Payment'}</button>
-                {editingPaymentId && <button onClick={() => { setPayment(emptyPayment); setEditingPaymentId(null); }} style={styles.grayBtn}>Cancel</button>}
-              </ButtonRow>
-            </SectionCard>
-
-            <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Notes', 'Actions']}>
-              {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
-            </DataTable>
-          </>
-        )}
-      </section>
+      )}
     </main>
   );
 }
@@ -499,6 +633,7 @@ const styles: Record<string, any> = {
   greenBtn: { background: '#059669', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
   grayBtn: { background: '#64748b', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
   smallBtn: { background: '#2563eb', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  printBtn: { background: '#111827', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
   dangerBtn: { background: '#dc2626', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, cursor: 'pointer' },
   smallSelect: { padding: 7, border: '1px solid #cbd5e1', borderRadius: 7 },
   badge: { padding: '5px 9px', borderRadius: 999, fontWeight: 700, fontSize: 12 },
@@ -511,3 +646,140 @@ const styles: Record<string, any> = {
   th: { textAlign: 'left', padding: 12, background: '#f8fafc', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' },
   td: { padding: 12, borderBottom: '1px solid #e5e7eb', verticalAlign: 'middle' },
 };
+
+const printCss = `
+.invoice-print { display: none; }
+@media print {
+  body { margin: 0; background: white !important; }
+  .app-screen { display: none !important; }
+  .invoice-print { display: block !important; }
+  .close-print { display: none !important; }
+}
+@media screen {
+  .invoice-print {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.70);
+    z-index: 9999;
+    overflow: auto;
+    padding: 30px;
+  }
+  .close-print {
+    display: block;
+    margin: 15px auto;
+    padding: 10px 16px;
+    border: none;
+    background: #dc2626;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+  }
+}
+.invoice-page {
+  background: white;
+  color: #111827;
+  max-width: 850px;
+  min-height: 1050px;
+  margin: 0 auto;
+  padding: 40px;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+}
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 3px solid #0f172a;
+  padding-bottom: 20px;
+  gap: 25px;
+}
+.invoice-logo {
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  border-radius: 12px;
+}
+.invoice-header h1 {
+  margin: 10px 0 4px;
+  color: #0f172a;
+}
+.invoice-header p {
+  margin: 4px 0;
+}
+.invoice-company {
+  text-align: right;
+  font-size: 14px;
+}
+.invoice-title-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 28px;
+  gap: 25px;
+}
+.invoice-title-row h2 {
+  font-size: 34px;
+  margin: 0 0 10px;
+  color: #0f172a;
+}
+.invoice-billto {
+  background: #f8fafc;
+  padding: 18px;
+  border-radius: 10px;
+  margin-top: 25px;
+}
+.invoice-billto h3 {
+  margin-top: 0;
+}
+.invoice-billto p {
+  margin: 5px 0;
+}
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 25px;
+}
+.invoice-table th {
+  background: #0f172a;
+  color: white;
+  padding: 12px;
+  text-align: left;
+}
+.invoice-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 14px 12px;
+}
+.invoice-table td:last-child,
+.invoice-table th:last-child {
+  text-align: right;
+}
+.invoice-total {
+  width: 320px;
+  margin-left: auto;
+  margin-top: 25px;
+  background: #f8fafc;
+  padding: 15px;
+  border-radius: 10px;
+}
+.invoice-total p {
+  display: flex;
+  justify-content: space-between;
+  margin: 8px 0;
+  font-size: 16px;
+}
+.invoice-total p:last-child {
+  font-size: 20px;
+  border-top: 2px solid #0f172a;
+  padding-top: 10px;
+}
+.invoice-notes {
+  margin-top: 35px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 18px;
+}
+.invoice-footer {
+  margin-top: 50px;
+  text-align: center;
+  font-weight: 700;
+  color: #0f172a;
+}
+`;
