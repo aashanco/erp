@@ -143,6 +143,7 @@ export default function Home() {
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -1535,6 +1536,12 @@ export default function Home() {
     );
   }
 
+  function openTab(tab: typeof activeTab) {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   return (
     <main style={styles.page}>
       <style>{printCss}</style>
@@ -1550,37 +1557,38 @@ export default function Home() {
 
         <section style={styles.container}>
           <div style={styles.erpShell}>
-            <aside style={styles.sidebar}>
-              <div style={styles.sidebarBrand}>Aashan ERP</div>
+{mobileMenuOpen && <div className="mobile-backdrop" onClick={() => setMobileMenuOpen(false)} />}
+            <aside className={mobileMenuOpen ? "sidebar-open" : ""} style={styles.sidebar}>
+              <div style={styles.sidebarBrand}><span>Aashan ERP</span><button className="mobile-close-button" style={styles.mobileCloseButton} onClick={() => setMobileMenuOpen(false)}>×</button></div>
 
               <SidebarGroup title="Business">
-                <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-                <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} />
-                <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => setActiveTab('vendors')} />
+                <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => openTab('dashboard')} />
+                <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => openTab('customers')} />
+                <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => openTab('vendors')} />
               </SidebarGroup>
 
               <SidebarGroup title="Operations">
-                <SideButton label="Quotes" active={activeTab === 'quotes'} onClick={() => setActiveTab('quotes')} />
-                <SideButton label="Jobs" active={activeTab === 'jobs'} onClick={() => setActiveTab('jobs')} />
-                <SideButton label="Work Orders" active={activeTab === 'workorders'} onClick={() => setActiveTab('workorders')} />
-                <SideButton label="Calendar" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
+                <SideButton label="Quotes" active={activeTab === 'quotes'} onClick={() => openTab('quotes')} />
+                <SideButton label="Jobs" active={activeTab === 'jobs'} onClick={() => openTab('jobs')} />
+                <SideButton label="Work Orders" active={activeTab === 'workorders'} onClick={() => openTab('workorders')} />
+                <SideButton label="Calendar" active={activeTab === 'calendar'} onClick={() => openTab('calendar')} />
               </SidebarGroup>
 
               <SidebarGroup title="Finance">
-                <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => setActiveTab('invoices')} />
-                <SideButton label="Payments" active={activeTab === 'payments'} onClick={() => setActiveTab('payments')} />
-                <SideButton label="Receipts" active={activeTab === 'receipts'} onClick={() => setActiveTab('receipts')} />
-                <SideButton label="Expenses" active={activeTab === 'expenses'} onClick={() => setActiveTab('expenses')} />
-                <SideButton label="Purchase Invoices" active={activeTab === 'purchases'} onClick={() => setActiveTab('purchases')} />
-                <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => setActiveTab('journals')} />
-                <SideButton label="Banks" active={activeTab === 'banks'} onClick={() => setActiveTab('banks')} />
-                <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
+                <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => openTab('invoices')} />
+                <SideButton label="Payments" active={activeTab === 'payments'} onClick={() => openTab('payments')} />
+                <SideButton label="Receipts" active={activeTab === 'receipts'} onClick={() => openTab('receipts')} />
+                <SideButton label="Expenses" active={activeTab === 'expenses'} onClick={() => openTab('expenses')} />
+                <SideButton label="Purchase Invoices" active={activeTab === 'purchases'} onClick={() => openTab('purchases')} />
+                <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => openTab('journals')} />
+                <SideButton label="Banks" active={activeTab === 'banks'} onClick={() => openTab('banks')} />
+                <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => openTab('reports')} />
               </SidebarGroup>
 
               {canAdmin && (
                 <SidebarGroup title="Administration">
-                  <SideButton label="Masters" active={activeTab === 'masters'} onClick={() => setActiveTab('masters')} />
-                  <SideButton label="Import / Export" active={activeTab === 'import'} onClick={() => setActiveTab('import')} />
+                  <SideButton label="Masters" active={activeTab === 'masters'} onClick={() => openTab('masters')} />
+                  <SideButton label="Import / Export" active={activeTab === 'import'} onClick={() => openTab('import')} />
                 </SidebarGroup>
               )}
             </aside>
@@ -1621,10 +1629,10 @@ export default function Home() {
                   <div style={styles.dashboardGrid}>
                     <SectionCard title="Quick Actions">
                       <div style={styles.quickActions}>
-                        <button style={styles.primaryBtn} onClick={() => setActiveTab('quotes')}>Create Quote</button>
-                        <button style={styles.greenBtn} onClick={() => setActiveTab('jobs')}>Create Job</button>
-                        <button style={styles.primaryBtn} onClick={() => setActiveTab('invoices')}>Create Invoice</button>
-                        <button style={styles.grayBtn} onClick={() => setActiveTab('import')}>Import Data</button>
+                        <button style={styles.primaryBtn} onClick={() => openTab('quotes')}>Create Quote</button>
+                        <button style={styles.greenBtn} onClick={() => openTab('jobs')}>Create Job</button>
+                        <button style={styles.primaryBtn} onClick={() => openTab('invoices')}>Create Invoice</button>
+                        <button style={styles.grayBtn} onClick={() => openTab('import')}>Import Data</button>
                       </div>
                     </SectionCard>
                     <SectionCard title="Today Schedule">
@@ -2409,7 +2417,9 @@ const styles: Record<string, any> = {
   container: { maxWidth: 1500, margin: '0 auto', padding: 18 },
   erpShell: { display: 'grid', gridTemplateColumns: '260px 1fr', gap: 18, alignItems: 'start' },
   sidebar: { background: '#0f172a', color: 'white', borderRadius: 18, padding: 16, position: 'sticky', top: 16, minHeight: 'calc(100vh - 130px)' },
-  sidebarBrand: { fontSize: 20, fontWeight: 800, padding: '8px 10px 18px', borderBottom: '1px solid rgba(255,255,255,0.14)', marginBottom: 12 },
+  sidebarBrand: { fontSize: 20, fontWeight: 800, padding: '8px 10px 18px', borderBottom: '1px solid rgba(255,255,255,0.14)', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  mobileMenuButton: { display: 'none', background: '#2563eb', color: 'white', border: 0, borderRadius: 10, padding: '9px 13px', cursor: 'pointer', fontWeight: 800 },
+  mobileCloseButton: { display: 'none', background: 'transparent', color: 'white', border: 0, fontSize: 28, cursor: 'pointer' },
   sidebarGroup: { marginBottom: 18 },
   sidebarGroupTitle: { fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, margin: '12px 10px 8px' },
   sideButton: { width: '100%', textAlign: 'left', background: 'transparent', color: '#dbeafe', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 },
@@ -2463,11 +2473,50 @@ const printCss = `
   .app-screen section > div {
     display: block !important;
   }
+
+  .mobile-menu-button {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mobile-close-button {
+    display: block !important;
+  }
+
   aside {
-    position: relative !important;
-    top: auto !important;
-    min-height: auto !important;
-    margin-bottom: 16px;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 82vw !important;
+    max-width: 330px !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    z-index: 10001 !important;
+    border-radius: 0 18px 18px 0 !important;
+    overflow-y: auto !important;
+    transform: translateX(-110%);
+    transition: transform 0.2s ease;
+    margin: 0 !important;
+  }
+
+  aside.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 10000;
+  }
+
+  input, select, textarea, button {
+    font-size: 16px !important;
+  }
+
+  table {
+    font-size: 13px;
   }
 }
 @media print {
