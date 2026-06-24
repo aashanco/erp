@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import * as XLSX from 'xlsx';
 
 type Customer = { id?: number; name: string; phone: string; email: string; address: string };
 type Job = { id?: number; customer: string; service: string; job_date: string; amount: string; status: string };
@@ -147,6 +148,9 @@ export default function Home() {
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [pendingImportType, setPendingImportType] = useState<'customers' | 'vendors' | 'expenses' | 'accounts' | ''>('');
 
 
   const canEdit = profile?.role !== 'Read Only';
@@ -919,16 +923,71 @@ export default function Home() {
     });
   }
 
-  async function importCsvFile(event: any, importType: 'customers' | 'vendors' | 'expenses') {
+
+  function normalizeImportRows(records: any[]) {
+    return records.map((r) => {
+      const normalized: Record<string, string> = {};
+      Object.keys(r).forEach((key) => {
+        normalized[String(key).toLowerCase().trim()] = String(r[key] ?? '').trim();
+      });
+      return normalized;
+    });
+  }
+
+  function validateImport(importType: 'customers' | 'vendors' | 'expenses' | 'accounts', records: any[]) {
+    const errors: string[] = [];
+
+    records.forEach((r, idx) => {
+      const row = idx + 2;
+
+      if (importType === 'customers' && !(r.name || r.customer || r.customer_name)) {
+        errors.push(`Row ${row}: Customer name is required`);
+      }
+
+      if (importType === 'vendors' && !(r.vendor_name || r.vendor || r.name)) {
+        errors.push(`Row ${row}: Vendor name is required`);
+      }
+
+      if (importType === 'expenses') {
+        if (!(r.description || r.amount)) errors.push(`Row ${row}: Description or amount is required`);
+        if (r.amount && Number.isNaN(Number(r.amount))) errors.push(`Row ${row}: Amount must be numeric`);
+      }
+
+      if (importType === 'accounts') {
+        if (!r.account_code) errors.push(`Row ${row}: Account code is required`);
+        if (!r.account_name) errors.push(`Row ${row}: Account name is required`);
+      }
+    });
+
+    return errors;
+  }
+
+  async function previewImportFile(event: any, importType: 'customers' | 'vendors' | 'expenses' | 'accounts') {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const text = await file.text();
-    const records = mapRows(parseCsv(text));
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as any[];
 
-    if (records.length === 0) return alert('No data found in file');
+    const records = normalizeImportRows(rawRows);
+    const errors = validateImport(importType, records);
 
-    if (importType === 'customers') {
+    setPendingImportType(importType);
+    setImportPreview(records.slice(0, 20));
+    setImportErrors(errors);
+
+    event.target.value = '';
+  }
+
+  async function confirmImport() {
+    if (!pendingImportType || importPreview.length === 0) return alert('No import file selected');
+    if (importErrors.length > 0) return alert('Please fix errors before importing');
+
+    const records = importPreview;
+
+    if (pendingImportType === 'customers') {
       const payload = records.map((r) => ({
         name: r.name || r.customer || r.customer_name || '',
         phone: r.phone || '',
@@ -940,7 +999,7 @@ export default function Home() {
       if (error) return alert(error.message);
     }
 
-    if (importType === 'vendors') {
+    if (pendingImportType === 'vendors') {
       const payload = records.map((r, idx) => ({
         vendor_no: r.vendor_no || r.vendor_number || `V-${String(vendors.length + idx + 1).padStart(4, '0')}`,
         vendor_name: r.vendor_name || r.vendor || r.name || '',
@@ -957,7 +1016,7 @@ export default function Home() {
       if (error) return alert(error.message);
     }
 
-    if (importType === 'expenses') {
+    if (pendingImportType === 'expenses') {
       const payload = records.map((r, idx) => ({
         expense_no: r.expense_no || r.expense_number || `EXP-${String(expenses.length + idx + 1).padStart(4, '0')}`,
         expense_date: r.expense_date || r.date || null,
@@ -973,9 +1032,42 @@ export default function Home() {
       if (error) return alert(error.message);
     }
 
-    event.target.value = '';
+    if (pendingImportType === 'accounts') {
+      const payload = records.map((r) => ({
+        account_code: r.account_code || '',
+        account_name: r.account_name || '',
+        account_type: r.account_type || 'Expense',
+        normal_balance: r.normal_balance || 'Debit',
+        is_active: String(r.is_active || 'true').toLowerCase() !== 'false',
+      })).filter((r) => r.account_code && r.account_name);
+
+      const { error } = await supabase.from('chart_of_accounts').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    setImportPreview([]);
+    setImportErrors([]);
+    setPendingImportType('');
     await loadData();
-    alert('Import completed');
+    alert('Excel import completed');
+  }
+
+  function downloadTemplate(type: 'customers' | 'vendors' | 'expenses' | 'accounts') {
+    const templates: Record<string, any[]> = {
+      customers: [{ name: 'John Smith', phone: '832-000-0000', email: 'john@example.com', address: 'Dallas, TX' }],
+      vendors: [{ vendor_no: 'V-0001', vendor_name: 'Home Depot', contact_person: '', phone: '', email: '', address: '', tax_id: '', notes: '', status: 'Active' }],
+      expenses: [{ expense_no: 'EXP-0001', expense_date: '2026-06-24', vendor: 'Home Depot', category: 'Materials', description: 'TV Mount', amount: 45, payment_method: 'Credit Card', status: 'Paid' }],
+      accounts: [{ account_code: '4000', account_name: 'Service Revenue', account_type: 'Revenue', normal_balance: 'Credit', is_active: true }],
+    };
+
+    const ws = XLSX.utils.json_to_sheet(templates[type]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, type);
+    XLSX.writeFile(wb, `${type}-template.xlsx`);
+  }
+
+  async function importCsvFile(event: any, importType: 'customers' | 'vendors' | 'expenses') {
+    await previewImportFile(event, importType);
   }
 
   function exportCsv(filename: string, rows: any[][]) {
@@ -1423,20 +1515,64 @@ export default function Home() {
 
           {(activeTab === 'import') && (
             <>
-              <SectionCard title="Import Data from Excel / CSV">
-                <p style={styles.helpText}>Save your Excel sheet as CSV, then upload it here. Header names can be simple, such as name, phone, email, address.</p>
+              <SectionCard title="Import Data from Excel">
+                <p style={styles.helpText}>Upload .xlsx files directly. The app will preview the first 20 rows and validate required columns before saving.</p>
                 <div style={styles.formGrid2}>
-                  <Field label="Import Customers CSV">
-                    <input type="file" accept=".csv" onChange={(e) => importCsvFile(e, 'customers')} style={styles.input} />
+                  <Field label="Import Customers Excel">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'customers')} style={styles.input} />
                   </Field>
-                  <Field label="Import Vendors CSV">
-                    <input type="file" accept=".csv" onChange={(e) => importCsvFile(e, 'vendors')} style={styles.input} />
+                  <Field label="Import Vendors Excel">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'vendors')} style={styles.input} />
                   </Field>
-                  <Field label="Import Expenses CSV">
-                    <input type="file" accept=".csv" onChange={(e) => importCsvFile(e, 'expenses')} style={styles.input} />
+                  <Field label="Import Expenses Excel">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'expenses')} style={styles.input} />
+                  </Field>
+                  <Field label="Import Chart of Accounts Excel">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'accounts')} style={styles.input} />
                   </Field>
                 </div>
+                <ButtonRow>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('customers')}>Customer Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('vendors')}>Vendor Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('expenses')}>Expense Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('accounts')}>COA Template</button>
+                </ButtonRow>
               </SectionCard>
+
+              {importPreview.length > 0 && (
+                <SectionCard title={`Import Preview - ${pendingImportType}`}>
+                  {importErrors.length > 0 ? (
+                    <div style={styles.errorBox}>
+                      <b>Errors found:</b>
+                      {importErrors.slice(0, 20).map((err, idx) => <p key={idx}>{err}</p>)}
+                    </div>
+                  ) : (
+                    <div style={styles.successBox}>Validation passed. Ready to import.</div>
+                  )}
+
+                  <div style={{ overflowX: 'auto', marginTop: 15 }}>
+                    <table style={styles.table}>
+                      <thead>
+                        <tr>
+                          {Object.keys(importPreview[0] || {}).map((h) => <th key={h} style={styles.th}>{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importPreview.map((row, idx) => (
+                          <tr key={idx}>
+                            {Object.keys(importPreview[0] || {}).map((h) => <Td key={h}>{row[h]}</Td>)}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <ButtonRow>
+                    <button style={styles.primaryBtn} onClick={confirmImport} disabled={importErrors.length > 0}>Confirm Import</button>
+                    <button style={styles.grayBtn} onClick={() => { setImportPreview([]); setImportErrors([]); setPendingImportType(''); }}>Cancel Import</button>
+                  </ButtonRow>
+                </SectionCard>
+              )}
 
               <SectionCard title="Export Data">
                 <div style={styles.quickActions}>
@@ -1680,6 +1816,8 @@ const styles: Record<string, any> = {
   dashboardGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 },
   quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
   helpText: { color: '#64748b', marginTop: 0 },
+  errorBox: { background: '#fee2e2', color: '#991b1b', padding: 14, borderRadius: 10 },
+  successBox: { background: '#dcfce7', color: '#166534', padding: 14, borderRadius: 10, fontWeight: 700 },
   toolbar: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 },
   tab: { background: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #e5e7eb', boxShadow: '0 3px 10px rgba(15,23,42,0.08)', cursor: 'pointer' },
   tabActive: { background: '#2563eb', color: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #2563eb', boxShadow: '0 3px 10px rgba(37,99,235,0.25)', cursor: 'pointer' },
