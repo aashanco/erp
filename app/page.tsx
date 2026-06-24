@@ -142,7 +142,7 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -1603,8 +1603,8 @@ export default function Home() {
       <div className="app-screen">
         <header style={styles.header}>
           <div>
-            <h1 style={styles.headerTitle}>Aashan ERP Web</h1>
-            <p style={styles.headerSub}>Aashan & Co LLC - Customers, Jobs, Invoices, Payments & Manager.io Export</p>
+            <h1 style={styles.headerTitle}>Aashan ERP</h1>
+            <p style={styles.headerSub}>Field Service & Accounting</p>
           </div>
           <div style={styles.phaseBadge}>Phase 6 Masters</div>
         </header>
@@ -1625,6 +1625,7 @@ export default function Home() {
                 <SideButton label="Quotes" active={activeTab === 'quotes'} onClick={() => openTab('quotes')} />
                 <SideButton label="Jobs" active={activeTab === 'jobs'} onClick={() => openTab('jobs')} />
                 <SideButton label="Work Orders" active={activeTab === 'workorders'} onClick={() => openTab('workorders')} />
+                <SideButton label="Technician App" active={activeTab === 'technician'} onClick={() => openTab('technician')} />
                 <SideButton label="Calendar" active={activeTab === 'calendar'} onClick={() => openTab('calendar')} />
               </SidebarGroup>
 
@@ -1654,6 +1655,14 @@ export default function Home() {
                   <p style={styles.pageSub}>Professional ERP workspace for Aashan & Co LLC</p>
                 </div>
                 <input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
+              </div>
+
+              <div className="mobile-quick-actions" style={styles.mobileQuickActions}>
+                <button style={styles.primaryBtn} onClick={() => openTab('customers')}>+ Customer</button>
+                <button style={styles.primaryBtn} onClick={() => openTab('quotes')}>+ Quote</button>
+                <button style={styles.greenBtn} onClick={() => openTab('workorders')}>+ Work Order</button>
+                <button style={styles.primaryBtn} onClick={() => openTab('invoices')}>+ Invoice</button>
+                <button style={styles.grayBtn} onClick={() => openTab('receipts')}>+ Receipt</button>
               </div>
 
               {loading && <p>Loading...</p>}
@@ -1904,6 +1913,77 @@ export default function Home() {
                     <Td><button style={styles.smallBtn} onClick={() => editWorkOrder(wo)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteWorkOrder(wo.id)}>Delete</button></Td>
                   </tr>
                 ))}
+              </DataTable>
+            </>
+          )}
+
+
+          {(activeTab === 'technician') && (
+            <>
+              <SectionCard title="Technician Mobile App">
+                <p style={styles.helpText}>Simple mobile screen for field technicians to manage today's assigned work.</p>
+                <div style={styles.mobileQuickActions}>
+                  <button style={styles.primaryBtn} onClick={() => openTab('workorders')}>Create / Edit Work Order</button>
+                  <button style={styles.greenBtn} onClick={() => openTab('calendar')}>Open Schedule</button>
+                  <button style={styles.grayBtn} onClick={() => openTab('invoices')}>Create Invoice</button>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Today's Assigned Jobs">
+                {workOrders.filter((wo) => wo.scheduled_date === todayText && wo.status !== 'Cancelled').length === 0 && (
+                  <p style={styles.helpText}>No work orders scheduled for today.</p>
+                )}
+
+                <div style={styles.techJobList}>
+                  {workOrders
+                    .filter((wo) => wo.scheduled_date === todayText && wo.status !== 'Cancelled')
+                    .sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')))
+                    .map((wo) => (
+                      <div key={wo.id} style={styles.techJobCard}>
+                        <div style={styles.techJobHeader}>
+                          <div>
+                            <b>{wo.customer}</b>
+                            <p>{wo.service}</p>
+                          </div>
+                          <StatusBadge status={wo.status} />
+                        </div>
+
+                        <div style={styles.techMeta}>
+                          <span>WO: {wo.work_order_no}</span>
+                          <span>{wo.start_time || 'Start'} - {wo.end_time || 'End'}</span>
+                          <span>Tech: {wo.technician || 'Unassigned'}</span>
+                        </div>
+
+                        <div style={styles.mobileQuickActions}>
+                          <button style={styles.primaryBtn} onClick={() => quickWorkOrderStatus(wo.id, 'In Progress', wo.job_id)}>Start Job</button>
+                          <button style={styles.greenBtn} onClick={() => quickWorkOrderStatus(wo.id, 'Completed', wo.job_id)}>Complete</button>
+                          <button style={styles.grayBtn} onClick={() => editWorkOrder(wo)}>Details</button>
+                        </div>
+
+                        <div style={styles.techPlaceholders}>
+                          <button style={styles.smallBtn} onClick={() => alert('Photo upload will be added in Phase 15B')}>Upload Photos</button>
+                          <button style={styles.smallBtn} onClick={() => alert('Customer signature will be added in Phase 15B')}>Signature</button>
+                          <button style={styles.smallBtn} onClick={() => alert('GPS check-in will be added in Phase 15B')}>GPS Check-in</button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </SectionCard>
+
+              <DataTable title="All Open Technician Work" headers={['Date', 'Time', 'Customer', 'Service', 'Technician', 'Status', 'Actions']}>
+                {workOrders
+                  .filter((wo) => ['Scheduled', 'In Progress'].includes(wo.status))
+                  .map((wo) => (
+                    <tr key={wo.id}>
+                      <Td>{wo.scheduled_date}</Td>
+                      <Td>{wo.start_time} - {wo.end_time}</Td>
+                      <Td>{wo.customer}</Td>
+                      <Td>{wo.service}</Td>
+                      <Td>{wo.technician}</Td>
+                      <Td><StatusBadge status={wo.status} /></Td>
+                      <Td><button style={styles.smallBtn} onClick={() => editWorkOrder(wo)}>Open</button></Td>
+                    </tr>
+                  ))}
               </DataTable>
             </>
           )}
@@ -2355,6 +2435,15 @@ export default function Home() {
       </div>
 
 
+
+      <nav className="bottom-nav" style={styles.bottomNav}>
+        <button style={activeTab === 'dashboard' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('dashboard')}>🏠<span>Home</span></button>
+        <button style={activeTab === 'customers' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('customers')}>👥<span>Customers</span></button>
+        <button style={activeTab === 'quotes' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('quotes')}>📄<span>Quotes</span></button>
+        <button style={activeTab === 'invoices' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('invoices')}>🧾<span>Invoices</span></button>
+        <button style={activeTab === 'technician' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('technician')}>🛠️<span>Tech</span></button>
+      </nav>
+
       {printQuote && (
         <div className="invoice-print">
           <div className="invoice-page">
@@ -2552,7 +2641,16 @@ const styles: Record<string, any> = {
   kpiList: { display: 'grid', gap: 10 },
   kpiListItem: {},
 
+  mobileQuickActions: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
+  bottomNav: { display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #e5e7eb', zIndex: 9999, padding: '6px 8px', boxShadow: '0 -10px 30px rgba(15,23,42,0.12)' },
+  bottomNavBtn: { flex: 1, border: 0, background: 'transparent', color: '#475569', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  bottomNavActive: { flex: 1, border: 0, background: '#dbeafe', color: '#1d4ed8', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontWeight: 800 },
+  techJobList: { display: 'grid', gap: 14 },
+  techJobCard: { background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 16, padding: 15 },
+  techJobHeader: { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' },
+  techMeta: { display: 'grid', gap: 5, color: '#64748b', fontSize: 13, margin: '10px 0' },
+  techPlaceholders: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   helpText: { color: '#64748b', marginTop: 0 },
   errorBox: { background: '#fee2e2', color: '#991b1b', padding: 14, borderRadius: 10 },
   successBox: { background: '#dcfce7', color: '#166534', padding: 14, borderRadius: 10, fontWeight: 700 },
@@ -2641,6 +2739,54 @@ const printCss = `
   table {
     font-size: 13px;
   }
+
+  .bottom-nav {
+    display: flex !important;
+  }
+
+  .app-screen {
+    padding-bottom: 80px !important;
+  }
+
+  .mobile-quick-actions {
+    display: flex !important;
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    padding-bottom: 4px;
+  }
+
+  .mobile-quick-actions button {
+    white-space: nowrap;
+  }
+}
+
+.dash-card {
+  border-left: 6px solid #2563eb;
+}
+
+.dash-card-customer {
+  border-left-color: #2563eb !important;
+}
+
+.dash-card-quote {
+  border-left-color: #7c3aed !important;
+}
+
+.dash-card-work {
+  border-left-color: #f97316 !important;
+}
+
+.dash-card-invoice {
+  border-left-color: #16a34a !important;
+}
+
+.dash-card-danger {
+  border-left-color: #dc2626 !important;
+}
+
+.dash-card-success {
+  border-left-color: #15803d !important;
+}
 }
 @media print {
   @page {
