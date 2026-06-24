@@ -331,7 +331,8 @@ export default function Home() {
 
   useEffect(() => {
     if (printInvoice || printQuote || printReceipt) {
-      setTimeout(() => window.print(), 250);
+      const timer = setTimeout(() => window.print(), 600);
+      return () => clearTimeout(timer);
     }
   }, [printInvoice, printQuote, printReceipt]);
 
@@ -867,6 +868,30 @@ export default function Home() {
   function emailDocument(type: string, to: string, subject: string, body: string) {
     const url = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = url;
+  }
+
+  function openInvoicePrint(inv: Invoice) {
+    setPrintQuote(null);
+    setPrintReceipt(null);
+    setPrintInvoice(inv);
+  }
+
+  function openQuotePrint(qt: Quote) {
+    setPrintInvoice(null);
+    setPrintReceipt(null);
+    setPrintQuote(qt);
+  }
+
+  function openReceiptPrint(r: Receipt) {
+    setPrintInvoice(null);
+    setPrintQuote(null);
+    setPrintReceipt(r);
+  }
+
+  function closePrintPreview() {
+    setPrintInvoice(null);
+    setPrintQuote(null);
+    setPrintReceipt(null);
   }
 
   async function saveBank() {
@@ -1563,7 +1588,7 @@ export default function Home() {
                     <Td><StatusBadge status={qt.status} /></Td>
                     <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Td>
                     <Td>
-                      <button style={styles.printBtn} onClick={() => setPrintQuote(qt)}>Print</button>
+                      <button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button>
                       <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
                       <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
                       <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, `Hi ${qt.customer},%0D%0A%0D%0APlease find quote ${qt.quote_no} for $${qt.amount}.`)}>Email</button>
@@ -1679,7 +1704,7 @@ export default function Home() {
               </SectionCard>
 
               <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => setPrintInvoice(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, `Hi ${i.customer},%0D%0A%0D%0APlease find invoice ${i.invoice_no} for $${i.amount}.`)}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
+                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, `Hi ${i.customer},%0D%0A%0D%0APlease find invoice ${i.invoice_no} for $${i.amount}.`)}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
               </DataTable>
             </>
           )}
@@ -1726,7 +1751,7 @@ export default function Home() {
                 <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
               </SectionCard>
               <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
-                {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => setPrintReceipt(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, `Hi ${r.customer},%0D%0A%0D%0AThank you for your payment of $${r.amount}. Receipt No: ${r.receipt_no}`)}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
+                {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, `Hi ${r.customer},%0D%0A%0D%0AThank you for your payment of $${r.amount}. Receipt No: ${r.receipt_no}`)}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
               </DataTable>
             </>
           )}
@@ -2054,7 +2079,7 @@ export default function Home() {
             <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes}</p></div>
             <div className="invoice-footer">Thank you for choosing {company.company_name || 'Aashan & Co LLC'}.</div>
           </div>
-          <button className="close-print" onClick={() => setPrintQuote(null)}>Close Print Preview</button>
+          <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
         </div>
       )}
 
@@ -2080,7 +2105,7 @@ export default function Home() {
             <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || 'Thank you for your payment.'}</p></div>
             <div className="invoice-footer">Thank you for choosing {company.company_name || 'Aashan & Co LLC'}.</div>
           </div>
-          <button className="close-print" onClick={() => setPrintReceipt(null)}>Close Print Preview</button>
+          <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
         </div>
       )}
 
@@ -2151,7 +2176,7 @@ export default function Home() {
               Thank you for choosing Aashan & Co LLC.
             </div>
           </div>
-          <button className="close-print" onClick={() => setPrintInvoice(null)}>Close Print Preview</button>
+          <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
         </div>
       )}
     </main>
@@ -2273,10 +2298,59 @@ const printCss = `
   }
 }
 @media print {
-  body { margin: 0; background: white !important; }
-  .app-screen { display: none !important; }
-  .invoice-print { display: block !important; }
-  .close-print { display: none !important; }
+  @page {
+    size: Letter;
+    margin: 0.35in;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .app-screen {
+    display: none !important;
+  }
+
+  .invoice-print {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .invoice-page {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    page-break-after: auto !important;
+    page-break-inside: avoid !important;
+  }
+
+  .close-print {
+    display: none !important;
+  }
+
+  .invoice-logo {
+    display: block !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
 }
 @media screen {
   .invoice-print {
@@ -2303,27 +2377,27 @@ const printCss = `
   background: white;
   color: #111827;
   max-width: 850px;
-  min-height: 1050px;
   margin: 0 auto;
-  padding: 40px;
+  padding: 36px;
   box-sizing: border-box;
   font-family: Arial, sans-serif;
+  border-radius: 0;
 }
 .invoice-header {
   display: flex;
   justify-content: space-between;
   border-bottom: 3px solid #0f172a;
-  padding-bottom: 20px;
+  padding-bottom: 16px;
   gap: 25px;
 }
 .invoice-logo {
-  width: 110px;
-  height: 110px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 .invoice-header h1 {
-  margin: 10px 0 4px;
+  margin: 8px 0 4px;
   color: #0f172a;
 }
 .invoice-header p {
@@ -2336,19 +2410,19 @@ const printCss = `
 .invoice-title-row {
   display: flex;
   justify-content: space-between;
-  margin-top: 28px;
+  margin-top: 22px;
   gap: 25px;
 }
 .invoice-title-row h2 {
-  font-size: 34px;
+  font-size: 30px;
   margin: 0 0 10px;
   color: #0f172a;
 }
 .invoice-billto {
   background: #f8fafc;
-  padding: 18px;
+  padding: 14px;
   border-radius: 10px;
-  margin-top: 25px;
+  margin-top: 20px;
 }
 .invoice-billto h3 {
   margin-top: 0;
@@ -2359,48 +2433,48 @@ const printCss = `
 .invoice-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 25px;
+  margin-top: 20px;
 }
 .invoice-table th {
   background: #0f172a;
   color: white;
-  padding: 12px;
+  padding: 11px;
   text-align: left;
 }
 .invoice-table td {
   border-bottom: 1px solid #e5e7eb;
-  padding: 14px 12px;
+  padding: 12px 11px;
 }
 .invoice-table td:last-child,
 .invoice-table th:last-child {
   text-align: right;
 }
 .invoice-total {
-  width: 320px;
+  width: 300px;
   margin-left: auto;
-  margin-top: 25px;
+  margin-top: 20px;
   background: #f8fafc;
-  padding: 15px;
+  padding: 13px;
   border-radius: 10px;
 }
 .invoice-total p {
   display: flex;
   justify-content: space-between;
   margin: 8px 0;
-  font-size: 16px;
+  font-size: 15px;
 }
 .invoice-total p:last-child {
-  font-size: 20px;
+  font-size: 18px;
   border-top: 2px solid #0f172a;
   padding-top: 10px;
 }
 .invoice-notes {
-  margin-top: 35px;
+  margin-top: 26px;
   border-top: 1px solid #e5e7eb;
-  padding-top: 18px;
+  padding-top: 14px;
 }
 .invoice-footer {
-  margin-top: 50px;
+  margin-top: 30px;
   text-align: center;
   font-weight: 700;
   color: #0f172a;
