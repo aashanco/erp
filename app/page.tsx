@@ -30,6 +30,31 @@ type Payment = {
   notes: string;
 };
 
+type Vendor = {
+  id?: number;
+  vendor_no: string;
+  vendor_name: string;
+  contact_person: string;
+  phone: string;
+  email: string;
+  address: string;
+  tax_id: string;
+  notes: string;
+  status: string;
+};
+
+type Expense = {
+  id?: number;
+  expense_no: string;
+  expense_date: string;
+  vendor: string;
+  category: string;
+  description: string;
+  amount: string;
+  payment_method: string;
+  status: string;
+};
+
 type CompanySettings = { id?: number; company_name: string; phone: string; email: string; website: string; address: string; logo_url: string; tax_rate: string; payment_terms: string; payment_instructions: string };
 type NumberSequence = { id?: number; document_type: string; prefix: string; next_number: string; padding: string };
 type Account = { id?: number; account_code: string; account_name: string; account_type: string; normal_balance: string; is_active: boolean };
@@ -54,6 +79,8 @@ const emptyInvoice: Invoice = {
   customer_address: '',
 };
 const emptyPayment: Payment = { invoice_id: null, invoice_no: '', customer: '', payment_date: '', amount: '', payment_method: 'Cash', notes: '' };
+const emptyVendor: Vendor = { vendor_no: '', vendor_name: '', contact_person: '', phone: '', email: '', address: '', tax_id: '', notes: '', status: 'Active' };
+const emptyExpense: Expense = { expense_no: '', expense_date: '', vendor: '', category: 'Materials', description: '', amount: '', payment_method: 'Cash', status: 'Draft' };
 const emptyCompany: CompanySettings = { company_name: 'Aashan & Co LLC', phone: '(832) 210-4248', email: 'support@aashan.co', website: 'www.aashan.co', address: 'Dallas, Texas', logo_url: '/aashan-logo.png', tax_rate: '0', payment_terms: 'Payment due within agreed terms.', payment_instructions: 'Please contact Aashan & Co LLC for payment options.' };
 const emptySequence: NumberSequence = { document_type: '', prefix: '', next_number: '1001', padding: '4' };
 const emptyAccount: Account = { account_code: '', account_name: '', account_type: 'Revenue', normal_balance: 'Credit', is_active: true };
@@ -61,15 +88,19 @@ const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_e
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'jobs' | 'invoices' | 'payments' | 'masters'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'jobs' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters'>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
   const [job, setJob] = useState<Job>(emptyJob);
   const [invoice, setInvoice] = useState<Invoice>(emptyInvoice);
   const [payment, setPayment] = useState<Payment>(emptyPayment);
+  const [vendor, setVendor] = useState<Vendor>(emptyVendor);
+  const [expense, setExpense] = useState<Expense>(emptyExpense);
   const [company, setCompany] = useState<CompanySettings>(emptyCompany);
   const [sequences, setSequences] = useState<NumberSequence[]>([]);
   const [sequence, setSequence] = useState<NumberSequence>(emptySequence);
@@ -83,6 +114,8 @@ export default function Home() {
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
+  const [editingVendorId, setEditingVendorId] = useState<number | null>(null);
+  const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
   const [editingSequenceId, setEditingSequenceId] = useState<number | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
@@ -95,6 +128,8 @@ export default function Home() {
     const { data: jobData, error: jobError } = await supabase.from('jobs').select('*').order('id', { ascending: false });
     const { data: invoiceData, error: invoiceError } = await supabase.from('invoices').select('*').order('id', { ascending: false });
     const { data: paymentData, error: paymentError } = await supabase.from('payments').select('*').order('id', { ascending: false });
+    const { data: vendorData, error: vendorError } = await supabase.from('vendors').select('*').order('id', { ascending: false });
+    const { data: expenseData, error: expenseError } = await supabase.from('expenses').select('*').order('id', { ascending: false });
     const { data: companyData } = await supabase.from('company_settings').select('*').limit(1);
     const { data: sequenceData } = await supabase.from('number_sequences').select('*').order('id', { ascending: true });
     const { data: accountData } = await supabase.from('chart_of_accounts').select('*').order('account_code', { ascending: true });
@@ -105,11 +140,15 @@ export default function Home() {
     if (jobError) alert(jobError.message);
     if (invoiceError) alert(invoiceError.message);
     if (paymentError) alert(paymentError.message);
+    if (vendorError) alert(vendorError.message);
+    if (expenseError) alert(expenseError.message);
 
     setCustomers(customerData || []);
     setJobs((jobData || []).map((j: any) => ({ ...j, amount: String(j.amount || '') })));
     setInvoices((invoiceData || []).map((i: any) => ({ ...i, amount: String(i.amount || '') })));
     setPayments((paymentData || []).map((p: any) => ({ ...p, amount: String(p.amount || '') })));
+    setVendors(vendorData || []);
+    setExpenses((expenseData || []).map((e: any) => ({ ...e, amount: String(e.amount || '') })));
     if (companyData && companyData.length > 0) setCompany({ ...emptyCompany, ...companyData[0], tax_rate: String(companyData[0].tax_rate || 0) });
     setSequences((sequenceData || []).map((s: any) => ({ ...s, next_number: String(s.next_number || ''), padding: String(s.padding || 4) })));
     setAccounts(accountData || []);
@@ -386,6 +425,90 @@ export default function Home() {
   }
 
 
+
+  function nextVendorNo() {
+    return `V-${String(vendors.length + 1).padStart(4, '0')}`;
+  }
+
+  function nextExpenseNo() {
+    return `EXP-${String(expenses.length + 1).padStart(4, '0')}`;
+  }
+
+  async function saveVendor() {
+    if (!vendor.vendor_name.trim()) return alert('Enter vendor name');
+    const payload = {
+      vendor_no: vendor.vendor_no || nextVendorNo(),
+      vendor_name: vendor.vendor_name,
+      contact_person: vendor.contact_person,
+      phone: vendor.phone,
+      email: vendor.email,
+      address: vendor.address,
+      tax_id: vendor.tax_id,
+      notes: vendor.notes,
+      status: vendor.status,
+    };
+
+    const res = editingVendorId
+      ? await supabase.from('vendors').update(payload).eq('id', editingVendorId)
+      : await supabase.from('vendors').insert([payload]);
+
+    if (res.error) return alert(res.error.message);
+    setVendor(emptyVendor);
+    setEditingVendorId(null);
+    await loadData();
+  }
+
+  function editVendor(v: Vendor) {
+    setVendor(v);
+    setEditingVendorId(v.id || null);
+    setActiveTab('vendors');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteVendor(id?: number) {
+    if (!id || !confirm('Delete this vendor?')) return;
+    const { error } = await supabase.from('vendors').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  async function saveExpense() {
+    if (!expense.description.trim()) return alert('Enter expense description');
+    const payload = {
+      expense_no: expense.expense_no || nextExpenseNo(),
+      expense_date: expense.expense_date || null,
+      vendor: expense.vendor,
+      category: expense.category,
+      description: expense.description,
+      amount: Number(expense.amount || 0),
+      payment_method: expense.payment_method,
+      status: expense.status,
+    };
+
+    const res = editingExpenseId
+      ? await supabase.from('expenses').update(payload).eq('id', editingExpenseId)
+      : await supabase.from('expenses').insert([payload]);
+
+    if (res.error) return alert(res.error.message);
+    setExpense(emptyExpense);
+    setEditingExpenseId(null);
+    await loadData();
+  }
+
+  function editExpense(e: Expense) {
+    setExpense({ ...e, amount: String(e.amount || '') });
+    setEditingExpenseId(e.id || null);
+    setActiveTab('expenses');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteExpense(id?: number) {
+    if (!id || !confirm('Delete this expense?')) return;
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
   async function saveCompany() {
     const payload = { company_name: company.company_name, phone: company.phone, email: company.email, website: company.website, address: company.address, logo_url: company.logo_url, tax_rate: Number(company.tax_rate || 0), payment_terms: company.payment_terms, payment_instructions: company.payment_instructions };
     const res = company.id ? await supabase.from('company_settings').update(payload).eq('id', company.id) : await supabase.from('company_settings').insert([payload]);
@@ -446,6 +569,8 @@ export default function Home() {
   const filteredJobs = jobs.filter((j) => [j.customer, j.service, j.status, j.job_date, j.amount].join(' ').toLowerCase().includes(q));
   const filteredInvoices = invoices.filter((i) => [i.invoice_no, i.customer, i.status, i.invoice_date, i.amount].join(' ').toLowerCase().includes(q));
   const filteredPayments = payments.filter((p) => [p.invoice_no, p.customer, p.payment_date, p.payment_method, p.amount, p.notes].join(' ').toLowerCase().includes(q));
+  const filteredVendors = vendors.filter((v) => [v.vendor_no, v.vendor_name, v.contact_person, v.phone, v.email, v.status].join(' ').toLowerCase().includes(q));
+  const filteredExpenses = expenses.filter((e) => [e.expense_no, e.vendor, e.category, e.description, e.payment_method, e.status].join(' ').toLowerCase().includes(q));
 
   const invoicedJobIds = invoices.map((i) => Number(i.job_id)).filter(Boolean);
   const availableInvoiceJobs = jobs.filter((j) => !invoicedJobIds.includes(Number(j.id)) || Number(j.id) === Number(invoice.job_id));
@@ -456,6 +581,10 @@ export default function Home() {
   const openInvoices = invoices.filter((i) => invoiceBalance(i) > 0 && i.status !== 'Cancelled').length;
   const jobsInProgress = jobs.filter((j) => j.status === 'In Progress').length;
   const completedJobs = jobs.filter((j) => ['Completed', 'Invoiced', 'Paid'].includes(j.status)).length;
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const netProfit = paidRevenue - totalExpenses;
+  const approvedExpenses = expenses.filter((e) => ['Approved', 'Paid'].includes(e.status)).reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const draftExpenses = expenses.filter((e) => ['Draft', 'Submitted'].includes(e.status)).reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
   return (
     <main style={styles.page}>
@@ -472,7 +601,7 @@ export default function Home() {
 
         <section style={styles.container}>
           <div style={styles.toolbar}>
-            {(['dashboard', 'customers', 'jobs', 'invoices', 'payments', 'masters'] as const).map((tab) => (
+            {(['dashboard', 'customers', 'vendors', 'jobs', 'invoices', 'payments', 'expenses', 'reports', 'masters'] as const).map((tab) => (
               <button key={tab} style={activeTab === tab ? styles.tabActive : styles.tab} onClick={() => setActiveTab(tab)}>
                 {tab[0].toUpperCase() + tab.slice(1)}
               </button>
@@ -480,6 +609,7 @@ export default function Home() {
             <button style={styles.tab} onClick={() => exportCsv('manager-customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
             <button style={styles.tab} onClick={() => exportCsv('manager-invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
             <button style={styles.tab} onClick={() => exportCsv('manager-payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
+            <button style={styles.tab} onClick={() => exportCsv('manager-expenses.csv', [['Expense Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Expenses</button>
           </div>
 
           <input placeholder="Search customer, job, invoice, payment, status..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
@@ -494,6 +624,9 @@ export default function Home() {
             <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
             <Card title="In Progress" value={jobsInProgress} />
             <Card title="Completed Jobs" value={completedJobs} />
+            <Card title="Expenses" value={`$${totalExpenses.toFixed(2)}`} />
+            <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
+            <Card title="Vendors" value={vendors.length} />
           </div>
 
           {(activeTab === 'dashboard' || activeTab === 'customers') && (
@@ -513,6 +646,33 @@ export default function Home() {
 
               <DataTable title="Customer List" headers={['Name', 'Phone', 'Email', 'Address', 'Actions']}>
                 {filteredCustomers.map((c) => <tr key={c.id}><Td>{c.name}</Td><Td>{c.phone}</Td><Td>{c.email}</Td><Td>{c.address}</Td><Td><button style={styles.smallBtn} onClick={() => editCustomer(c)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteCustomer(c.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+
+          {(activeTab === 'vendors') && (
+            <>
+              <SectionCard title={editingVendorId ? 'Edit Vendor' : 'Add Vendor'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Vendor No" value={vendor.vendor_no} onChange={(v: string) => setVendor({ ...vendor, vendor_no: v })} />
+                  <Input label="Vendor Name" value={vendor.vendor_name} onChange={(v: string) => setVendor({ ...vendor, vendor_name: v })} />
+                  <Input label="Contact Person" value={vendor.contact_person} onChange={(v: string) => setVendor({ ...vendor, contact_person: v })} />
+                  <Input label="Phone" value={vendor.phone} onChange={(v: string) => setVendor({ ...vendor, phone: v })} />
+                  <Input label="Email" value={vendor.email} onChange={(v: string) => setVendor({ ...vendor, email: v })} />
+                  <Input label="Address" value={vendor.address} onChange={(v: string) => setVendor({ ...vendor, address: v })} />
+                  <Input label="Tax ID" value={vendor.tax_id} onChange={(v: string) => setVendor({ ...vendor, tax_id: v })} />
+                  <Field label="Status"><select value={vendor.status} onChange={(e) => setVendor({ ...vendor, status: e.target.value })} style={styles.input}><option>Active</option><option>Inactive</option><option>Blocked</option></select></Field>
+                  <Input label="Notes" value={vendor.notes} onChange={(v: string) => setVendor({ ...vendor, notes: v })} />
+                </div>
+                <ButtonRow>
+                  <button onClick={saveVendor} style={styles.primaryBtn}>{editingVendorId ? 'Update Vendor' : 'Save Vendor'}</button>
+                  {editingVendorId && <button onClick={() => { setVendor(emptyVendor); setEditingVendorId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Vendor List" headers={['Vendor No', 'Name', 'Contact', 'Phone', 'Email', 'Status', 'Actions']}>
+                {filteredVendors.map((v) => <tr key={v.id}><Td>{v.vendor_no}</Td><Td>{v.vendor_name}</Td><Td>{v.contact_person}</Td><Td>{v.phone}</Td><Td>{v.email}</Td><Td><StatusBadge status={v.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editVendor(v)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteVendor(v.id)}>Delete</button></Td></tr>)}
               </DataTable>
             </>
           )}
@@ -586,6 +746,60 @@ export default function Home() {
 
               <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Notes', 'Actions']}>
                 {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+
+          {(activeTab === 'expenses') && (
+            <>
+              <SectionCard title={editingExpenseId ? 'Edit Expense' : 'Add Expense'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Expense No" value={expense.expense_no} onChange={(v: string) => setExpense({ ...expense, expense_no: v })} />
+                  <Input label="Date" type="date" value={expense.expense_date} onChange={(v: string) => setExpense({ ...expense, expense_date: v })} />
+                  <Field label="Vendor">
+                    <select value={expense.vendor} onChange={(e) => setExpense({ ...expense, vendor: e.target.value })} style={styles.input}>
+                      <option value="">Select Vendor</option>
+                      {vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Category"><select value={expense.category} onChange={(e) => setExpense({ ...expense, category: e.target.value })} style={styles.input}><option>Materials</option><option>Tools</option><option>Fuel</option><option>Labor</option><option>Subcontractor</option><option>Insurance</option><option>Marketing</option><option>Office Expense</option><option>Vehicle Expense</option><option>Other</option></select></Field>
+                  <Input label="Description" value={expense.description} onChange={(v: string) => setExpense({ ...expense, description: v })} />
+                  <Input label="Amount" value={expense.amount} onChange={(v: string) => setExpense({ ...expense, amount: v })} />
+                  <Field label="Payment Method"><select value={expense.payment_method} onChange={(e) => setExpense({ ...expense, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                  <Field label="Status"><select value={expense.status} onChange={(e) => setExpense({ ...expense, status: e.target.value })} style={styles.input}><option>Draft</option><option>Submitted</option><option>Approved</option><option>Paid</option></select></Field>
+                </div>
+                <ButtonRow>
+                  <button onClick={saveExpense} style={styles.primaryBtn}>{editingExpenseId ? 'Update Expense' : 'Save Expense'}</button>
+                  {editingExpenseId && <button onClick={() => { setExpense(emptyExpense); setEditingExpenseId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Expenses" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status', 'Actions']}>
+                {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>{e.description}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td>{e.payment_method}</Td><Td><StatusBadge status={e.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editExpense(e)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteExpense(e.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'reports') && (
+            <>
+              <SectionCard title="Profit & Loss Summary">
+                <div style={styles.cards}>
+                  <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
+                  <Card title="Total Expenses" value={`$${totalExpenses.toFixed(2)}`} />
+                  <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
+                  <Card title="Outstanding AR" value={`$${outstanding.toFixed(2)}`} />
+                  <Card title="Approved/Paid Expenses" value={`$${approvedExpenses.toFixed(2)}`} />
+                  <Card title="Draft/Submitted Expenses" value={`$${draftExpenses.toFixed(2)}`} />
+                </div>
+              </SectionCard>
+
+              <DataTable title="Revenue Report" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Paid', 'Balance', 'Status']}>
+                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td></tr>)}
+              </DataTable>
+
+              <DataTable title="Expense Report" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Amount', 'Status']}>
+                {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={e.status} /></Td></tr>)}
               </DataTable>
             </>
           )}
