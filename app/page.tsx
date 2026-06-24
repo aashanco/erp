@@ -108,6 +108,17 @@ const emptySequence: NumberSequence = { document_type: '', prefix: '', next_numb
 const emptyAccount: Account = { account_code: '', account_name: '', account_type: 'Revenue', normal_balance: 'Credit', is_active: true };
 const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_email: 'support@aashan.co', reply_to_email: 'support@aashan.co', bcc_email: '' };
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
+const emptyPrintTemplate: PrintTemplate = {
+  document_type: 'Invoice',
+  header_title: 'Aashan & Co LLC',
+  header_subtitle: 'Quality Work Through Dedication',
+  logo_url: '/aashan-logo.png',
+  logo_data_url: '',
+  company_block: 'Phone: (832) 210-4248\nEmail: support@aashan.co\nAddress: Dallas, Texas',
+  footer_text: 'Thank you for choosing Aashan & Co LLC.',
+  terms_text: 'Payment due within agreed terms.',
+  notes_text: '',
+};
 
 export default function Home() {
   const [session, setSession] = useState<any>(null);
@@ -151,6 +162,8 @@ export default function Home() {
   const [emailSettings, setEmailSettings] = useState<EmailSettings>(emptyEmailSettings);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [template, setTemplate] = useState<EmailTemplate>(emptyTemplate);
+  const [printTemplates, setPrintTemplates] = useState<PrintTemplate[]>([]);
+  const [printTemplate, setPrintTemplate] = useState<PrintTemplate>(emptyPrintTemplate);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [printQuote, setPrintQuote] = useState<Quote | null>(null);
   const [printReceipt, setPrintReceipt] = useState<Receipt | null>(null);
@@ -169,6 +182,7 @@ export default function Home() {
   const [editingSequenceId, setEditingSequenceId] = useState<number | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+  const [editingPrintTemplateId, setEditingPrintTemplateId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
@@ -271,6 +285,7 @@ export default function Home() {
     const { data: accountData } = await supabase.from('chart_of_accounts').select('*').order('account_code', { ascending: true });
     const { data: emailSettingsData } = await supabase.from('email_settings').select('*').limit(1);
     const { data: templateData } = await supabase.from('email_templates').select('*').order('template_name', { ascending: true });
+    const { data: printTemplateData } = await supabase.from('print_templates').select('*').order('document_type', { ascending: true });
     const { data: profileData } = await supabase.from('user_profiles').select('*').order('email', { ascending: true });
 
     if (customerError) alert(customerError.message);
@@ -303,6 +318,7 @@ export default function Home() {
     setAccounts(accountData || []);
     if (emailSettingsData && emailSettingsData.length > 0) setEmailSettings({ ...emptyEmailSettings, ...emailSettingsData[0] });
     setTemplates(templateData || []);
+    setPrintTemplates(printTemplateData || []);
     setUserProfiles(profileData || []);
     setLoading(false);
   }
@@ -893,6 +909,102 @@ export default function Home() {
     setPrintQuote(null);
     setPrintReceipt(null);
   }
+
+
+  function getPrintTemplate(documentType: string) {
+    return printTemplates.find((pt) => pt.document_type === documentType) || {
+      ...emptyPrintTemplate,
+      document_type: documentType,
+      header_title: company.company_name || 'Aashan & Co LLC',
+      header_subtitle: company.website || 'Quality Work Through Dedication',
+      logo_url: company.logo_url || LOGO_SRC,
+      company_block: `Phone: ${company.phone || '(832) 210-4248'}\nEmail: ${company.email || 'support@aashan.co'}\nAddress: ${company.address || 'Dallas, Texas'}`,
+      footer_text: `Thank you for choosing ${company.company_name || 'Aashan & Co LLC'}.`,
+      terms_text: company.payment_terms || 'Payment due within agreed terms.',
+    };
+  }
+
+  function printLogo(documentType: string) {
+    const pt = getPrintTemplate(documentType);
+    return pt.logo_data_url || pt.logo_url || company.logo_url || LOGO_SRC;
+  }
+
+  function renderCompanyBlock(documentType: string) {
+    const pt = getPrintTemplate(documentType);
+    return (pt.company_block || '').split('\n').map((line, idx) => <p key={idx}>{line}</p>);
+  }
+
+  async function savePrintTemplate() {
+    if (!printTemplate.document_type.trim()) return alert('Select document type');
+
+    const payload = {
+      document_type: printTemplate.document_type,
+      header_title: printTemplate.header_title,
+      header_subtitle: printTemplate.header_subtitle,
+      logo_url: printTemplate.logo_url,
+      logo_data_url: printTemplate.logo_data_url,
+      company_block: printTemplate.company_block,
+      footer_text: printTemplate.footer_text,
+      terms_text: printTemplate.terms_text,
+      notes_text: printTemplate.notes_text,
+    };
+
+    const res = editingPrintTemplateId
+      ? await supabase.from('print_templates').update(payload).eq('id', editingPrintTemplateId)
+      : await supabase.from('print_templates').insert([payload]);
+
+    if (res.error) return alert(res.error.message);
+    setPrintTemplate(emptyPrintTemplate);
+    setEditingPrintTemplateId(null);
+    await loadData();
+  }
+
+  function editPrintTemplate(pt: PrintTemplate) {
+    setPrintTemplate(pt);
+    setEditingPrintTemplateId(pt.id || null);
+  }
+
+  async function deletePrintTemplate(id?: number) {
+    if (!id || !confirm('Delete this print template?')) return;
+    const { error } = await supabase.from('print_templates').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  async function pasteLogoFromClipboard() {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((t) => t.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const reader = new FileReader();
+          reader.onload = () => setPrintTemplate({ ...printTemplate, logo_data_url: String(reader.result || '') });
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+      alert('No image found in clipboard. You can paste a base64 data URL manually.');
+    } catch (err) {
+      alert('Browser blocked clipboard image access. Paste the PNG/base64 data URL into the Logo Data field.');
+    }
+  }
+
+  function loadPrintDefaults(type: string) {
+    setPrintTemplate({
+      ...emptyPrintTemplate,
+      document_type: type,
+      header_title: company.company_name || 'Aashan & Co LLC',
+      header_subtitle: company.website || 'Quality Work Through Dedication',
+      logo_url: company.logo_url || '/aashan-logo.png',
+      company_block: `Phone: ${company.phone || '(832) 210-4248'}\nEmail: ${company.email || 'support@aashan.co'}\nAddress: ${company.address || 'Dallas, Texas'}`,
+      footer_text: `Thank you for choosing ${company.company_name || 'Aashan & Co LLC'}.`,
+      terms_text: company.payment_terms || 'Payment due within agreed terms.',
+      notes_text: '',
+    });
+  }
+
+
 
   async function saveBank() {
     if (!bank.bank_name.trim()) return alert('Enter bank name');
@@ -2032,6 +2144,58 @@ export default function Home() {
                 {templates.map((t) => <tr key={t.id}><Td>{t.template_name}</Td><Td>{t.subject}</Td><Td><button style={styles.smallBtn} onClick={() => editTemplate(t)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteTemplate(t.id)}>Delete</button></Td></tr>)}
               </DataTable>
 
+
+              <SectionCard title={editingPrintTemplateId ? 'Edit Print Template' : 'Printout Template Setup'}>
+                <p style={styles.helpText}>Modify print headers, logo, footer, terms, and default notes for Quote, Invoice, and Receipt printouts. You can paste a PNG/image as a base64 data URL or use a public path such as /aashan-logo.png.</p>
+                <div style={styles.formGrid2}>
+                  <Field label="Document Type">
+                    <select value={printTemplate.document_type} onChange={(e) => loadPrintDefaults(e.target.value)} style={styles.input}>
+                      <option>Quote</option>
+                      <option>Invoice</option>
+                      <option>Receipt</option>
+                    </select>
+                  </Field>
+                  <Input label="Header Title" value={printTemplate.header_title} onChange={(v: string) => setPrintTemplate({ ...printTemplate, header_title: v })} />
+                  <Input label="Header Subtitle" value={printTemplate.header_subtitle} onChange={(v: string) => setPrintTemplate({ ...printTemplate, header_subtitle: v })} />
+                  <Input label="Logo URL / Path" value={printTemplate.logo_url} onChange={(v: string) => setPrintTemplate({ ...printTemplate, logo_url: v })} />
+                </div>
+
+                <Field label="Company Header Block">
+                  <textarea value={printTemplate.company_block} onChange={(e) => setPrintTemplate({ ...printTemplate, company_block: e.target.value })} style={{ ...styles.input, minHeight: 95, resize: 'vertical' }} />
+                </Field>
+
+                <Field label="Paste PNG / Image Data URL">
+                  <textarea value={printTemplate.logo_data_url} onChange={(e) => setPrintTemplate({ ...printTemplate, logo_data_url: e.target.value })} placeholder="Paste data:image/png;base64,... here if needed" style={{ ...styles.input, minHeight: 90, resize: 'vertical' }} />
+                </Field>
+
+                <div style={{ display: 'flex', gap: 15, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+                  <button onClick={pasteLogoFromClipboard} style={styles.grayBtn}>Paste Image from Clipboard</button>
+                  {(printTemplate.logo_data_url || printTemplate.logo_url) && <img src={printTemplate.logo_data_url || printTemplate.logo_url} alt="Logo Preview" style={{ width: 80, height: 80, objectFit: 'contain', border: '1px solid #e5e7eb', borderRadius: 8 }} />}
+                </div>
+
+                <div style={styles.formGrid2}>
+                  <Input label="Footer Text" value={printTemplate.footer_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, footer_text: v })} />
+                  <Input label="Terms Text" value={printTemplate.terms_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, terms_text: v })} />
+                  <Input label="Default Notes" value={printTemplate.notes_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, notes_text: v })} />
+                </div>
+
+                <ButtonRow>
+                  <button onClick={savePrintTemplate} style={styles.primaryBtn}>{editingPrintTemplateId ? 'Update Print Template' : 'Save Print Template'}</button>
+                  {editingPrintTemplateId && <button onClick={() => { setPrintTemplate(emptyPrintTemplate); setEditingPrintTemplateId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Print Templates" headers={['Document Type', 'Header Title', 'Logo', 'Actions']}>
+                {printTemplates.map((pt) => (
+                  <tr key={pt.id}>
+                    <Td>{pt.document_type}</Td>
+                    <Td>{pt.header_title}</Td>
+                    <Td>{pt.logo_data_url ? 'Pasted Image' : pt.logo_url}</Td>
+                    <Td><button style={styles.smallBtn} onClick={() => editPrintTemplate(pt)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePrintTemplate(pt.id)}>Delete</button></Td>
+                  </tr>
+                ))}
+              </DataTable>
+
               <DataTable title="User Roles" headers={['Email', 'Name', 'Role', 'Active']}>
                 {userProfiles.map((u) => (
                   <tr key={u.id}>
@@ -2062,22 +2226,20 @@ export default function Home() {
           <div className="invoice-page">
             <div className="invoice-header">
               <div>
-                <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
-                <h1>{company.company_name || "Aashan & Co LLC"}</h1>
-                <p>{company.website || "Quality Work Through Dedication"}</p>
+                <img src={printLogo('Quote')} className="invoice-logo" alt="Aashan & Co LLC" />
+                <h1>{getPrintTemplate('Quote').header_title}</h1>
+                <p>{getPrintTemplate('Quote').header_subtitle}</p>
               </div>
               <div className="invoice-company">
-                <p><b>Phone:</b> {company.phone}</p>
-                <p><b>Email:</b> {company.email}</p>
-                <p><b>Address:</b> {company.address}</p>
+                {renderCompanyBlock('Quote')}
               </div>
             </div>
             <div className="invoice-title-row"><div><h2>QUOTE</h2><p><b>Quote #:</b> {printQuote.quote_no}</p><p><b>Status:</b> {printQuote.status}</p></div><div><p><b>Quote Date:</b> {printQuote.quote_date}</p></div></div>
             <div className="invoice-billto"><h3>Quote To</h3><p><b>{printQuote.customer}</b></p><p>{getCustomerByName(printQuote.customer)?.address}</p><p>{getCustomerByName(printQuote.customer)?.phone}</p><p>{getCustomerByName(printQuote.customer)?.email}</p></div>
             <table className="invoice-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>{printQuote.service}</td><td>${Number(printQuote.amount || 0).toFixed(2)}</td></tr></tbody></table>
             <div className="invoice-total"><p><span>Total:</span> <b>${Number(printQuote.amount || 0).toFixed(2)}</b></p></div>
-            <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes}</p></div>
-            <div className="invoice-footer">Thank you for choosing {company.company_name || 'Aashan & Co LLC'}.</div>
+            <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes || getPrintTemplate('Quote').notes_text}</p></div>
+            <div className="invoice-footer">{getPrintTemplate('Quote').footer_text}</div>
           </div>
           <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
         </div>
@@ -2088,22 +2250,20 @@ export default function Home() {
           <div className="invoice-page">
             <div className="invoice-header">
               <div>
-                <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
-                <h1>{company.company_name || "Aashan & Co LLC"}</h1>
-                <p>{company.website || "Quality Work Through Dedication"}</p>
+                <img src={printLogo('Receipt')} className="invoice-logo" alt="Aashan & Co LLC" />
+                <h1>{getPrintTemplate('Receipt').header_title}</h1>
+                <p>{getPrintTemplate('Receipt').header_subtitle}</p>
               </div>
               <div className="invoice-company">
-                <p><b>Phone:</b> {company.phone}</p>
-                <p><b>Email:</b> {company.email}</p>
-                <p><b>Address:</b> {company.address}</p>
+                {renderCompanyBlock('Receipt')}
               </div>
             </div>
             <div className="invoice-title-row"><div><h2>RECEIPT</h2><p><b>Receipt #:</b> {printReceipt.receipt_no}</p><p><b>Invoice #:</b> {printReceipt.invoice_no}</p></div><div><p><b>Receipt Date:</b> {printReceipt.receipt_date}</p><p><b>Payment Method:</b> {printReceipt.payment_method}</p></div></div>
             <div className="invoice-billto"><h3>Received From</h3><p><b>{printReceipt.customer}</b></p><p>{getCustomerByName(printReceipt.customer)?.address}</p><p>{getCustomerByName(printReceipt.customer)?.phone}</p><p>{getCustomerByName(printReceipt.customer)?.email}</p></div>
             <table className="invoice-table"><thead><tr><th>Description</th><th>Amount Received</th></tr></thead><tbody><tr><td>Payment received for invoice {printReceipt.invoice_no}</td><td>${Number(printReceipt.amount || 0).toFixed(2)}</td></tr></tbody></table>
             <div className="invoice-total"><p><span>Amount Received:</span> <b>${Number(printReceipt.amount || 0).toFixed(2)}</b></p></div>
-            <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || 'Thank you for your payment.'}</p></div>
-            <div className="invoice-footer">Thank you for choosing {company.company_name || 'Aashan & Co LLC'}.</div>
+            <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || getPrintTemplate('Receipt').notes_text || 'Thank you for your payment.'}</p></div>
+            <div className="invoice-footer">{getPrintTemplate('Receipt').footer_text}</div>
           </div>
           <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
         </div>
@@ -2168,12 +2328,12 @@ export default function Home() {
 
             <div className="invoice-notes">
               <h3>Notes</h3>
-              <p>{printInvoice.notes || 'Thank you for choosing Aashan & Co LLC.'}</p>
-              <p>Payment due within agreed terms.</p>
+              <p>{printInvoice.notes || getPrintTemplate('Invoice').notes_text || 'Thank you for choosing Aashan & Co LLC.'}</p>
+              <p>{getPrintTemplate('Invoice').terms_text}</p>
             </div>
 
             <div className="invoice-footer">
-              Thank you for choosing Aashan & Co LLC.
+              {getPrintTemplate('Invoice').footer_text}
             </div>
           </div>
           <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
