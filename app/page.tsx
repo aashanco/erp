@@ -108,6 +108,19 @@ const emptySequence: NumberSequence = { document_type: '', prefix: '', next_numb
 const emptyAccount: Account = { account_code: '', account_name: '', account_type: 'Revenue', normal_balance: 'Credit', is_active: true };
 const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_email: 'support@aashan.co', reply_to_email: 'support@aashan.co', bcc_email: '' };
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
+type PrintTemplate = {
+  id?: number;
+  document_type: string;
+  header_title: string;
+  header_subtitle: string;
+  logo_url: string;
+  logo_data_url: string;
+  company_block: string;
+  footer_text: string;
+  terms_text: string;
+  notes_text: string;
+};
+
 const emptyPrintTemplate: PrintTemplate = {
   document_type: 'Invoice',
   header_title: 'Aashan & Co LLC',
