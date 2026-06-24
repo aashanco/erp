@@ -92,7 +92,7 @@ const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_e
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters' | 'import'>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -745,6 +745,116 @@ export default function Home() {
     setTemplate({ template_name: 'Invoice Email', subject: 'Invoice {{invoice_no}} from Aashan & Co LLC', body: 'Hi {{customer}},\n\nPlease find your invoice {{invoice_no}} for ${{amount}}.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC' });
   }
 
+
+  function parseCsv(text: string) {
+    const rows: string[][] = [];
+    let current = '';
+    let row: string[] = [];
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const next = text[i + 1];
+
+      if (char === '"' && inQuotes && next === '"') {
+        current += '"';
+        i++;
+      } else if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        row.push(current.trim());
+        current = '';
+      } else if ((char === '\n' || char === '\r') && !inQuotes) {
+        if (current || row.length) {
+          row.push(current.trim());
+          rows.push(row);
+          row = [];
+          current = '';
+        }
+        if (char === '\r' && next === '\n') i++;
+      } else {
+        current += char;
+      }
+    }
+
+    if (current || row.length) {
+      row.push(current.trim());
+      rows.push(row);
+    }
+
+    return rows.filter((r) => r.some((c) => c));
+  }
+
+  function mapRows(rows: string[][]) {
+    const headers = rows[0].map((h) => h.toLowerCase().trim());
+    return rows.slice(1).map((row) => {
+      const obj: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        obj[h] = row[idx] || '';
+      });
+      return obj;
+    });
+  }
+
+  async function importCsvFile(event: any, importType: 'customers' | 'vendors' | 'expenses') {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const text = await file.text();
+    const records = mapRows(parseCsv(text));
+
+    if (records.length === 0) return alert('No data found in file');
+
+    if (importType === 'customers') {
+      const payload = records.map((r) => ({
+        name: r.name || r.customer || r.customer_name || '',
+        phone: r.phone || '',
+        email: r.email || '',
+        address: r.address || '',
+      })).filter((r) => r.name);
+
+      const { error } = await supabase.from('customers').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    if (importType === 'vendors') {
+      const payload = records.map((r, idx) => ({
+        vendor_no: r.vendor_no || r.vendor_number || `V-${String(vendors.length + idx + 1).padStart(4, '0')}`,
+        vendor_name: r.vendor_name || r.vendor || r.name || '',
+        contact_person: r.contact_person || r.contact || '',
+        phone: r.phone || '',
+        email: r.email || '',
+        address: r.address || '',
+        tax_id: r.tax_id || '',
+        notes: r.notes || '',
+        status: r.status || 'Active',
+      })).filter((r) => r.vendor_name);
+
+      const { error } = await supabase.from('vendors').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    if (importType === 'expenses') {
+      const payload = records.map((r, idx) => ({
+        expense_no: r.expense_no || r.expense_number || `EXP-${String(expenses.length + idx + 1).padStart(4, '0')}`,
+        expense_date: r.expense_date || r.date || null,
+        vendor: r.vendor || '',
+        category: r.category || 'Other',
+        description: r.description || '',
+        amount: Number(r.amount || 0),
+        payment_method: r.payment_method || r.method || 'Cash',
+        status: r.status || 'Draft',
+      })).filter((r) => r.description || r.amount);
+
+      const { error } = await supabase.from('expenses').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    event.target.value = '';
+    await loadData();
+    alert('Import completed');
+  }
+
   function exportCsv(filename: string, rows: any[][]) {
     const csv = rows.map((r) => r.map((v) => `"${String(v || '').replaceAll('"', '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -794,23 +904,50 @@ export default function Home() {
         </header>
 
         <section style={styles.container}>
-          <div style={styles.toolbar}>
-            {(['dashboard', 'customers', 'vendors', 'quotes', 'jobs', 'workorders', 'calendar', 'invoices', 'payments', 'expenses', 'reports', 'masters'] as const).map((tab) => (
-              <button key={tab} style={activeTab === tab ? styles.tabActive : styles.tab} onClick={() => setActiveTab(tab)}>
-                {tab[0].toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-            <button style={styles.tab} onClick={() => exportCsv('manager-customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
-            <button style={styles.tab} onClick={() => exportCsv('quotes.csv', [['Quote Number', 'Customer', 'Date', 'Service', 'Amount', 'Status'], ...quotes.map(q => [q.quote_no, q.customer, q.quote_date, q.service, q.amount, q.status])])}>Export Quotes</button>
-            <button style={styles.tab} onClick={() => exportCsv('manager-invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
-            <button style={styles.tab} onClick={() => exportCsv('manager-payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
-            <button style={styles.tab} onClick={() => exportCsv('manager-expenses.csv', [['Expense Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Expenses</button>
-          </div>
+          <div style={styles.erpShell}>
+            <aside style={styles.sidebar}>
+              <div style={styles.sidebarBrand}>Aashan ERP</div>
 
-          <input placeholder="Search customer, job, invoice, payment, status..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
-          {loading && <p>Loading...</p>}
+              <SidebarGroup title="Business">
+                <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} />
+                <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => setActiveTab('vendors')} />
+              </SidebarGroup>
 
-          <div style={styles.cards}>
+              <SidebarGroup title="Operations">
+                <SideButton label="Quotes" active={activeTab === 'quotes'} onClick={() => setActiveTab('quotes')} />
+                <SideButton label="Jobs" active={activeTab === 'jobs'} onClick={() => setActiveTab('jobs')} />
+                <SideButton label="Work Orders" active={activeTab === 'workorders'} onClick={() => setActiveTab('workorders')} />
+                <SideButton label="Calendar" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
+              </SidebarGroup>
+
+              <SidebarGroup title="Finance">
+                <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => setActiveTab('invoices')} />
+                <SideButton label="Payments" active={activeTab === 'payments'} onClick={() => setActiveTab('payments')} />
+                <SideButton label="Expenses" active={activeTab === 'expenses'} onClick={() => setActiveTab('expenses')} />
+                <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
+              </SidebarGroup>
+
+              <SidebarGroup title="Administration">
+                <SideButton label="Masters" active={activeTab === 'masters'} onClick={() => setActiveTab('masters')} />
+                <SideButton label="Import / Export" active={activeTab === 'import'} onClick={() => setActiveTab('import')} />
+              </SidebarGroup>
+            </aside>
+
+            <div style={styles.contentArea}>
+              <div style={styles.topBar}>
+                <div>
+                  <h2 style={styles.pageTitle}>{activeTab[0].toUpperCase() + activeTab.slice(1)}</h2>
+                  <p style={styles.pageSub}>Professional ERP workspace for Aashan & Co LLC</p>
+                </div>
+                <input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
+              </div>
+
+              {loading && <p>Loading...</p>}
+
+              {activeTab === 'dashboard' && (
+                <>
+                  <div style={styles.cards}>
             <Card title="Customers" value={customers.length} />
             <Card title="Quotes" value={quotes.length} />
             <Card title="Open Quotes" value={openQuotes} />
@@ -826,9 +963,26 @@ export default function Home() {
             <Card title="Expenses" value={`$${totalExpenses.toFixed(2)}`} />
             <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
             <Card title="Vendors" value={vendors.length} />
-          </div>
+                  </div>
 
-          {(activeTab === 'dashboard' || activeTab === 'customers') && (
+                  <div style={styles.dashboardGrid}>
+                    <SectionCard title="Quick Actions">
+                      <div style={styles.quickActions}>
+                        <button style={styles.primaryBtn} onClick={() => setActiveTab('quotes')}>Create Quote</button>
+                        <button style={styles.greenBtn} onClick={() => setActiveTab('jobs')}>Create Job</button>
+                        <button style={styles.primaryBtn} onClick={() => setActiveTab('invoices')}>Create Invoice</button>
+                        <button style={styles.grayBtn} onClick={() => setActiveTab('import')}>Import Data</button>
+                      </div>
+                    </SectionCard>
+                    <SectionCard title="Today Schedule">
+                      <p><b>{todaysWorkOrders}</b> work orders scheduled today.</p>
+                      <p><b>{scheduledWorkOrders}</b> work orders are scheduled or in progress.</p>
+                    </SectionCard>
+                  </div>
+                </>
+              )}
+
+          {(activeTab === 'customers') && (
             <>
               <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
                 <div style={styles.formGrid2}>
@@ -877,7 +1031,7 @@ export default function Home() {
           )}
 
 
-          {(activeTab === 'dashboard' || activeTab === 'quotes') && (
+          {(activeTab === 'quotes') && (
             <>
               <SectionCard title={editingQuoteId ? 'Edit Quote' : 'Create Quote'}>
                 <div style={styles.formGrid2}>
@@ -917,7 +1071,7 @@ export default function Home() {
             </>
           )}
 
-          {(activeTab === 'dashboard' || activeTab === 'jobs') && (
+          {(activeTab === 'jobs') && (
             <>
               <SectionCard title={editingJobId ? 'Edit Job / Quote' : 'Add Job / Quote'}>
                 <div style={styles.formGrid2}>
@@ -940,7 +1094,7 @@ export default function Home() {
           )}
 
 
-          {(activeTab === 'dashboard' || activeTab === 'workorders') && (
+          {(activeTab === 'workorders') && (
             <>
               <SectionCard title={editingWorkOrderId ? 'Edit Work Order' : 'Create Work Order'}>
                 <div style={styles.formGrid2}>
@@ -997,7 +1151,7 @@ export default function Home() {
             </>
           )}
 
-          {(activeTab === 'dashboard' || activeTab === 'invoices') && (
+          {(activeTab === 'invoices') && (
             <>
               <SectionCard title={editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}>
                 <div style={styles.formGrid2}>
@@ -1025,7 +1179,7 @@ export default function Home() {
             </>
           )}
 
-          {(activeTab === 'dashboard' || activeTab === 'payments') && (
+          {(activeTab === 'payments') && (
             <>
               <SectionCard title={editingPaymentId ? 'Edit Payment' : 'Record Payment'}>
                 <div style={styles.formGrid2}>
@@ -1102,6 +1256,37 @@ export default function Home() {
             </>
           )}
 
+
+          {(activeTab === 'import') && (
+            <>
+              <SectionCard title="Import Data from Excel / CSV">
+                <p style={styles.helpText}>Save your Excel sheet as CSV, then upload it here. Header names can be simple, such as name, phone, email, address.</p>
+                <div style={styles.formGrid2}>
+                  <Field label="Import Customers CSV">
+                    <input type="file" accept=".csv" onChange={(e) => importCsvFile(e, 'customers')} style={styles.input} />
+                  </Field>
+                  <Field label="Import Vendors CSV">
+                    <input type="file" accept=".csv" onChange={(e) => importCsvFile(e, 'vendors')} style={styles.input} />
+                  </Field>
+                  <Field label="Import Expenses CSV">
+                    <input type="file" accept=".csv" onChange={(e) => importCsvFile(e, 'expenses')} style={styles.input} />
+                  </Field>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Export Data">
+                <div style={styles.quickActions}>
+                  <button style={styles.primaryBtn} onClick={() => exportCsv('customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
+                  <button style={styles.primaryBtn} onClick={() => exportCsv('vendors.csv', [['Vendor No', 'Vendor Name', 'Contact', 'Phone', 'Email', 'Address', 'Tax ID', 'Status'], ...vendors.map(v => [v.vendor_no, v.vendor_name, v.contact_person, v.phone, v.email, v.address, v.tax_id, v.status])])}>Export Vendors</button>
+                  <button style={styles.primaryBtn} onClick={() => exportCsv('quotes.csv', [['Quote Number', 'Customer', 'Date', 'Service', 'Amount', 'Status'], ...quotes.map(q => [q.quote_no, q.customer, q.quote_date, q.service, q.amount, q.status])])}>Export Quotes</button>
+                  <button style={styles.primaryBtn} onClick={() => exportCsv('invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
+                  <button style={styles.primaryBtn} onClick={() => exportCsv('payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
+                  <button style={styles.primaryBtn} onClick={() => exportCsv('expenses.csv', [['Expense Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Expenses</button>
+                </div>
+              </SectionCard>
+            </>
+          )}
+
           {(activeTab === 'masters') && (
             <>
               <SectionCard title="Company Details">
@@ -1169,6 +1354,8 @@ export default function Home() {
               </DataTable>
             </>
           )}
+            </div>
+          </div>
         </section>
       </div>
 
@@ -1246,6 +1433,24 @@ export default function Home() {
   );
 }
 
+
+function SidebarGroup({ title, children }: any) {
+  return (
+    <div style={styles.sidebarGroup}>
+      <div style={styles.sidebarGroupTitle}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function SideButton({ label, active, onClick }: any) {
+  return (
+    <button style={active ? styles.sideButtonActive : styles.sideButton} onClick={onClick}>
+      {label}
+    </button>
+  );
+}
+
 function Card({ title, value }: { title: string; value: any }) {
   return <div style={styles.card}><div style={styles.cardTitle}>{title}</div><div style={styles.cardValue}>{value}</div></div>;
 }
@@ -1274,7 +1479,21 @@ const styles: Record<string, any> = {
   headerTitle: { margin: 0, fontSize: 28 },
   headerSub: { margin: '6px 0 0', opacity: 0.9 },
   phaseBadge: { background: '#1d4ed8', padding: '8px 14px', borderRadius: 999, fontWeight: 700 },
-  container: { maxWidth: 1280, margin: '0 auto', padding: 22 },
+  container: { maxWidth: 1500, margin: '0 auto', padding: 18 },
+  erpShell: { display: 'grid', gridTemplateColumns: '260px 1fr', gap: 18, alignItems: 'start' },
+  sidebar: { background: '#0f172a', color: 'white', borderRadius: 18, padding: 16, position: 'sticky', top: 16, minHeight: 'calc(100vh - 130px)' },
+  sidebarBrand: { fontSize: 20, fontWeight: 800, padding: '8px 10px 18px', borderBottom: '1px solid rgba(255,255,255,0.14)', marginBottom: 12 },
+  sidebarGroup: { marginBottom: 18 },
+  sidebarGroupTitle: { fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, margin: '12px 10px 8px' },
+  sideButton: { width: '100%', textAlign: 'left', background: 'transparent', color: '#dbeafe', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 },
+  sideButtonActive: { width: '100%', textAlign: 'left', background: '#2563eb', color: 'white', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 800, marginBottom: 4 },
+  contentArea: { minWidth: 0 },
+  topBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18, flexWrap: 'wrap' },
+  pageTitle: { margin: 0, fontSize: 26 },
+  pageSub: { margin: '4px 0 0', color: '#64748b' },
+  dashboardGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 },
+  quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
+  helpText: { color: '#64748b', marginTop: 0 },
   toolbar: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 },
   tab: { background: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #e5e7eb', boxShadow: '0 3px 10px rgba(15,23,42,0.08)', cursor: 'pointer' },
   tabActive: { background: '#2563eb', color: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #2563eb', boxShadow: '0 3px 10px rgba(37,99,235,0.25)', cursor: 'pointer' },
@@ -1311,6 +1530,17 @@ const styles: Record<string, any> = {
 
 const printCss = `
 .invoice-print { display: none; }
+@media (max-width: 900px) {
+  .app-screen section > div {
+    display: block !important;
+  }
+  aside {
+    position: relative !important;
+    top: auto !important;
+    min-height: auto !important;
+    margin-bottom: 16px;
+  }
+}
 @media print {
   body { margin: 0; background: white !important; }
   .app-screen { display: none !important; }
