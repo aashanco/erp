@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 
 type Customer = { id?: number; name: string; phone: string; email: string; address: string };
 type Job = { id?: number; customer: string; service: string; job_date: string; amount: string; status: string };
+type Quote = { id?: number; quote_no: string; customer: string; service: string; quote_date: string; amount: string; status: string; notes: string };
 type Invoice = {
   id?: number;
   invoice_no: string;
@@ -65,6 +66,7 @@ const LOGO_SRC = '/aashan-logo.png';
 
 const emptyCustomer: Customer = { name: '', phone: '', email: '', address: '' };
 const emptyJob: Job = { customer: '', service: '', job_date: '', amount: '', status: 'New' };
+const emptyQuote: Quote = { quote_no: '', customer: '', service: '', quote_date: '', amount: '', status: 'Draft', notes: '' };
 const emptyInvoice: Invoice = {
   invoice_no: '',
   customer: '',
@@ -88,15 +90,17 @@ const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_e
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'jobs' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters'>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
   const [job, setJob] = useState<Job>(emptyJob);
+  const [quote, setQuote] = useState<Quote>(emptyQuote);
   const [invoice, setInvoice] = useState<Invoice>(emptyInvoice);
   const [payment, setPayment] = useState<Payment>(emptyPayment);
   const [vendor, setVendor] = useState<Vendor>(emptyVendor);
@@ -112,6 +116,7 @@ export default function Home() {
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
+  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const [editingVendorId, setEditingVendorId] = useState<number | null>(null);
@@ -126,6 +131,7 @@ export default function Home() {
     setLoading(true);
     const { data: customerData, error: customerError } = await supabase.from('customers').select('*').order('id', { ascending: false });
     const { data: jobData, error: jobError } = await supabase.from('jobs').select('*').order('id', { ascending: false });
+    const { data: quoteData, error: quoteError } = await supabase.from('quotes').select('*').order('id', { ascending: false });
     const { data: invoiceData, error: invoiceError } = await supabase.from('invoices').select('*').order('id', { ascending: false });
     const { data: paymentData, error: paymentError } = await supabase.from('payments').select('*').order('id', { ascending: false });
     const { data: vendorData, error: vendorError } = await supabase.from('vendors').select('*').order('id', { ascending: false });
@@ -138,6 +144,7 @@ export default function Home() {
 
     if (customerError) alert(customerError.message);
     if (jobError) alert(jobError.message);
+    if (quoteError) alert(quoteError.message);
     if (invoiceError) alert(invoiceError.message);
     if (paymentError) alert(paymentError.message);
     if (vendorError) alert(vendorError.message);
@@ -145,6 +152,7 @@ export default function Home() {
 
     setCustomers(customerData || []);
     setJobs((jobData || []).map((j: any) => ({ ...j, amount: String(j.amount || '') })));
+    setQuotes((quoteData || []).map((q: any) => ({ ...q, amount: String(q.amount || '') })));
     setInvoices((invoiceData || []).map((i: any) => ({ ...i, amount: String(i.amount || '') })));
     setPayments((paymentData || []).map((p: any) => ({ ...p, amount: String(p.amount || '') })));
     setVendors(vendorData || []);
@@ -164,6 +172,14 @@ export default function Home() {
       setTimeout(() => window.print(), 250);
     }
   }, [printInvoice]);
+
+  function nextQuoteNo() {
+    const maxNo = quotes.reduce((max, q) => {
+      const num = Number(String(q.quote_no || '').replace(/[^0-9]/g, ''));
+      return Number.isFinite(num) && num > max ? num : max;
+    }, 1000);
+    return `Q-${String(maxNo + 1).padStart(4, '0')}`;
+  }
 
   function nextInvoiceNo() {
     const maxNo = invoices.reduce((max, inv) => {
@@ -227,6 +243,90 @@ export default function Home() {
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) return alert(error.message);
     await loadData();
+  }
+
+
+  async function saveQuote() {
+    if (!quote.customer.trim() || !quote.service.trim()) return alert('Select customer and enter service');
+    const today = new Date().toISOString().slice(0, 10);
+    const payload = {
+      quote_no: quote.quote_no || nextQuoteNo(),
+      customer: quote.customer,
+      service: quote.service,
+      quote_date: quote.quote_date || today,
+      amount: Number(quote.amount || 0),
+      status: quote.status,
+      notes: quote.notes || '',
+    };
+
+    const res = editingQuoteId
+      ? await supabase.from('quotes').update(payload).eq('id', editingQuoteId)
+      : await supabase.from('quotes').insert([payload]);
+
+    if (res.error) return alert(res.error.message);
+    setQuote(emptyQuote);
+    setEditingQuoteId(null);
+    await loadData();
+  }
+
+  function editQuote(q: Quote) {
+    setQuote({ ...q, amount: String(q.amount || '') });
+    setEditingQuoteId(q.id || null);
+    setActiveTab('quotes');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteQuote(id?: number) {
+    if (!id || !confirm('Delete this quote?')) return;
+    const { error } = await supabase.from('quotes').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  async function quickQuoteStatus(id: number | undefined, status: string) {
+    if (!id) return;
+    const { error } = await supabase.from('quotes').update({ status }).eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  async function convertQuoteToJob(q: Quote) {
+    const today = new Date().toISOString().slice(0, 10);
+    const payload = {
+      customer: q.customer,
+      service: q.service,
+      job_date: today,
+      amount: Number(q.amount || 0),
+      status: 'New',
+    };
+    const res = await supabase.from('jobs').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    if (q.id) await supabase.from('quotes').update({ status: 'Approved' }).eq('id', q.id);
+    await loadData();
+    alert('Quote converted to Job');
+  }
+
+  async function convertQuoteToInvoice(q: Quote) {
+    const today = new Date().toISOString().slice(0, 10);
+    const c = getCustomerByName(q.customer);
+    const payload = {
+      invoice_no: nextInvoiceNo(),
+      customer: q.customer,
+      job_id: null,
+      amount: Number(q.amount || 0),
+      invoice_date: today,
+      due_date: today,
+      status: 'Draft',
+      notes: q.notes || 'Thank you for choosing Aashan & Co LLC.',
+      customer_phone: c?.phone || '',
+      customer_email: c?.email || '',
+      customer_address: c?.address || '',
+    };
+    const res = await supabase.from('invoices').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    if (q.id) await supabase.from('quotes').update({ status: 'Approved' }).eq('id', q.id);
+    await loadData();
+    alert('Quote converted to Invoice');
   }
 
   async function saveJob() {
@@ -567,6 +667,7 @@ export default function Home() {
   const q = search.toLowerCase();
   const filteredCustomers = customers.filter((c) => [c.name, c.phone, c.email, c.address].join(' ').toLowerCase().includes(q));
   const filteredJobs = jobs.filter((j) => [j.customer, j.service, j.status, j.job_date, j.amount].join(' ').toLowerCase().includes(q));
+  const filteredQuotes = quotes.filter((qt) => [qt.quote_no, qt.customer, qt.service, qt.status, qt.quote_date, qt.amount].join(' ').toLowerCase().includes(q));
   const filteredInvoices = invoices.filter((i) => [i.invoice_no, i.customer, i.status, i.invoice_date, i.amount].join(' ').toLowerCase().includes(q));
   const filteredPayments = payments.filter((p) => [p.invoice_no, p.customer, p.payment_date, p.payment_method, p.amount, p.notes].join(' ').toLowerCase().includes(q));
   const filteredVendors = vendors.filter((v) => [v.vendor_no, v.vendor_name, v.contact_person, v.phone, v.email, v.status].join(' ').toLowerCase().includes(q));
@@ -580,6 +681,7 @@ export default function Home() {
   const paidRevenue = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const openInvoices = invoices.filter((i) => invoiceBalance(i) > 0 && i.status !== 'Cancelled').length;
   const jobsInProgress = jobs.filter((j) => j.status === 'In Progress').length;
+  const openQuotes = quotes.filter((qt) => ['Draft', 'Sent'].includes(qt.status)).length;
   const completedJobs = jobs.filter((j) => ['Completed', 'Invoiced', 'Paid'].includes(j.status)).length;
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const netProfit = paidRevenue - totalExpenses;
@@ -601,12 +703,13 @@ export default function Home() {
 
         <section style={styles.container}>
           <div style={styles.toolbar}>
-            {(['dashboard', 'customers', 'vendors', 'jobs', 'invoices', 'payments', 'expenses', 'reports', 'masters'] as const).map((tab) => (
+            {(['dashboard', 'customers', 'vendors', 'quotes', 'jobs', 'invoices', 'payments', 'expenses', 'reports', 'masters'] as const).map((tab) => (
               <button key={tab} style={activeTab === tab ? styles.tabActive : styles.tab} onClick={() => setActiveTab(tab)}>
                 {tab[0].toUpperCase() + tab.slice(1)}
               </button>
             ))}
             <button style={styles.tab} onClick={() => exportCsv('manager-customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
+            <button style={styles.tab} onClick={() => exportCsv('quotes.csv', [['Quote Number', 'Customer', 'Date', 'Service', 'Amount', 'Status'], ...quotes.map(q => [q.quote_no, q.customer, q.quote_date, q.service, q.amount, q.status])])}>Export Quotes</button>
             <button style={styles.tab} onClick={() => exportCsv('manager-invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
             <button style={styles.tab} onClick={() => exportCsv('manager-payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
             <button style={styles.tab} onClick={() => exportCsv('manager-expenses.csv', [['Expense Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Expenses</button>
@@ -617,6 +720,8 @@ export default function Home() {
 
           <div style={styles.cards}>
             <Card title="Customers" value={customers.length} />
+            <Card title="Quotes" value={quotes.length} />
+            <Card title="Open Quotes" value={openQuotes} />
             <Card title="Jobs" value={jobs.length} />
             <Card title="Invoices" value={invoices.length} />
             <Card title="Open Invoices" value={openInvoices} />
@@ -673,6 +778,47 @@ export default function Home() {
 
               <DataTable title="Vendor List" headers={['Vendor No', 'Name', 'Contact', 'Phone', 'Email', 'Status', 'Actions']}>
                 {filteredVendors.map((v) => <tr key={v.id}><Td>{v.vendor_no}</Td><Td>{v.vendor_name}</Td><Td>{v.contact_person}</Td><Td>{v.phone}</Td><Td>{v.email}</Td><Td><StatusBadge status={v.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editVendor(v)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteVendor(v.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+
+          {(activeTab === 'dashboard' || activeTab === 'quotes') && (
+            <>
+              <SectionCard title={editingQuoteId ? 'Edit Quote' : 'Create Quote'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Quote No" value={quote.quote_no} onChange={(v: string) => setQuote({ ...quote, quote_no: v })} />
+                  <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote({ ...quote, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                  <Input label="Quote Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
+                  <Input label="Service / Description" value={quote.service} onChange={(v: string) => setQuote({ ...quote, service: v })} />
+                  <Input label="Amount" value={quote.amount} onChange={(v: string) => setQuote({ ...quote, amount: v })} />
+                  <Field label="Status"><select value={quote.status} onChange={(e) => setQuote({ ...quote, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Field>
+                  <Input label="Notes" value={quote.notes} onChange={(v: string) => setQuote({ ...quote, notes: v })} />
+                </div>
+                <ButtonRow>
+                  <button onClick={saveQuote} style={styles.primaryBtn}>{editingQuoteId ? 'Update Quote' : 'Save Quote'}</button>
+                  {editingQuoteId && <button onClick={() => { setQuote(emptyQuote); setEditingQuoteId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Quotes" headers={['Quote #', 'Customer', 'Date', 'Service', 'Amount', 'Status', 'Quick Status', 'Actions']}>
+                {filteredQuotes.map((qt) => (
+                  <tr key={qt.id}>
+                    <Td>{qt.quote_no}</Td>
+                    <Td>{qt.customer}</Td>
+                    <Td>{qt.quote_date}</Td>
+                    <Td>{qt.service}</Td>
+                    <Td>${Number(qt.amount || 0).toFixed(2)}</Td>
+                    <Td><StatusBadge status={qt.status} /></Td>
+                    <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Td>
+                    <Td>
+                      <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
+                      <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
+                      <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
+                      <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>
+                    </Td>
+                  </tr>
+                ))}
               </DataTable>
             </>
           )}
@@ -996,6 +1142,7 @@ const styles: Record<string, any> = {
   greenBtn: { background: '#059669', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
   grayBtn: { background: '#64748b', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
   smallBtn: { background: '#2563eb', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  greenSmallBtn: { background: '#059669', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
   printBtn: { background: '#111827', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
   dangerBtn: { background: '#dc2626', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, cursor: 'pointer' },
   smallSelect: { padding: 7, border: '1px solid #cbd5e1', borderRadius: 7 },
