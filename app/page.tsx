@@ -1536,6 +1536,60 @@ export default function Home() {
     );
   }
 
+
+  const accountsReceivable = outstanding;
+  const accountsPayable = purchaseInvoices
+    .filter((pi) => pi.status !== 'Paid' && pi.status !== 'Cancelled')
+    .reduce((sum, pi) => sum + Number(pi.amount || 0), 0);
+
+  const bankBalance = banks.reduce((sum, b) => sum + Number(b.current_balance || 0), 0);
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const revenueMTD = payments
+    .filter((p) => String(p.payment_date || '').slice(0, 7) === currentMonth)
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const expensesMTD = expenses
+    .filter((e) => String(e.expense_date || '').slice(0, 7) === currentMonth)
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+  const profitMTD = revenueMTD - expensesMTD;
+  const overdueInvoices = invoices.filter((i) => i.due_date && i.status !== 'Paid' && i.status !== 'Cancelled' && i.due_date < todayText).length;
+  const pendingInvoices = invoices.filter((i) => ['Draft', 'Sent', 'Partially Paid'].includes(i.status)).length;
+
+  function monthKey(value: string) {
+    return String(value || '').slice(0, 7);
+  }
+
+  const monthSet = new Set<string>();
+  payments.forEach((p) => { if (p.payment_date) monthSet.add(monthKey(p.payment_date)); });
+  expenses.forEach((e) => { if (e.expense_date) monthSet.add(monthKey(e.expense_date)); });
+
+  const monthlySummary = Array.from(monthSet)
+    .sort()
+    .slice(-6)
+    .map((month) => {
+      const revenue = payments
+        .filter((p) => monthKey(p.payment_date) === month)
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const expense = expenses
+        .filter((e) => monthKey(e.expense_date) === month)
+        .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+      return { month, revenue, expense, profit: revenue - expense };
+    });
+
+  const chartMax = Math.max(1, ...monthlySummary.flatMap((m) => [m.revenue, m.expense, Math.abs(m.profit)]));
+
+  const topCustomers = customers
+    .map((c) => ({
+      name: c.name,
+      revenue: payments.filter((p) => p.customer === c.name).reduce((sum, p) => sum + Number(p.amount || 0), 0),
+    }))
+    .filter((c) => c.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+
+
   function openTab(tab: typeof activeTab) {
     setActiveTab(tab);
     setMobileMenuOpen(false);
@@ -1626,18 +1680,77 @@ export default function Home() {
             <Card title="Receipts" value={receipts.length} />
                   </div>
 
+                  <div style={styles.executiveCards}>
+                    <Card title="Bank Balance" value={`$${bankBalance.toFixed(2)}`} />
+                    <Card title="Accounts Receivable" value={`$${accountsReceivable.toFixed(2)}`} />
+                    <Card title="Accounts Payable" value={`$${accountsPayable.toFixed(2)}`} />
+                    <Card title="Revenue MTD" value={`$${revenueMTD.toFixed(2)}`} />
+                    <Card title="Expenses MTD" value={`$${expensesMTD.toFixed(2)}`} />
+                    <Card title="Profit MTD" value={`$${profitMTD.toFixed(2)}`} />
+                    <Card title="Pending Invoices" value={pendingInvoices} />
+                    <Card title="Overdue Invoices" value={overdueInvoices} />
+                  </div>
+
                   <div style={styles.dashboardGrid}>
                     <SectionCard title="Quick Actions">
                       <div style={styles.quickActions}>
                         <button style={styles.primaryBtn} onClick={() => openTab('quotes')}>Create Quote</button>
                         <button style={styles.greenBtn} onClick={() => openTab('jobs')}>Create Job</button>
                         <button style={styles.primaryBtn} onClick={() => openTab('invoices')}>Create Invoice</button>
+                        <button style={styles.primaryBtn} onClick={() => openTab('receipts')}>Create Receipt</button>
                         <button style={styles.grayBtn} onClick={() => openTab('import')}>Import Data</button>
                       </div>
                     </SectionCard>
+
                     <SectionCard title="Today Schedule">
                       <p><b>{todaysWorkOrders}</b> work orders scheduled today.</p>
                       <p><b>{scheduledWorkOrders}</b> work orders are scheduled or in progress.</p>
+                      <button style={styles.smallBtn} onClick={() => openTab('calendar')}>Open Calendar</button>
+                    </SectionCard>
+                  </div>
+
+                  <div style={styles.dashboardGrid}>
+                    <SectionCard title="Revenue vs Expenses - Last 6 Months">
+                      {monthlySummary.length === 0 && <p style={styles.helpText}>No revenue or expense data yet.</p>}
+                      {monthlySummary.map((m) => (
+                        <div key={m.month} style={styles.chartRow}>
+                          <div style={styles.chartLabel}>{m.month}</div>
+                          <div style={styles.chartTrack}>
+                            <div style={{ ...styles.chartBarRevenue, width: `${Math.max(4, (m.revenue / chartMax) * 100)}%` }}>Revenue ${m.revenue.toFixed(0)}</div>
+                            <div style={{ ...styles.chartBarExpense, width: `${Math.max(4, (m.expense / chartMax) * 100)}%` }}>Expense ${m.expense.toFixed(0)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </SectionCard>
+
+                    <SectionCard title="Top Customers by Revenue">
+                      {topCustomers.length === 0 && <p style={styles.helpText}>No paid customer revenue yet.</p>}
+                      {topCustomers.map((c) => (
+                        <div key={c.name} style={styles.topCustomerRow}>
+                          <span>{c.name}</span>
+                          <b>${c.revenue.toFixed(2)}</b>
+                        </div>
+                      ))}
+                    </SectionCard>
+                  </div>
+
+                  <div style={styles.dashboardGrid}>
+                    <SectionCard title="Operations Summary">
+                      <div style={styles.kpiList}>
+                        <div><span>Open Quotes</span><b>{openQuotes}</b></div>
+                        <div><span>Open Jobs</span><b>{jobs.filter((j) => ['New', 'Quoted', 'In Progress'].includes(j.status)).length}</b></div>
+                        <div><span>Scheduled Jobs</span><b>{scheduledWorkOrders}</b></div>
+                        <div><span>Completed Jobs</span><b>{completedJobs}</b></div>
+                      </div>
+                    </SectionCard>
+
+                    <SectionCard title="Financial Health">
+                      <div style={styles.kpiList}>
+                        <div><span>Total Revenue</span><b>${paidRevenue.toFixed(2)}</b></div>
+                        <div><span>Total Expenses</span><b>${totalExpenses.toFixed(2)}</b></div>
+                        <div><span>Net Profit</span><b>${netProfit.toFixed(2)}</b></div>
+                        <div><span>Outstanding AR</span><b>${outstanding.toFixed(2)}</b></div>
+                      </div>
                     </SectionCard>
                   </div>
                 </>
@@ -2428,7 +2541,17 @@ const styles: Record<string, any> = {
   topBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18, flexWrap: 'wrap' },
   pageTitle: { margin: 0, fontSize: 26 },
   pageSub: { margin: '4px 0 0', color: '#64748b' },
-  dashboardGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 },
+  dashboardGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 18 },
+  executiveCards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, marginTop: 18, marginBottom: 18 },
+  chartRow: { display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, alignItems: 'center', marginBottom: 12 },
+  chartLabel: { fontWeight: 800, color: '#334155' },
+  chartTrack: { display: 'flex', flexDirection: 'column', gap: 4 },
+  chartBarRevenue: { background: '#dcfce7', color: '#166534', borderRadius: 999, padding: '5px 8px', fontSize: 12, whiteSpace: 'nowrap', minWidth: 75 },
+  chartBarExpense: { background: '#fee2e2', color: '#991b1b', borderRadius: 999, padding: '5px 8px', fontSize: 12, whiteSpace: 'nowrap', minWidth: 75 },
+  topCustomerRow: { display: 'flex', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid #e5e7eb', padding: '10px 0' },
+  kpiList: { display: 'grid', gap: 10 },
+  kpiListItem: {},
+
   quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
   helpText: { color: '#64748b', marginTop: 0 },
   errorBox: { background: '#fee2e2', color: '#991b1b', padding: 14, borderRadius: 10 },
