@@ -33,6 +33,11 @@ type Payment = {
   notes: string;
 };
 
+type Bank = { id?: number; bank_name: string; account_name: string; account_number: string; routing_number: string; opening_balance: string; current_balance: string; is_active: boolean };
+type Receipt = { id?: number; receipt_no: string; customer: string; invoice_no: string; receipt_date: string; amount: string; payment_method: string; bank_name: string; notes: string };
+type PurchaseInvoice = { id?: number; purchase_invoice_no: string; vendor: string; invoice_date: string; due_date: string; category: string; description: string; amount: string; status: string; bank_name: string; notes: string };
+type JournalEntry = { id?: number; journal_no: string; journal_date: string; description: string; debit_account: string; credit_account: string; amount: string; notes: string };
+
 type UserProfile = {
   id?: string;
   email: string;
@@ -92,6 +97,10 @@ const emptyInvoice: Invoice = {
   customer_address: '',
 };
 const emptyPayment: Payment = { invoice_id: null, invoice_no: '', customer: '', payment_date: '', amount: '', payment_method: 'Cash', notes: '' };
+const emptyBank: Bank = { bank_name: '', account_name: '', account_number: '', routing_number: '', opening_balance: '0', current_balance: '0', is_active: true };
+const emptyReceipt: Receipt = { receipt_no: '', customer: '', invoice_no: '', receipt_date: '', amount: '', payment_method: 'Cash', bank_name: '', notes: '' };
+const emptyPurchaseInvoice: PurchaseInvoice = { purchase_invoice_no: '', vendor: '', invoice_date: '', due_date: '', category: 'Materials', description: '', amount: '', status: 'Open', bank_name: '', notes: '' };
+const emptyJournalEntry: JournalEntry = { journal_no: '', journal_date: '', description: '', debit_account: '', credit_account: '', amount: '', notes: '' };
 const emptyVendor: Vendor = { vendor_no: '', vendor_name: '', contact_person: '', phone: '', email: '', address: '', tax_id: '', notes: '', status: 'Active' };
 const emptyExpense: Expense = { expense_no: '', expense_date: '', vendor: '', category: 'Materials', description: '', amount: '', payment_method: 'Cash', status: 'Draft' };
 const emptyCompany: CompanySettings = { company_name: 'Aashan & Co LLC', phone: '(832) 210-4248', email: 'support@aashan.co', website: 'www.aashan.co', address: 'Dallas, Texas', logo_url: '/aashan-logo.png', tax_rate: '0', payment_terms: 'Payment due within agreed terms.', payment_instructions: 'Please contact Aashan & Co LLC for payment options.' };
@@ -109,13 +118,17 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters' | 'import'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
@@ -124,6 +137,10 @@ export default function Home() {
   const [workOrder, setWorkOrder] = useState<WorkOrder>(emptyWorkOrder);
   const [invoice, setInvoice] = useState<Invoice>(emptyInvoice);
   const [payment, setPayment] = useState<Payment>(emptyPayment);
+  const [bank, setBank] = useState<Bank>(emptyBank);
+  const [receipt, setReceipt] = useState<Receipt>(emptyReceipt);
+  const [purchaseInvoice, setPurchaseInvoice] = useState<PurchaseInvoice>(emptyPurchaseInvoice);
+  const [journalEntry, setJournalEntry] = useState<JournalEntry>(emptyJournalEntry);
   const [vendor, setVendor] = useState<Vendor>(emptyVendor);
   const [expense, setExpense] = useState<Expense>(emptyExpense);
   const [company, setCompany] = useState<CompanySettings>(emptyCompany);
@@ -135,12 +152,18 @@ export default function Home() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [template, setTemplate] = useState<EmailTemplate>(emptyTemplate);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
+  const [printQuote, setPrintQuote] = useState<Quote | null>(null);
+  const [printReceipt, setPrintReceipt] = useState<Receipt | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
   const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
   const [editingWorkOrderId, setEditingWorkOrderId] = useState<number | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
+  const [editingBankId, setEditingBankId] = useState<number | null>(null);
+  const [editingReceiptId, setEditingReceiptId] = useState<number | null>(null);
+  const [editingPurchaseInvoiceId, setEditingPurchaseInvoiceId] = useState<number | null>(null);
+  const [editingJournalEntryId, setEditingJournalEntryId] = useState<number | null>(null);
   const [editingVendorId, setEditingVendorId] = useState<number | null>(null);
   const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
   const [editingSequenceId, setEditingSequenceId] = useState<number | null>(null);
@@ -150,7 +173,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
-  const [pendingImportType, setPendingImportType] = useState<'customers' | 'vendors' | 'expenses' | 'accounts' | ''>('');
+  const [pendingImportType, setPendingImportType] = useState<'customers' | 'vendors' | 'expenses' | 'accounts' | 'payments' | 'receipts' | 'invoices' | 'purchase_invoices' | 'journal_entries' | ''>('');
 
 
   const canEdit = profile?.role !== 'Read Only';
@@ -237,6 +260,10 @@ export default function Home() {
     const { data: workOrderData, error: workOrderError } = await supabase.from('work_orders').select('*').order('scheduled_date', { ascending: true });
     const { data: invoiceData, error: invoiceError } = await supabase.from('invoices').select('*').order('id', { ascending: false });
     const { data: paymentData, error: paymentError } = await supabase.from('payments').select('*').order('id', { ascending: false });
+    const { data: bankData, error: bankError } = await supabase.from('banks').select('*').order('id', { ascending: false });
+    const { data: receiptData, error: receiptError } = await supabase.from('receipts').select('*').order('id', { ascending: false });
+    const { data: purchaseInvoiceData, error: purchaseInvoiceError } = await supabase.from('purchase_invoices').select('*').order('id', { ascending: false });
+    const { data: journalEntryData, error: journalEntryError } = await supabase.from('journal_entries').select('*').order('id', { ascending: false });
     const { data: vendorData, error: vendorError } = await supabase.from('vendors').select('*').order('id', { ascending: false });
     const { data: expenseData, error: expenseError } = await supabase.from('expenses').select('*').order('id', { ascending: false });
     const { data: companyData } = await supabase.from('company_settings').select('*').limit(1);
@@ -252,6 +279,10 @@ export default function Home() {
     if (workOrderError) alert(workOrderError.message);
     if (invoiceError) alert(invoiceError.message);
     if (paymentError) alert(paymentError.message);
+    if (bankError) console.warn(bankError.message);
+    if (receiptError) console.warn(receiptError.message);
+    if (purchaseInvoiceError) console.warn(purchaseInvoiceError.message);
+    if (journalEntryError) console.warn(journalEntryError.message);
     if (vendorError) alert(vendorError.message);
     if (expenseError) alert(expenseError.message);
 
@@ -261,6 +292,10 @@ export default function Home() {
     setWorkOrders(workOrderData || []);
     setInvoices((invoiceData || []).map((i: any) => ({ ...i, amount: String(i.amount || '') })));
     setPayments((paymentData || []).map((p: any) => ({ ...p, amount: String(p.amount || '') })));
+    setBanks((bankData || []).map((b: any) => ({ ...b, opening_balance: String(b.opening_balance || 0), current_balance: String(b.current_balance || 0) })));
+    setReceipts((receiptData || []).map((r: any) => ({ ...r, amount: String(r.amount || '') })));
+    setPurchaseInvoices((purchaseInvoiceData || []).map((pi: any) => ({ ...pi, amount: String(pi.amount || '') })));
+    setJournalEntries((journalEntryData || []).map((je: any) => ({ ...je, amount: String(je.amount || '') })));
     setVendors(vendorData || []);
     setExpenses((expenseData || []).map((e: any) => ({ ...e, amount: String(e.amount || '') })));
     if (companyData && companyData.length > 0) setCompany({ ...emptyCompany, ...companyData[0], tax_rate: String(companyData[0].tax_rate || 0) });
@@ -295,10 +330,10 @@ export default function Home() {
   }, [session]);
 
   useEffect(() => {
-    if (printInvoice) {
+    if (printInvoice || printQuote || printReceipt) {
       setTimeout(() => window.print(), 250);
     }
-  }, [printInvoice]);
+  }, [printInvoice, printQuote, printReceipt]);
 
   function nextQuoteNo() {
     const maxNo = quotes.reduce((max, q) => {
@@ -314,6 +349,18 @@ export default function Home() {
       return Number.isFinite(num) && num > max ? num : max;
     }, 1000);
     return `WO-${String(maxNo + 1).padStart(4, '0')}`;
+  }
+
+  function nextReceiptNo() {
+    return `RCPT-${String(receipts.length + 1).padStart(4, '0')}`;
+  }
+
+  function nextPurchaseInvoiceNo() {
+    return `PINV-${String(purchaseInvoices.length + 1).padStart(4, '0')}`;
+  }
+
+  function nextJournalNo() {
+    return `JE-${String(journalEntries.length + 1).padStart(4, '0')}`;
   }
 
   function nextInvoiceNo() {
@@ -816,6 +863,159 @@ export default function Home() {
     await loadData();
   }
 
+
+  function emailDocument(type: string, to: string, subject: string, body: string) {
+    const url = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = url;
+  }
+
+  async function saveBank() {
+    if (!bank.bank_name.trim()) return alert('Enter bank name');
+    const payload = {
+      bank_name: bank.bank_name,
+      account_name: bank.account_name,
+      account_number: bank.account_number,
+      routing_number: bank.routing_number,
+      opening_balance: Number(bank.opening_balance || 0),
+      current_balance: Number(bank.current_balance || 0),
+      is_active: bank.is_active,
+    };
+    const res = editingBankId
+      ? await supabase.from('banks').update(payload).eq('id', editingBankId)
+      : await supabase.from('banks').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    setBank(emptyBank); setEditingBankId(null); await loadData();
+  }
+
+  function editBank(b: Bank) {
+    setBank({ ...b, opening_balance: String(b.opening_balance || 0), current_balance: String(b.current_balance || 0) });
+    setEditingBankId(b.id || null);
+    setActiveTab('banks');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteBank(id?: number) {
+    if (!id || !confirm('Delete this bank?')) return;
+    const { error } = await supabase.from('banks').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  async function saveReceipt() {
+    if (!receipt.customer.trim()) return alert('Enter customer');
+    const payload = {
+      receipt_no: receipt.receipt_no || nextReceiptNo(),
+      customer: receipt.customer,
+      invoice_no: receipt.invoice_no,
+      receipt_date: receipt.receipt_date || null,
+      amount: Number(receipt.amount || 0),
+      payment_method: receipt.payment_method,
+      bank_name: receipt.bank_name,
+      notes: receipt.notes,
+    };
+    const res = editingReceiptId
+      ? await supabase.from('receipts').update(payload).eq('id', editingReceiptId)
+      : await supabase.from('receipts').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    setReceipt(emptyReceipt); setEditingReceiptId(null); await loadData();
+  }
+
+  function editReceipt(r: Receipt) {
+    setReceipt({ ...r, amount: String(r.amount || '') });
+    setEditingReceiptId(r.id || null);
+    setActiveTab('receipts');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteReceipt(id?: number) {
+    if (!id || !confirm('Delete this receipt?')) return;
+    const { error } = await supabase.from('receipts').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  function fillReceiptFromInvoice(invoiceIdValue: string) {
+    const selected = invoices.find((i) => String(i.id) === invoiceIdValue);
+    if (!selected) return;
+    setReceipt({
+      receipt_no: receipt.receipt_no || nextReceiptNo(),
+      customer: selected.customer,
+      invoice_no: selected.invoice_no,
+      receipt_date: receipt.receipt_date || new Date().toISOString().slice(0, 10),
+      amount: String(invoiceBalance(selected) || selected.amount || ''),
+      payment_method: receipt.payment_method || 'Cash',
+      bank_name: receipt.bank_name || '',
+      notes: receipt.notes || '',
+    });
+  }
+
+  async function savePurchaseInvoice() {
+    if (!purchaseInvoice.vendor.trim()) return alert('Select vendor');
+    const payload = {
+      purchase_invoice_no: purchaseInvoice.purchase_invoice_no || nextPurchaseInvoiceNo(),
+      vendor: purchaseInvoice.vendor,
+      invoice_date: purchaseInvoice.invoice_date || null,
+      due_date: purchaseInvoice.due_date || null,
+      category: purchaseInvoice.category,
+      description: purchaseInvoice.description,
+      amount: Number(purchaseInvoice.amount || 0),
+      status: purchaseInvoice.status,
+      bank_name: purchaseInvoice.bank_name,
+      notes: purchaseInvoice.notes,
+    };
+    const res = editingPurchaseInvoiceId
+      ? await supabase.from('purchase_invoices').update(payload).eq('id', editingPurchaseInvoiceId)
+      : await supabase.from('purchase_invoices').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    setPurchaseInvoice(emptyPurchaseInvoice); setEditingPurchaseInvoiceId(null); await loadData();
+  }
+
+  function editPurchaseInvoice(pi: PurchaseInvoice) {
+    setPurchaseInvoice({ ...pi, amount: String(pi.amount || '') });
+    setEditingPurchaseInvoiceId(pi.id || null);
+    setActiveTab('purchases');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deletePurchaseInvoice(id?: number) {
+    if (!id || !confirm('Delete this purchase invoice?')) return;
+    const { error } = await supabase.from('purchase_invoices').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  async function saveJournalEntry() {
+    if (!journalEntry.debit_account || !journalEntry.credit_account) return alert('Select debit and credit accounts');
+    const payload = {
+      journal_no: journalEntry.journal_no || nextJournalNo(),
+      journal_date: journalEntry.journal_date || null,
+      description: journalEntry.description,
+      debit_account: journalEntry.debit_account,
+      credit_account: journalEntry.credit_account,
+      amount: Number(journalEntry.amount || 0),
+      notes: journalEntry.notes,
+    };
+    const res = editingJournalEntryId
+      ? await supabase.from('journal_entries').update(payload).eq('id', editingJournalEntryId)
+      : await supabase.from('journal_entries').insert([payload]);
+    if (res.error) return alert(res.error.message);
+    setJournalEntry(emptyJournalEntry); setEditingJournalEntryId(null); await loadData();
+  }
+
+  function editJournalEntry(je: JournalEntry) {
+    setJournalEntry({ ...je, amount: String(je.amount || '') });
+    setEditingJournalEntryId(je.id || null);
+    setActiveTab('journals');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteJournalEntry(id?: number) {
+    if (!id || !confirm('Delete this journal entry?')) return;
+    const { error } = await supabase.from('journal_entries').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
   async function saveCompany() {
     const payload = { company_name: company.company_name, phone: company.phone, email: company.email, website: company.website, address: company.address, logo_url: company.logo_url, tax_rate: Number(company.tax_rate || 0), payment_terms: company.payment_terms, payment_instructions: company.payment_instructions };
     const res = company.id ? await supabase.from('company_settings').update(payload).eq('id', company.id) : await supabase.from('company_settings').insert([payload]);
@@ -934,7 +1134,7 @@ export default function Home() {
     });
   }
 
-  function validateImport(importType: 'customers' | 'vendors' | 'expenses' | 'accounts', records: any[]) {
+  function validateImport(importType: 'customers' | 'vendors' | 'expenses' | 'accounts' | 'payments' | 'receipts' | 'invoices' | 'purchase_invoices' | 'journal_entries', records: any[]) {
     const errors: string[] = [];
 
     records.forEach((r, idx) => {
@@ -959,10 +1159,16 @@ export default function Home() {
       }
     });
 
+    if (importType === 'payments' && records.some((r) => r.amount && Number.isNaN(Number(r.amount)))) errors.push('Payment import: Amount must be numeric');
+    if (importType === 'receipts' && records.some((r) => r.amount && Number.isNaN(Number(r.amount)))) errors.push('Receipt import: Amount must be numeric');
+    if (importType === 'invoices' && records.some((r) => r.amount && Number.isNaN(Number(r.amount)))) errors.push('Customer invoice import: Amount must be numeric');
+    if (importType === 'purchase_invoices' && records.some((r) => r.amount && Number.isNaN(Number(r.amount)))) errors.push('Purchase invoice import: Amount must be numeric');
+    if (importType === 'journal_entries' && records.some((r) => r.amount && Number.isNaN(Number(r.amount)))) errors.push('Journal import: Amount must be numeric');
+
     return errors;
   }
 
-  async function previewImportFile(event: any, importType: 'customers' | 'vendors' | 'expenses' | 'accounts') {
+  async function previewImportFile(event: any, importType: 'customers' | 'vendors' | 'expenses' | 'accounts' | 'payments' | 'receipts' | 'invoices' | 'purchase_invoices' | 'journal_entries') {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -1037,11 +1243,41 @@ export default function Home() {
         account_code: r.account_code || '',
         account_name: r.account_name || '',
         account_type: r.account_type || 'Expense',
-        normal_balance: r.normal_balance || 'Debit',
+        normal_balance: r.normal_balance || 'Both',
         is_active: String(r.is_active || 'true').toLowerCase() !== 'false',
       })).filter((r) => r.account_code && r.account_name);
 
       const { error } = await supabase.from('chart_of_accounts').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    if (pendingImportType === 'payments') {
+      const payload = records.map((r) => ({ invoice_id: r.invoice_id || null, invoice_no: r.invoice_no || '', customer: r.customer || '', payment_date: r.payment_date || r.date || null, amount: Number(r.amount || 0), payment_method: r.payment_method || 'Cash', notes: r.notes || '' }));
+      const { error } = await supabase.from('payments').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    if (pendingImportType === 'receipts') {
+      const payload = records.map((r, idx) => ({ receipt_no: r.receipt_no || `RCPT-${String(receipts.length + idx + 1).padStart(4, '0')}`, customer: r.customer || '', invoice_no: r.invoice_no || '', receipt_date: r.receipt_date || r.date || null, amount: Number(r.amount || 0), payment_method: r.payment_method || 'Cash', bank_name: r.bank_name || '', notes: r.notes || '' }));
+      const { error } = await supabase.from('receipts').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    if (pendingImportType === 'invoices') {
+      const payload = records.map((r, idx) => ({ invoice_no: r.invoice_no || `INV-${String(invoices.length + idx + 1001).padStart(4, '0')}`, customer: r.customer || '', job_id: null, amount: Number(r.amount || 0), invoice_date: r.invoice_date || r.date || null, due_date: r.due_date || null, status: r.status || 'Draft', notes: r.notes || '', customer_phone: r.customer_phone || '', customer_email: r.customer_email || '', customer_address: r.customer_address || '' }));
+      const { error } = await supabase.from('invoices').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    if (pendingImportType === 'purchase_invoices') {
+      const payload = records.map((r, idx) => ({ purchase_invoice_no: r.purchase_invoice_no || `PINV-${String(purchaseInvoices.length + idx + 1).padStart(4, '0')}`, vendor: r.vendor || '', invoice_date: r.invoice_date || r.date || null, due_date: r.due_date || null, category: r.category || 'Other', description: r.description || '', amount: Number(r.amount || 0), status: r.status || 'Open', bank_name: r.bank_name || '', notes: r.notes || '' }));
+      const { error } = await supabase.from('purchase_invoices').insert(payload);
+      if (error) return alert(error.message);
+    }
+
+    if (pendingImportType === 'journal_entries') {
+      const payload = records.map((r, idx) => ({ journal_no: r.journal_no || `JE-${String(journalEntries.length + idx + 1).padStart(4, '0')}`, journal_date: r.journal_date || r.date || null, description: r.description || '', debit_account: r.debit_account || '', credit_account: r.credit_account || '', amount: Number(r.amount || 0), notes: r.notes || '' }));
+      const { error } = await supabase.from('journal_entries').insert(payload);
       if (error) return alert(error.message);
     }
 
@@ -1052,12 +1288,17 @@ export default function Home() {
     alert('Excel import completed');
   }
 
-  function downloadTemplate(type: 'customers' | 'vendors' | 'expenses' | 'accounts') {
+  function downloadTemplate(type: 'customers' | 'vendors' | 'expenses' | 'accounts' | 'payments' | 'receipts' | 'invoices' | 'purchase_invoices' | 'journal_entries') {
     const templates: Record<string, any[]> = {
       customers: [{ name: 'John Smith', phone: '832-000-0000', email: 'john@example.com', address: 'Dallas, TX' }],
       vendors: [{ vendor_no: 'V-0001', vendor_name: 'Home Depot', contact_person: '', phone: '', email: '', address: '', tax_id: '', notes: '', status: 'Active' }],
       expenses: [{ expense_no: 'EXP-0001', expense_date: '2026-06-24', vendor: 'Home Depot', category: 'Materials', description: 'TV Mount', amount: 45, payment_method: 'Credit Card', status: 'Paid' }],
-      accounts: [{ account_code: '4000', account_name: 'Service Revenue', account_type: 'Revenue', normal_balance: 'Credit', is_active: true }],
+      accounts: [{ account_code: '4000', account_name: 'Service Revenue', account_type: 'Revenue', normal_balance: 'Both', is_active: true }],
+      payments: [{ invoice_no: 'INV-1001', customer: 'John Smith', payment_date: '2026-06-24', amount: 150, payment_method: 'Cash', notes: '' }],
+      receipts: [{ receipt_no: 'RCPT-0001', customer: 'John Smith', invoice_no: 'INV-1001', receipt_date: '2026-06-24', amount: 150, payment_method: 'Cash', bank_name: 'Main Bank', notes: '' }],
+      invoices: [{ invoice_no: 'INV-1001', customer: 'John Smith', invoice_date: '2026-06-24', due_date: '2026-06-24', amount: 150, status: 'Draft', customer_phone: '', customer_email: '', customer_address: '' }],
+      purchase_invoices: [{ purchase_invoice_no: 'PINV-0001', vendor: 'Home Depot', invoice_date: '2026-06-24', due_date: '2026-06-24', category: 'Materials', description: 'Materials', amount: 45, status: 'Open', bank_name: 'Main Bank' }],
+      journal_entries: [{ journal_no: 'JE-0001', journal_date: '2026-06-24', description: 'Opening entry', debit_account: 'Cash', credit_account: 'Owner Equity', amount: 1000, notes: '' }],
     };
 
     const ws = XLSX.utils.json_to_sheet(templates[type]);
@@ -1178,7 +1419,11 @@ export default function Home() {
               <SidebarGroup title="Finance">
                 <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => setActiveTab('invoices')} />
                 <SideButton label="Payments" active={activeTab === 'payments'} onClick={() => setActiveTab('payments')} />
+                <SideButton label="Receipts" active={activeTab === 'receipts'} onClick={() => setActiveTab('receipts')} />
                 <SideButton label="Expenses" active={activeTab === 'expenses'} onClick={() => setActiveTab('expenses')} />
+                <SideButton label="Purchase Invoices" active={activeTab === 'purchases'} onClick={() => setActiveTab('purchases')} />
+                <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => setActiveTab('journals')} />
+                <SideButton label="Banks" active={activeTab === 'banks'} onClick={() => setActiveTab('banks')} />
                 <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
               </SidebarGroup>
 
@@ -1219,6 +1464,8 @@ export default function Home() {
             <Card title="Expenses" value={`$${totalExpenses.toFixed(2)}`} />
             <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
             <Card title="Vendors" value={vendors.length} />
+            <Card title="Banks" value={banks.length} />
+            <Card title="Receipts" value={receipts.length} />
                   </div>
 
                   <div style={styles.dashboardGrid}>
@@ -1316,8 +1563,10 @@ export default function Home() {
                     <Td><StatusBadge status={qt.status} /></Td>
                     <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Td>
                     <Td>
+                      <button style={styles.printBtn} onClick={() => setPrintQuote(qt)}>Print</button>
                       <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
                       <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
+                      <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, `Hi ${qt.customer},%0D%0A%0D%0APlease find quote ${qt.quote_no} for $${qt.amount}.`)}>Email</button>
                       <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
                       <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>
                     </Td>
@@ -1430,7 +1679,7 @@ export default function Home() {
               </SectionCard>
 
               <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => setPrintInvoice(i)}>Print</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
+                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => setPrintInvoice(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, `Hi ${i.customer},%0D%0A%0D%0APlease find invoice ${i.invoice_no} for $${i.amount}.`)}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
               </DataTable>
             </>
           )}
@@ -1458,6 +1707,91 @@ export default function Home() {
             </>
           )}
 
+
+
+          {(activeTab === 'receipts') && (
+            <>
+              <SectionCard title={editingReceiptId ? 'Edit Receipt' : 'Create Receipt'}>
+                <div style={styles.formGrid2}>
+                  <Field label="From Invoice"><select onChange={(e) => fillReceiptFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{invoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer}</option>)}</select></Field>
+                  <Input label="Receipt No" value={receipt.receipt_no} onChange={(v: string) => setReceipt({ ...receipt, receipt_no: v })} />
+                  <Input label="Customer" value={receipt.customer} onChange={(v: string) => setReceipt({ ...receipt, customer: v })} />
+                  <Input label="Invoice No" value={receipt.invoice_no} onChange={(v: string) => setReceipt({ ...receipt, invoice_no: v })} />
+                  <Input label="Receipt Date" type="date" value={receipt.receipt_date} onChange={(v: string) => setReceipt({ ...receipt, receipt_date: v })} />
+                  <Input label="Amount" value={receipt.amount} onChange={(v: string) => setReceipt({ ...receipt, amount: v })} />
+                  <Field label="Payment Method"><select value={receipt.payment_method} onChange={(e) => setReceipt({ ...receipt, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                  <Field label="Bank"><select value={receipt.bank_name} onChange={(e) => setReceipt({ ...receipt, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
+                  <Input label="Notes" value={receipt.notes} onChange={(v: string) => setReceipt({ ...receipt, notes: v })} />
+                </div>
+                <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+              </SectionCard>
+              <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
+                {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => setPrintReceipt(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, `Hi ${r.customer},%0D%0A%0D%0AThank you for your payment of $${r.amount}. Receipt No: ${r.receipt_no}`)}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'banks') && (
+            <>
+              <SectionCard title={editingBankId ? 'Edit Bank' : 'Create Bank'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Bank Name" value={bank.bank_name} onChange={(v: string) => setBank({ ...bank, bank_name: v })} />
+                  <Input label="Account Name" value={bank.account_name} onChange={(v: string) => setBank({ ...bank, account_name: v })} />
+                  <Input label="Account Number" value={bank.account_number} onChange={(v: string) => setBank({ ...bank, account_number: v })} />
+                  <Input label="Routing Number" value={bank.routing_number} onChange={(v: string) => setBank({ ...bank, routing_number: v })} />
+                  <Input label="Opening Balance" value={bank.opening_balance} onChange={(v: string) => setBank({ ...bank, opening_balance: v })} />
+                  <Input label="Current Balance" value={bank.current_balance} onChange={(v: string) => setBank({ ...bank, current_balance: v })} />
+                  <Field label="Active"><select value={bank.is_active ? 'Yes' : 'No'} onChange={(e) => setBank({ ...bank, is_active: e.target.value === 'Yes' })} style={styles.input}><option>Yes</option><option>No</option></select></Field>
+                </div>
+                <ButtonRow><button onClick={saveBank} style={styles.primaryBtn}>{editingBankId ? 'Update Bank' : 'Save Bank'}</button>{editingBankId && <button onClick={() => { setBank(emptyBank); setEditingBankId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+              </SectionCard>
+              <DataTable title="Bank Accounts" headers={['Bank', 'Account Name', 'Account #', 'Routing #', 'Opening', 'Current', 'Active', 'Actions']}>
+                {banks.map((b) => <tr key={b.id}><Td>{b.bank_name}</Td><Td>{b.account_name}</Td><Td>{b.account_number}</Td><Td>{b.routing_number}</Td><Td>${Number(b.opening_balance || 0).toFixed(2)}</Td><Td>${Number(b.current_balance || 0).toFixed(2)}</Td><Td>{b.is_active ? 'Yes' : 'No'}</Td><Td><button style={styles.smallBtn} onClick={() => editBank(b)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteBank(b.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'purchases') && (
+            <>
+              <SectionCard title={editingPurchaseInvoiceId ? 'Edit Purchase Invoice' : 'Create Purchase Invoice'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Purchase Invoice No" value={purchaseInvoice.purchase_invoice_no} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, purchase_invoice_no: v })} />
+                  <Field label="Vendor"><select value={purchaseInvoice.vendor} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, vendor: e.target.value })} style={styles.input}><option value="">Select Vendor</option>{vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}</select></Field>
+                  <Input label="Invoice Date" type="date" value={purchaseInvoice.invoice_date} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, invoice_date: v })} />
+                  <Input label="Due Date" type="date" value={purchaseInvoice.due_date} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, due_date: v })} />
+                  <Input label="Category" value={purchaseInvoice.category} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, category: v })} />
+                  <Input label="Description" value={purchaseInvoice.description} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, description: v })} />
+                  <Input label="Amount" value={purchaseInvoice.amount} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, amount: v })} />
+                  <Field label="Bank"><select value={purchaseInvoice.bank_name} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
+                  <Field label="Status"><select value={purchaseInvoice.status} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, status: e.target.value })} style={styles.input}><option>Open</option><option>Paid</option><option>Cancelled</option></select></Field>
+                </div>
+                <ButtonRow><button onClick={savePurchaseInvoice} style={styles.primaryBtn}>{editingPurchaseInvoiceId ? 'Update Purchase Invoice' : 'Save Purchase Invoice'}</button>{editingPurchaseInvoiceId && <button onClick={() => { setPurchaseInvoice(emptyPurchaseInvoice); setEditingPurchaseInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+              </SectionCard>
+              <DataTable title="Purchase Invoices" headers={['Invoice #', 'Vendor', 'Date', 'Due', 'Category', 'Amount', 'Status', 'Actions']}>
+                {purchaseInvoices.map((pi) => <tr key={pi.id}><Td>{pi.purchase_invoice_no}</Td><Td>{pi.vendor}</Td><Td>{pi.invoice_date}</Td><Td>{pi.due_date}</Td><Td>{pi.category}</Td><Td>${Number(pi.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={pi.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editPurchaseInvoice(pi)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePurchaseInvoice(pi.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'journals') && (
+            <>
+              <SectionCard title={editingJournalEntryId ? 'Edit Journal Entry' : 'Create Journal Entry'}>
+                <div style={styles.formGrid2}>
+                  <Input label="Journal No" value={journalEntry.journal_no} onChange={(v: string) => setJournalEntry({ ...journalEntry, journal_no: v })} />
+                  <Input label="Date" type="date" value={journalEntry.journal_date} onChange={(v: string) => setJournalEntry({ ...journalEntry, journal_date: v })} />
+                  <Input label="Description" value={journalEntry.description} onChange={(v: string) => setJournalEntry({ ...journalEntry, description: v })} />
+                  <Field label="Debit Account"><select value={journalEntry.debit_account} onChange={(e) => setJournalEntry({ ...journalEntry, debit_account: e.target.value })} style={styles.input}><option value="">Select Account</option>{accounts.map((a) => <option key={a.id} value={`${a.account_code} - ${a.account_name}`}>{a.account_code} - {a.account_name}</option>)}</select></Field>
+                  <Field label="Credit Account"><select value={journalEntry.credit_account} onChange={(e) => setJournalEntry({ ...journalEntry, credit_account: e.target.value })} style={styles.input}><option value="">Select Account</option>{accounts.map((a) => <option key={a.id} value={`${a.account_code} - ${a.account_name}`}>{a.account_code} - {a.account_name}</option>)}</select></Field>
+                  <Input label="Amount" value={journalEntry.amount} onChange={(v: string) => setJournalEntry({ ...journalEntry, amount: v })} />
+                  <Input label="Notes" value={journalEntry.notes} onChange={(v: string) => setJournalEntry({ ...journalEntry, notes: v })} />
+                </div>
+                <ButtonRow><button onClick={saveJournalEntry} style={styles.primaryBtn}>{editingJournalEntryId ? 'Update Journal' : 'Save Journal'}</button>{editingJournalEntryId && <button onClick={() => { setJournalEntry(emptyJournalEntry); setEditingJournalEntryId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+              </SectionCard>
+              <DataTable title="Journal Entries" headers={['Journal #', 'Date', 'Description', 'Debit', 'Credit', 'Amount', 'Actions']}>
+                {journalEntries.map((je) => <tr key={je.id}><Td>{je.journal_no}</Td><Td>{je.journal_date}</Td><Td>{je.description}</Td><Td>{je.debit_account}</Td><Td>{je.credit_account}</Td><Td>${Number(je.amount || 0).toFixed(2)}</Td><Td><button style={styles.smallBtn} onClick={() => editJournalEntry(je)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJournalEntry(je.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
 
           {(activeTab === 'expenses') && (
             <>
@@ -1530,12 +1864,32 @@ export default function Home() {
                   <Field label="Import Chart of Accounts Excel">
                     <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'accounts')} style={styles.input} />
                   </Field>
+                  <Field label="Import Existing Payments">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'payments')} style={styles.input} />
+                  </Field>
+                  <Field label="Import Receipts">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'receipts')} style={styles.input} />
+                  </Field>
+                  <Field label="Import Customer Invoices">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'invoices')} style={styles.input} />
+                  </Field>
+                  <Field label="Import Purchase Invoices">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'purchase_invoices')} style={styles.input} />
+                  </Field>
+                  <Field label="Import Journal Entries">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'journal_entries')} style={styles.input} />
+                  </Field>
                 </div>
                 <ButtonRow>
                   <button style={styles.greenBtn} onClick={() => downloadTemplate('customers')}>Customer Template</button>
                   <button style={styles.greenBtn} onClick={() => downloadTemplate('vendors')}>Vendor Template</button>
                   <button style={styles.greenBtn} onClick={() => downloadTemplate('expenses')}>Expense Template</button>
                   <button style={styles.greenBtn} onClick={() => downloadTemplate('accounts')}>COA Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('payments')}>Payment Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('receipts')}>Receipt Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('invoices')}>Customer Invoice Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('purchase_invoices')}>Purchase Invoice Template</button>
+                  <button style={styles.greenBtn} onClick={() => downloadTemplate('journal_entries')}>Journal Template</button>
                 </ButtonRow>
               </SectionCard>
 
@@ -1676,6 +2030,59 @@ export default function Home() {
           </div>
         </section>
       </div>
+
+
+      {printQuote && (
+        <div className="invoice-print">
+          <div className="invoice-page">
+            <div className="invoice-header">
+              <div>
+                <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
+                <h1>{company.company_name || "Aashan & Co LLC"}</h1>
+                <p>{company.website || "Quality Work Through Dedication"}</p>
+              </div>
+              <div className="invoice-company">
+                <p><b>Phone:</b> {company.phone}</p>
+                <p><b>Email:</b> {company.email}</p>
+                <p><b>Address:</b> {company.address}</p>
+              </div>
+            </div>
+            <div className="invoice-title-row"><div><h2>QUOTE</h2><p><b>Quote #:</b> {printQuote.quote_no}</p><p><b>Status:</b> {printQuote.status}</p></div><div><p><b>Quote Date:</b> {printQuote.quote_date}</p></div></div>
+            <div className="invoice-billto"><h3>Quote To</h3><p><b>{printQuote.customer}</b></p><p>{getCustomerByName(printQuote.customer)?.address}</p><p>{getCustomerByName(printQuote.customer)?.phone}</p><p>{getCustomerByName(printQuote.customer)?.email}</p></div>
+            <table className="invoice-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>{printQuote.service}</td><td>${Number(printQuote.amount || 0).toFixed(2)}</td></tr></tbody></table>
+            <div className="invoice-total"><p><span>Total:</span> <b>${Number(printQuote.amount || 0).toFixed(2)}</b></p></div>
+            <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes}</p></div>
+            <div className="invoice-footer">Thank you for choosing {company.company_name || 'Aashan & Co LLC'}.</div>
+          </div>
+          <button className="close-print" onClick={() => setPrintQuote(null)}>Close Print Preview</button>
+        </div>
+      )}
+
+      {printReceipt && (
+        <div className="invoice-print">
+          <div className="invoice-page">
+            <div className="invoice-header">
+              <div>
+                <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
+                <h1>{company.company_name || "Aashan & Co LLC"}</h1>
+                <p>{company.website || "Quality Work Through Dedication"}</p>
+              </div>
+              <div className="invoice-company">
+                <p><b>Phone:</b> {company.phone}</p>
+                <p><b>Email:</b> {company.email}</p>
+                <p><b>Address:</b> {company.address}</p>
+              </div>
+            </div>
+            <div className="invoice-title-row"><div><h2>RECEIPT</h2><p><b>Receipt #:</b> {printReceipt.receipt_no}</p><p><b>Invoice #:</b> {printReceipt.invoice_no}</p></div><div><p><b>Receipt Date:</b> {printReceipt.receipt_date}</p><p><b>Payment Method:</b> {printReceipt.payment_method}</p></div></div>
+            <div className="invoice-billto"><h3>Received From</h3><p><b>{printReceipt.customer}</b></p><p>{getCustomerByName(printReceipt.customer)?.address}</p><p>{getCustomerByName(printReceipt.customer)?.phone}</p><p>{getCustomerByName(printReceipt.customer)?.email}</p></div>
+            <table className="invoice-table"><thead><tr><th>Description</th><th>Amount Received</th></tr></thead><tbody><tr><td>Payment received for invoice {printReceipt.invoice_no}</td><td>${Number(printReceipt.amount || 0).toFixed(2)}</td></tr></tbody></table>
+            <div className="invoice-total"><p><span>Amount Received:</span> <b>${Number(printReceipt.amount || 0).toFixed(2)}</b></p></div>
+            <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || 'Thank you for your payment.'}</p></div>
+            <div className="invoice-footer">Thank you for choosing {company.company_name || 'Aashan & Co LLC'}.</div>
+          </div>
+          <button className="close-print" onClick={() => setPrintReceipt(null)}>Close Print Preview</button>
+        </div>
+      )}
 
       {printInvoice && (
         <div className="invoice-print">
