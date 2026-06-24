@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 type Customer = { id?: number; name: string; phone: string; email: string; address: string };
 type Job = { id?: number; customer: string; service: string; job_date: string; amount: string; status: string };
 type Quote = { id?: number; quote_no: string; customer: string; service: string; quote_date: string; amount: string; status: string; notes: string };
+type WorkOrder = { id?: number; work_order_no: string; job_id?: number | null; customer: string; service: string; technician: string; scheduled_date: string; start_time: string; end_time: string; status: string; notes: string };
 type Invoice = {
   id?: number;
   invoice_no: string;
@@ -67,6 +68,7 @@ const LOGO_SRC = '/aashan-logo.png';
 const emptyCustomer: Customer = { name: '', phone: '', email: '', address: '' };
 const emptyJob: Job = { customer: '', service: '', job_date: '', amount: '', status: 'New' };
 const emptyQuote: Quote = { quote_no: '', customer: '', service: '', quote_date: '', amount: '', status: 'Draft', notes: '' };
+const emptyWorkOrder: WorkOrder = { work_order_no: '', job_id: null, customer: '', service: '', technician: '', scheduled_date: '', start_time: '', end_time: '', status: 'Scheduled', notes: '' };
 const emptyInvoice: Invoice = {
   invoice_no: '',
   customer: '',
@@ -90,10 +92,11 @@ const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_e
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters'>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -101,6 +104,7 @@ export default function Home() {
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
   const [job, setJob] = useState<Job>(emptyJob);
   const [quote, setQuote] = useState<Quote>(emptyQuote);
+  const [workOrder, setWorkOrder] = useState<WorkOrder>(emptyWorkOrder);
   const [invoice, setInvoice] = useState<Invoice>(emptyInvoice);
   const [payment, setPayment] = useState<Payment>(emptyPayment);
   const [vendor, setVendor] = useState<Vendor>(emptyVendor);
@@ -117,6 +121,7 @@ export default function Home() {
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
   const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
+  const [editingWorkOrderId, setEditingWorkOrderId] = useState<number | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const [editingVendorId, setEditingVendorId] = useState<number | null>(null);
@@ -132,6 +137,7 @@ export default function Home() {
     const { data: customerData, error: customerError } = await supabase.from('customers').select('*').order('id', { ascending: false });
     const { data: jobData, error: jobError } = await supabase.from('jobs').select('*').order('id', { ascending: false });
     const { data: quoteData, error: quoteError } = await supabase.from('quotes').select('*').order('id', { ascending: false });
+    const { data: workOrderData, error: workOrderError } = await supabase.from('work_orders').select('*').order('scheduled_date', { ascending: true });
     const { data: invoiceData, error: invoiceError } = await supabase.from('invoices').select('*').order('id', { ascending: false });
     const { data: paymentData, error: paymentError } = await supabase.from('payments').select('*').order('id', { ascending: false });
     const { data: vendorData, error: vendorError } = await supabase.from('vendors').select('*').order('id', { ascending: false });
@@ -145,6 +151,7 @@ export default function Home() {
     if (customerError) alert(customerError.message);
     if (jobError) alert(jobError.message);
     if (quoteError) alert(quoteError.message);
+    if (workOrderError) alert(workOrderError.message);
     if (invoiceError) alert(invoiceError.message);
     if (paymentError) alert(paymentError.message);
     if (vendorError) alert(vendorError.message);
@@ -153,6 +160,7 @@ export default function Home() {
     setCustomers(customerData || []);
     setJobs((jobData || []).map((j: any) => ({ ...j, amount: String(j.amount || '') })));
     setQuotes((quoteData || []).map((q: any) => ({ ...q, amount: String(q.amount || '') })));
+    setWorkOrders(workOrderData || []);
     setInvoices((invoiceData || []).map((i: any) => ({ ...i, amount: String(i.amount || '') })));
     setPayments((paymentData || []).map((p: any) => ({ ...p, amount: String(p.amount || '') })));
     setVendors(vendorData || []);
@@ -179,6 +187,14 @@ export default function Home() {
       return Number.isFinite(num) && num > max ? num : max;
     }, 1000);
     return `Q-${String(maxNo + 1).padStart(4, '0')}`;
+  }
+
+  function nextWorkOrderNo() {
+    const maxNo = workOrders.reduce((max, wo) => {
+      const num = Number(String(wo.work_order_no || '').replace(/[^0-9]/g, ''));
+      return Number.isFinite(num) && num > max ? num : max;
+    }, 1000);
+    return `WO-${String(maxNo + 1).padStart(4, '0')}`;
   }
 
   function nextInvoiceNo() {
@@ -354,6 +370,78 @@ export default function Home() {
     if (!id) return;
     const { error } = await supabase.from('jobs').update({ status }).eq('id', id);
     if (error) return alert(error.message);
+    await loadData();
+  }
+
+
+  function fillWorkOrderFromJob(jobIdValue: string) {
+    if (!jobIdValue) return setWorkOrder({ ...workOrder, job_id: null });
+    const selected = jobs.find((j) => String(j.id) === jobIdValue);
+    if (!selected) return;
+    const today = new Date().toISOString().slice(0, 10);
+    setWorkOrder({
+      work_order_no: workOrder.work_order_no || nextWorkOrderNo(),
+      job_id: selected.id || null,
+      customer: selected.customer,
+      service: selected.service,
+      technician: workOrder.technician || '',
+      scheduled_date: workOrder.scheduled_date || today,
+      start_time: workOrder.start_time || '',
+      end_time: workOrder.end_time || '',
+      status: workOrder.status || 'Scheduled',
+      notes: workOrder.notes || '',
+    });
+  }
+
+  async function saveWorkOrder() {
+    if (!workOrder.customer.trim() || !workOrder.service.trim()) return alert('Select job or enter customer and service');
+    const payload = {
+      work_order_no: workOrder.work_order_no || nextWorkOrderNo(),
+      job_id: workOrder.job_id || null,
+      customer: workOrder.customer,
+      service: workOrder.service,
+      technician: workOrder.technician,
+      scheduled_date: workOrder.scheduled_date || null,
+      start_time: workOrder.start_time,
+      end_time: workOrder.end_time,
+      status: workOrder.status,
+      notes: workOrder.notes,
+    };
+
+    const res = editingWorkOrderId
+      ? await supabase.from('work_orders').update(payload).eq('id', editingWorkOrderId)
+      : await supabase.from('work_orders').insert([payload]);
+
+    if (res.error) return alert(res.error.message);
+
+    if (payload.job_id) {
+      await supabase.from('jobs').update({ status: payload.status === 'Completed' ? 'Completed' : 'In Progress' }).eq('id', payload.job_id);
+    }
+
+    setWorkOrder(emptyWorkOrder);
+    setEditingWorkOrderId(null);
+    await loadData();
+  }
+
+  function editWorkOrder(wo: WorkOrder) {
+    setWorkOrder(wo);
+    setEditingWorkOrderId(wo.id || null);
+    setActiveTab('workorders');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteWorkOrder(id?: number) {
+    if (!id || !confirm('Delete this work order?')) return;
+    const { error } = await supabase.from('work_orders').delete().eq('id', id);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
+  async function quickWorkOrderStatus(id: number | undefined, status: string, jobId?: number | null) {
+    if (!id) return;
+    const { error } = await supabase.from('work_orders').update({ status }).eq('id', id);
+    if (error) return alert(error.message);
+    if (jobId) await supabase.from('jobs').update({ status: status === 'Completed' ? 'Completed' : 'In Progress' }).eq('id', jobId);
     await loadData();
   }
 
@@ -668,6 +756,7 @@ export default function Home() {
   const filteredCustomers = customers.filter((c) => [c.name, c.phone, c.email, c.address].join(' ').toLowerCase().includes(q));
   const filteredJobs = jobs.filter((j) => [j.customer, j.service, j.status, j.job_date, j.amount].join(' ').toLowerCase().includes(q));
   const filteredQuotes = quotes.filter((qt) => [qt.quote_no, qt.customer, qt.service, qt.status, qt.quote_date, qt.amount].join(' ').toLowerCase().includes(q));
+  const filteredWorkOrders = workOrders.filter((wo) => [wo.work_order_no, wo.customer, wo.service, wo.technician, wo.scheduled_date, wo.status].join(' ').toLowerCase().includes(q));
   const filteredInvoices = invoices.filter((i) => [i.invoice_no, i.customer, i.status, i.invoice_date, i.amount].join(' ').toLowerCase().includes(q));
   const filteredPayments = payments.filter((p) => [p.invoice_no, p.customer, p.payment_date, p.payment_method, p.amount, p.notes].join(' ').toLowerCase().includes(q));
   const filteredVendors = vendors.filter((v) => [v.vendor_no, v.vendor_name, v.contact_person, v.phone, v.email, v.status].join(' ').toLowerCase().includes(q));
@@ -682,6 +771,9 @@ export default function Home() {
   const openInvoices = invoices.filter((i) => invoiceBalance(i) > 0 && i.status !== 'Cancelled').length;
   const jobsInProgress = jobs.filter((j) => j.status === 'In Progress').length;
   const openQuotes = quotes.filter((qt) => ['Draft', 'Sent'].includes(qt.status)).length;
+  const todayText = new Date().toISOString().slice(0, 10);
+  const todaysWorkOrders = workOrders.filter((wo) => wo.scheduled_date === todayText).length;
+  const scheduledWorkOrders = workOrders.filter((wo) => ['Scheduled', 'In Progress'].includes(wo.status)).length;
   const completedJobs = jobs.filter((j) => ['Completed', 'Invoiced', 'Paid'].includes(j.status)).length;
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const netProfit = paidRevenue - totalExpenses;
@@ -703,7 +795,7 @@ export default function Home() {
 
         <section style={styles.container}>
           <div style={styles.toolbar}>
-            {(['dashboard', 'customers', 'vendors', 'quotes', 'jobs', 'invoices', 'payments', 'expenses', 'reports', 'masters'] as const).map((tab) => (
+            {(['dashboard', 'customers', 'vendors', 'quotes', 'jobs', 'workorders', 'calendar', 'invoices', 'payments', 'expenses', 'reports', 'masters'] as const).map((tab) => (
               <button key={tab} style={activeTab === tab ? styles.tabActive : styles.tab} onClick={() => setActiveTab(tab)}>
                 {tab[0].toUpperCase() + tab.slice(1)}
               </button>
@@ -723,6 +815,8 @@ export default function Home() {
             <Card title="Quotes" value={quotes.length} />
             <Card title="Open Quotes" value={openQuotes} />
             <Card title="Jobs" value={jobs.length} />
+            <Card title="Work Orders" value={workOrders.length} />
+            <Card title="Today Schedule" value={todaysWorkOrders} />
             <Card title="Invoices" value={invoices.length} />
             <Card title="Open Invoices" value={openInvoices} />
             <Card title="Outstanding" value={`$${outstanding.toFixed(2)}`} />
@@ -841,6 +935,64 @@ export default function Home() {
 
               <DataTable title="Jobs & Quotes" headers={['Customer', 'Service', 'Date', 'Amount', 'Status', 'Quick Status', 'Actions']}>
                 {filteredJobs.map((j) => <tr key={j.id}><Td>{j.customer}</Td><Td>{j.service}</Td><Td>{j.job_date}</Td><Td>${Number(j.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={j.status} /></Td><Td><select value={j.status} onChange={(e) => quickJobStatus(j.id, e.target.value)} style={styles.smallSelect}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Td><Td><button style={styles.smallBtn} onClick={() => editJob(j)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJob(j.id)}>Delete</button></Td></tr>)}
+              </DataTable>
+            </>
+          )}
+
+
+          {(activeTab === 'dashboard' || activeTab === 'workorders') && (
+            <>
+              <SectionCard title={editingWorkOrderId ? 'Edit Work Order' : 'Create Work Order'}>
+                <div style={styles.formGrid2}>
+                  <Field label="From Job"><select value={workOrder.job_id ? String(workOrder.job_id) : ''} onChange={(e) => fillWorkOrderFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service}</option>)}</select></Field>
+                  <Input label="Work Order No" value={workOrder.work_order_no} onChange={(v: string) => setWorkOrder({ ...workOrder, work_order_no: v })} />
+                  <Input label="Customer" value={workOrder.customer} onChange={(v: string) => setWorkOrder({ ...workOrder, customer: v })} />
+                  <Input label="Service" value={workOrder.service} onChange={(v: string) => setWorkOrder({ ...workOrder, service: v })} />
+                  <Input label="Technician / Assigned To" value={workOrder.technician} onChange={(v: string) => setWorkOrder({ ...workOrder, technician: v })} />
+                  <Input label="Scheduled Date" type="date" value={workOrder.scheduled_date} onChange={(v: string) => setWorkOrder({ ...workOrder, scheduled_date: v })} />
+                  <Input label="Start Time" type="time" value={workOrder.start_time} onChange={(v: string) => setWorkOrder({ ...workOrder, start_time: v })} />
+                  <Input label="End Time" type="time" value={workOrder.end_time} onChange={(v: string) => setWorkOrder({ ...workOrder, end_time: v })} />
+                  <Field label="Status"><select value={workOrder.status} onChange={(e) => setWorkOrder({ ...workOrder, status: e.target.value })} style={styles.input}><option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></Field>
+                  <Input label="Notes" value={workOrder.notes} onChange={(v: string) => setWorkOrder({ ...workOrder, notes: v })} />
+                </div>
+                <ButtonRow>
+                  <button onClick={saveWorkOrder} style={styles.primaryBtn}>{editingWorkOrderId ? 'Update Work Order' : 'Save Work Order'}</button>
+                  {editingWorkOrderId && <button onClick={() => { setWorkOrder(emptyWorkOrder); setEditingWorkOrderId(null); }} style={styles.grayBtn}>Cancel</button>}
+                </ButtonRow>
+              </SectionCard>
+
+              <DataTable title="Work Orders" headers={['WO #', 'Date', 'Time', 'Customer', 'Service', 'Technician', 'Status', 'Actions']}>
+                {filteredWorkOrders.map((wo) => (
+                  <tr key={wo.id}>
+                    <Td>{wo.work_order_no}</Td>
+                    <Td>{wo.scheduled_date}</Td>
+                    <Td>{wo.start_time} - {wo.end_time}</Td>
+                    <Td>{wo.customer}</Td>
+                    <Td>{wo.service}</Td>
+                    <Td>{wo.technician}</Td>
+                    <Td><select value={wo.status} onChange={(e) => quickWorkOrderStatus(wo.id, e.target.value, wo.job_id)} style={styles.smallSelect}><option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></Td>
+                    <Td><button style={styles.smallBtn} onClick={() => editWorkOrder(wo)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteWorkOrder(wo.id)}>Delete</button></Td>
+                  </tr>
+                ))}
+              </DataTable>
+            </>
+          )}
+
+          {(activeTab === 'calendar') && (
+            <>
+              <SectionCard title="Calendar / Daily Schedule">
+                <div style={styles.cards}>
+                  <Card title="Today" value={todaysWorkOrders} />
+                  <Card title="Scheduled / In Progress" value={scheduledWorkOrders} />
+                  <Card title="Completed Work Orders" value={workOrders.filter((wo) => wo.status === 'Completed').length} />
+                </div>
+              </SectionCard>
+
+              <DataTable title="Upcoming Schedule" headers={['Date', 'Time', 'Customer', 'Service', 'Technician', 'Status']}>
+                {workOrders
+                  .filter((wo) => wo.status !== 'Cancelled')
+                  .sort((a, b) => String(a.scheduled_date + a.start_time).localeCompare(String(b.scheduled_date + b.start_time)))
+                  .map((wo) => <tr key={wo.id}><Td>{wo.scheduled_date}</Td><Td>{wo.start_time} - {wo.end_time}</Td><Td>{wo.customer}</Td><Td>{wo.service}</Td><Td>{wo.technician}</Td><Td><StatusBadge status={wo.status} /></Td></tr>)}
               </DataTable>
             </>
           )}
