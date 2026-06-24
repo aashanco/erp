@@ -32,6 +32,14 @@ type Payment = {
   notes: string;
 };
 
+type UserProfile = {
+  id?: string;
+  email: string;
+  full_name?: string;
+  role: 'Admin' | 'Staff' | 'Technician' | 'Read Only';
+  active?: boolean;
+};
+
 type Vendor = {
   id?: number;
   vendor_no: string;
@@ -92,6 +100,14 @@ const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_e
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
 
 export default function Home() {
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'calendar' | 'invoices' | 'payments' | 'expenses' | 'reports' | 'masters' | 'import'>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -132,6 +148,83 @@ export default function Home() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
 
+
+  const canEdit = profile?.role !== 'Read Only';
+  const canAdmin = profile?.role === 'Admin';
+
+  async function loadUserProfile(user: any) {
+    if (!user?.id) return;
+
+    const { data: existingProfiles } = await supabase.from('user_profiles').select('*').limit(1);
+    const firstUser = !existingProfiles || existingProfiles.length === 0;
+
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (data) {
+      setProfile(data as UserProfile);
+      return;
+    }
+
+    const newProfile = {
+      id: user.id,
+      email: user.email || '',
+      full_name: user.email || '',
+      role: firstUser ? 'Admin' : 'Staff',
+      active: true,
+    };
+
+    const { data: inserted, error } = await supabase
+      .from('user_profiles')
+      .insert([newProfile])
+      .select()
+      .single();
+
+    if (error) {
+      console.warn(error.message);
+      setProfile(newProfile as UserProfile);
+    } else {
+      setProfile(inserted as UserProfile);
+    }
+  }
+
+  async function login() {
+    if (!loginEmail || !loginPassword) return alert('Enter email and password');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
+    if (error) return alert(error.message);
+    setSession(data.session);
+    await loadUserProfile(data.user);
+  }
+
+  async function signUp() {
+    if (!loginEmail || !loginPassword) return alert('Enter email and password');
+    const { data, error } = await supabase.auth.signUp({
+      email: loginEmail,
+      password: loginPassword,
+    });
+    if (error) return alert(error.message);
+
+    if (data.session) {
+      setSession(data.session);
+      await loadUserProfile(data.user);
+    } else {
+      alert('Account created. Please check your email to confirm, then login.');
+      setAuthMode('login');
+    }
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+    setSession(null);
+    setProfile(null);
+  }
+
   async function loadData() {
     setLoading(true);
     const { data: customerData, error: customerError } = await supabase.from('customers').select('*').order('id', { ascending: false });
@@ -147,6 +240,7 @@ export default function Home() {
     const { data: accountData } = await supabase.from('chart_of_accounts').select('*').order('account_code', { ascending: true });
     const { data: emailSettingsData } = await supabase.from('email_settings').select('*').limit(1);
     const { data: templateData } = await supabase.from('email_templates').select('*').order('template_name', { ascending: true });
+    const { data: profileData } = await supabase.from('user_profiles').select('*').order('email', { ascending: true });
 
     if (customerError) alert(customerError.message);
     if (jobError) alert(jobError.message);
@@ -170,10 +264,31 @@ export default function Home() {
     setAccounts(accountData || []);
     if (emailSettingsData && emailSettingsData.length > 0) setEmailSettings({ ...emptyEmailSettings, ...emailSettingsData[0] });
     setTemplates(templateData || []);
+    setUserProfiles(profileData || []);
     setLoading(false);
   }
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data }) => {
+      setSession(data.session);
+      if (data.session?.user) await loadUserProfile(data.session.user);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      setSession(newSession);
+      if (newSession?.user) await loadUserProfile(newSession.user);
+      if (!newSession) setProfile(null);
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (session) loadData();
+  }, [session]);
 
   useEffect(() => {
     if (printInvoice) {
@@ -746,6 +861,14 @@ export default function Home() {
   }
 
 
+
+  async function updateUserRole(userId: string | undefined, role: string) {
+    if (!userId) return;
+    const { error } = await supabase.from('user_profiles').update({ role }).eq('id', userId);
+    if (error) return alert(error.message);
+    await loadData();
+  }
+
   function parseCsv(text: string) {
     const rows: string[][] = [];
     let current = '';
@@ -890,6 +1013,45 @@ export default function Home() {
   const approvedExpenses = expenses.filter((e) => ['Approved', 'Paid'].includes(e.status)).reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const draftExpenses = expenses.filter((e) => ['Draft', 'Submitted'].includes(e.status)).reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
+
+  if (authLoading) {
+    return <main style={styles.loginPage}><div style={styles.loginCard}><h2>Loading Aashan ERP...</h2></div></main>;
+  }
+
+  if (!session) {
+    return (
+      <main style={styles.loginPage}>
+        <div style={styles.loginCard}>
+          <div style={styles.loginLogo}>Aashan ERP</div>
+          <h1 style={{ marginTop: 0 }}>{authMode === 'login' ? 'Sign in' : 'Create account'}</h1>
+          <p style={{ color: '#64748b' }}>Secure access for Aashan & Co LLC</p>
+
+          <Field label="Email">
+            <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} style={styles.input} />
+          </Field>
+
+          <Field label="Password">
+            <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} style={styles.input} />
+          </Field>
+
+          <div style={styles.buttonRow}>
+            {authMode === 'login'
+              ? <button style={styles.primaryBtn} onClick={login}>Login</button>
+              : <button style={styles.primaryBtn} onClick={signUp}>Create Account</button>
+            }
+            <button style={styles.grayBtn} onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>
+              {authMode === 'login' ? 'Create new account' : 'Back to login'}
+            </button>
+          </div>
+
+          <p style={{ color: '#64748b', fontSize: 13 }}>
+            First registered user becomes Admin. Other new users become Staff.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main style={styles.page}>
       <style>{printCss}</style>
@@ -928,10 +1090,12 @@ export default function Home() {
                 <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
               </SidebarGroup>
 
-              <SidebarGroup title="Administration">
-                <SideButton label="Masters" active={activeTab === 'masters'} onClick={() => setActiveTab('masters')} />
-                <SideButton label="Import / Export" active={activeTab === 'import'} onClick={() => setActiveTab('import')} />
-              </SidebarGroup>
+              {canAdmin && (
+                <SidebarGroup title="Administration">
+                  <SideButton label="Masters" active={activeTab === 'masters'} onClick={() => setActiveTab('masters')} />
+                  <SideButton label="Import / Export" active={activeTab === 'import'} onClick={() => setActiveTab('import')} />
+                </SidebarGroup>
+              )}
             </aside>
 
             <div style={styles.contentArea}>
@@ -1352,6 +1516,24 @@ export default function Home() {
               <DataTable title="Email Templates" headers={['Template Name', 'Subject', 'Actions']}>
                 {templates.map((t) => <tr key={t.id}><Td>{t.template_name}</Td><Td>{t.subject}</Td><Td><button style={styles.smallBtn} onClick={() => editTemplate(t)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteTemplate(t.id)}>Delete</button></Td></tr>)}
               </DataTable>
+
+              <DataTable title="User Roles" headers={['Email', 'Name', 'Role', 'Active']}>
+                {userProfiles.map((u) => (
+                  <tr key={u.id}>
+                    <Td>{u.email}</Td>
+                    <Td>{u.full_name}</Td>
+                    <Td>
+                      <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} style={styles.smallSelect}>
+                        <option>Admin</option>
+                        <option>Staff</option>
+                        <option>Technician</option>
+                        <option>Read Only</option>
+                      </select>
+                    </Td>
+                    <Td>{u.active ? 'Yes' : 'No'}</Td>
+                  </tr>
+                ))}
+              </DataTable>
             </>
           )}
             </div>
@@ -1475,6 +1657,10 @@ function StatusBadge({ status }: { status: string }) {
 
 const styles: Record<string, any> = {
   page: { fontFamily: 'Arial, sans-serif', background: '#f3f6fa', minHeight: '100vh', color: '#0f172a' },
+  loginPage: { fontFamily: 'Arial, sans-serif', background: 'linear-gradient(135deg, #0f172a, #2563eb)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  loginCard: { background: 'white', borderRadius: 18, padding: 28, width: '100%', maxWidth: 430, boxShadow: '0 25px 60px rgba(0,0,0,0.25)' },
+  loginLogo: { background: '#0f172a', color: 'white', padding: '10px 14px', borderRadius: 12, fontWeight: 800, display: 'inline-block', marginBottom: 18 },
+  logoutBtn: { background: '#dc2626', color: 'white', border: 0, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontWeight: 700 },
   header: { background: '#0f172a', color: 'white', padding: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap' },
   headerTitle: { margin: 0, fontSize: 28 },
   headerSub: { margin: '6px 0 0', opacity: 0.9 },
