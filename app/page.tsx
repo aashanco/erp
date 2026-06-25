@@ -1,5 +1,6 @@
 'use client';
 
+import AccountingEngine from "../components/AccountingEngine";
 import UserManagement from "../components/UserManagement";
 import AuthGate from "../components/AuthGate";
 import { useEffect, useState } from 'react';
@@ -150,7 +151,7 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'accounting' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -223,7 +224,7 @@ export default function Home() {
     if (isTechnician) return ['dashboard', 'jobs', 'workorders', 'technician', 'customers'];
     if (isCustomer) return ['dashboard', 'quotes', 'invoices', 'receipts'];
     if (profile?.role === 'Read Only') return ['dashboard', 'customers', 'quotes', 'jobs', 'workorders', 'invoices', 'receipts', 'reports'];
-    return ['dashboard', 'customers', 'vendors', 'quotes', 'jobs', 'workorders', 'technician', 'calendar', 'invoices', 'payments', 'receipts', 'expenses', 'purchases', 'journals', 'banks', 'reports', 'masters', 'import'];
+    return ['dashboard', 'customers', 'vendors', 'accounting', 'quotes', 'jobs', 'workorders', 'technician', 'calendar', 'invoices', 'payments', 'receipts', 'expenses', 'purchases', 'journals', 'banks', 'reports', 'masters', 'import'];
   }
 
   async function loadUserProfile(user: any) {
@@ -1718,7 +1719,9 @@ export default function Home() {
                     <SideButton label="Purchase Invoices" active={activeTab === 'purchases'} onClick={() => openTab('purchases')} />
                     <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => openTab('journals')} />
                     <SideButton label="Banks" active={activeTab === 'banks'} onClick={() => openTab('banks')} />
+                    <SideButton label="Accounting" active={activeTab === "accounting"} onClick={() => openTab("accounting")}/>
                     <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => openTab('reports')} />
+                    
                   </SidebarGroup>
     
                   {canAdmin && (
@@ -2215,6 +2218,13 @@ export default function Home() {
                   </DataTable>
                 </>
               )}
+
+              {(activeTab === 'accounting') && (
+                <SectionCard title="Accounting">
+                  <AccountingEngine />
+                </SectionCard>
+              )}
+
     
               {(activeTab === 'purchases') && (
                 <>
