@@ -12,7 +12,7 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
-export const onRequestPost: PagesFunction<Env> = async (context) => {
+export const onRequestPost = async (context: any) => {
   try {
     const authHeader = context.request.headers.get("Authorization") || "";
     const accessToken = authHeader.replace("Bearer ", "").trim();
@@ -74,6 +74,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 };
 
-export const onRequestGet: PagesFunction<Env> = async () => {
+export const onRequestGet = async () => {
   return jsonResponse({ ok: true, message: "Aashan ERP email API is running" });
 };
