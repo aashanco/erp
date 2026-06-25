@@ -44,7 +44,13 @@ type UserProfile = {
   id?: string;
   email: string;
   full_name?: string;
-  role: 'Admin' | 'Staff' | 'Technician' | 'Read Only';
+  role:
+    | 'Admin'
+    | 'Staff'
+    | 'Office Staff'
+    | 'Technician'
+    | 'Customer'
+    | 'Read Only';
   active?: boolean;
 };
 
