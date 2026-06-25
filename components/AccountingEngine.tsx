@@ -142,9 +142,9 @@ export default function AccountingEngine() {
             <select style={styles.input} value={account.account_type} onChange={e=>setAccount({...account, account_type:e.target.value})}>
               <option>Asset</option><option>Liability</option><option>Equity</option><option>Revenue</option><option>Expense</option>
             </select>
-            <select style={styles.input} value={account.normal_balance} onChange={e=>setAccount({...account, normal_balance:e.target.value})}>
-              <option>Debit</option><option>Credit</option>
-            </select>
+           <select style={styles.input} value={account.normal_balance} onChange={e=>setAccount({...account, normal_balance:e.target.value})}>
+           <option>Debit</option> <option>Credit</option> <option>Both</option>
+           </select>
           </div>
           <button style={styles.primary} onClick={saveAccount}>Save Account</button>
           <Report rows={accounts} columns={['account_code','account_name','account_type','normal_balance']} />
