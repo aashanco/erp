@@ -32,13 +32,13 @@ export const onRequestPost = async (context: any) => {
       return jsonResponse({ error: "Invalid or expired login session" }, 401);
     }
 
-    const body = await context.request.json<{
-      to?: string;
-      subject?: string;
-      html?: string;
-      text?: string;
-      documentType?: string;
-    }>();
+ const body = (await context.request.json()) as {
+  to?: string;
+  subject?: string;
+  html?: string;
+  text?: string;
+  documentType?: string;
+};
 
     if (!body.to || !body.subject || (!body.html && !body.text)) {
       return jsonResponse({ error: "Missing email fields" }, 400);
