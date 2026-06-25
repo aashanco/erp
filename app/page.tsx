@@ -209,6 +209,16 @@ export default function Home() {
 
   const canEdit = profile?.role !== 'Read Only';
   const canAdmin = profile?.role === 'Admin';
+  const isTechnician = profile?.role === 'Technician';
+  const isCustomer = profile?.role === 'Customer';
+  const hasFullAccess = !isTechnician && !isCustomer;
+
+  function getAllowedTabsForRole(): Array<typeof activeTab> {
+    if (isTechnician) return ['dashboard', 'jobs', 'workorders', 'technician', 'customers'];
+    if (isCustomer) return ['dashboard', 'quotes', 'invoices', 'receipts'];
+    if (profile?.role === 'Read Only') return ['dashboard', 'customers', 'quotes', 'jobs', 'workorders', 'invoices', 'receipts', 'reports'];
+    return ['dashboard', 'customers', 'vendors', 'quotes', 'jobs', 'workorders', 'technician', 'calendar', 'invoices', 'payments', 'receipts', 'expenses', 'purchases', 'journals', 'banks', 'reports', 'masters', 'import'];
+  }
 
   async function loadUserProfile(user: any) {
     if (!user?.id) return;
@@ -361,6 +371,14 @@ export default function Home() {
   useEffect(() => {
     if (session) loadData();
   }, [session]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const allowedTabs = getAllowedTabsForRole();
+    if (!allowedTabs.includes(activeTab)) {
+      setActiveTab('dashboard');
+    }
+  }, [profile, activeTab]);
 
   useEffect(() => {
     if (printInvoice || printQuote || printReceipt) {
@@ -1632,6 +1650,14 @@ export default function Home() {
   }
 
   function openTab(tab: typeof activeTab) {
+    const allowedTabs = getAllowedTabsForRole();
+    if (!allowedTabs.includes(tab)) {
+      alert('You do not have access to this module.');
+      setMobileMenuOpen(false);
+      setQuickAddOpen(false);
+      return;
+    }
+
     setActiveTab(tab);
     setMobileMenuOpen(false);
     setQuickAddOpen(false);
@@ -1645,11 +1671,17 @@ export default function Home() {
     
           <div className="app-screen">
             <header style={styles.header}>
-              <div>
-                <h1 style={styles.headerTitle}>Aashan ERP</h1>
-                <p style={styles.headerSub}>Field Service & Accounting</p>
+              <div style={styles.headerLeft}>
+                <button className="mobile-menu-button" style={styles.mobileMenuButton} onClick={() => setMobileMenuOpen(true)}>☰</button>
+                <div>
+                  <h1 style={styles.headerTitle}>Aashan ERP</h1>
+                  <p style={styles.headerSub}>Field Service & Accounting</p>
+                </div>
               </div>
-              <div style={styles.phaseBadge}>🔔 0</div>
+              <div style={styles.headerRight}>
+                <span style={styles.rolePill}>{profile?.role || 'User'}</span>
+                <div style={styles.phaseBadge}>🔔 0</div>
+              </div>
             </header>
     
             <section style={styles.container}>
@@ -1701,18 +1733,49 @@ export default function Home() {
                   </div>
     
                   <div className="mobile-action-tiles" style={styles.mobileActionTiles}>
-                    <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
-                    <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
-                    <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
-                    <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
-                    <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
-                    <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
+                    {isTechnician ? (
+                      <>
+                        <button style={styles.actionTileGreen} onClick={() => openTab('technician')}><span>📅</span><b>My Jobs</b></button>
+                        <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Orders</b></button>
+                        <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
+                      </>
+                    ) : isCustomer ? (
+                      <>
+                        <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quotes</b></button>
+                        <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoices</b></button>
+                        <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipts</b></button>
+                      </>
+                    ) : (
+                      <>
+                        <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
+                        <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
+                        <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
+                        <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
+                        <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
+                        <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
+                      </>
+                    )}
                   </div>
     
                   {loading && <p>Loading...</p>}
     
                   {activeTab === 'dashboard' && (
                     <>
+                      <div className="mobile-dashboard-summary" style={styles.mobileDashboardSummary}>
+                        <div>
+                          <span>Today</span>
+                          <b>{todaysWorkOrders} Jobs</b>
+                        </div>
+                        <div>
+                          <span>Outstanding</span>
+                          <b>${outstanding.toFixed(2)}</b>
+                        </div>
+                        <div>
+                          <span>Revenue</span>
+                          <b>${paidRevenue.toFixed(2)}</b>
+                        </div>
+                      </div>
+
                       <div style={styles.cards}>
                 <Card title="Customers" value={customers.length} />
                 <Card title="Quotes" value={quotes.length} />
@@ -2489,12 +2552,28 @@ export default function Home() {
     
           {quickAddOpen && (
             <div className="quick-add-sheet" style={styles.quickAddSheet}>
-              <button style={styles.quickAddItem} onClick={() => openTab('customers')}>👤 New Customer</button>
-              <button style={styles.quickAddItem} onClick={() => openTab('quotes')}>📄 New Quote</button>
-              <button style={styles.quickAddItem} onClick={() => openTab('workorders')}>🛠️ New Work Order</button>
-              <button style={styles.quickAddItem} onClick={() => openTab('invoices')}>🧾 New Invoice</button>
-              <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 New Receipt</button>
-              <button style={styles.quickAddItem} onClick={() => openTab('expenses')}>💳 New Expense</button>
+              {isTechnician ? (
+                <>
+                  <button style={styles.quickAddItem} onClick={() => openTab('technician')}>📅 My Jobs</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('workorders')}>🛠️ Work Orders</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('customers')}>👤 Customer Info</button>
+                </>
+              ) : isCustomer ? (
+                <>
+                  <button style={styles.quickAddItem} onClick={() => openTab('quotes')}>📄 View Quotes</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('invoices')}>🧾 View Invoices</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 View Receipts</button>
+                </>
+              ) : (
+                <>
+                  <button style={styles.quickAddItem} onClick={() => openTab('customers')}>👤 New Customer</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('quotes')}>📄 New Quote</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('workorders')}>🛠️ New Work Order</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('invoices')}>🧾 New Invoice</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 New Receipt</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('expenses')}>💳 New Expense</button>
+                </>
+              )}
             </div>
           )}
     
@@ -2504,10 +2583,26 @@ export default function Home() {
     
           <nav className="bottom-nav" style={styles.bottomNav}>
             <button style={activeTab === 'dashboard' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('dashboard')}>🏠<span>Home</span></button>
-            <button style={activeTab === 'customers' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('customers')}>👥<span>Customers</span></button>
-            <button style={activeTab === 'quotes' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('quotes')}>📄<span>Quotes</span></button>
-            <button style={activeTab === 'invoices' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('invoices')}>🧾<span>Invoices</span></button>
-            <button style={activeTab === 'technician' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('technician')}>🛠️<span>Tech</span></button>
+            {isTechnician ? (
+              <>
+                <button style={activeTab === 'jobs' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('jobs')}>📋<span>Jobs</span></button>
+                <button style={activeTab === 'workorders' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('workorders')}>🛠️<span>WO</span></button>
+                <button style={activeTab === 'technician' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('technician')}>📅<span>Today</span></button>
+              </>
+            ) : isCustomer ? (
+              <>
+                <button style={activeTab === 'quotes' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('quotes')}>📄<span>Quotes</span></button>
+                <button style={activeTab === 'invoices' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('invoices')}>🧾<span>Invoices</span></button>
+                <button style={activeTab === 'receipts' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('receipts')}>💵<span>Receipts</span></button>
+              </>
+            ) : (
+              <>
+                <button style={activeTab === 'customers' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('customers')}>👥<span>Customers</span></button>
+                <button style={activeTab === 'quotes' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('quotes')}>📄<span>Quotes</span></button>
+                <button style={activeTab === 'invoices' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('invoices')}>🧾<span>Invoices</span></button>
+              </>
+            )}
+            <button style={styles.bottomNavBtn} onClick={() => setMobileMenuOpen(true)}>☰<span>More</span></button>
           </nav>
     
           {printQuote && (
@@ -2652,7 +2747,20 @@ function SideButton({ label, active, onClick }: any) {
 }
 
 function Card({ title, value }: { title: string; value: any }) {
-  return <div style={styles.card}><div style={styles.cardTitle}>{title}</div><div style={styles.cardValue}>{value}</div></div>;
+  const tone =
+    title.toLowerCase().includes('outstanding') ? '#dc2626' :
+    title.toLowerCase().includes('revenue') || title.toLowerCase().includes('profit') ? '#16a34a' :
+    title.toLowerCase().includes('work') || title.toLowerCase().includes('job') ? '#f97316' :
+    title.toLowerCase().includes('quote') ? '#7c3aed' :
+    title.toLowerCase().includes('invoice') || title.toLowerCase().includes('receipt') ? '#2563eb' :
+    '#0f172a';
+
+  return (
+    <div className="dash-card" style={{ ...styles.card, borderLeft: `6px solid ${tone}` }}>
+      <div style={styles.cardTitle}>{title}</div>
+      <div style={styles.cardValue}>{value}</div>
+    </div>
+  );
 }
 function SectionCard({ title, children }: any) {
   return <div style={styles.sectionCard}><h2 style={styles.sectionTitle}>{title}</h2>{children}</div>;
@@ -2679,7 +2787,10 @@ const styles: Record<string, any> = {
   loginCard: { background: 'white', borderRadius: 18, padding: 28, width: '100%', maxWidth: 430, boxShadow: '0 25px 60px rgba(0,0,0,0.25)' },
   loginLogo: { background: '#0f172a', color: 'white', padding: '10px 14px', borderRadius: 12, fontWeight: 800, display: 'inline-block', marginBottom: 18 },
   logoutBtn: { background: '#dc2626', color: 'white', border: 0, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontWeight: 700 },
-  header: { background: '#0f172a', color: 'white', padding: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap' },
+  header: { background: 'linear-gradient(135deg, #0f172a, #1d4ed8)', color: 'white', padding: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap', position: 'sticky', top: 0, zIndex: 9998, boxShadow: '0 12px 35px rgba(15,23,42,0.18)' },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
+  rolePill: { background: 'rgba(255,255,255,0.14)', padding: '8px 12px', borderRadius: 999, fontWeight: 800, fontSize: 13 },
   headerTitle: { margin: 0, fontSize: 28 },
   headerSub: { margin: '6px 0 0', opacity: 0.9 },
   phaseBadge: { background: '#1d4ed8', padding: '8px 14px', borderRadius: 999, fontWeight: 700 },
@@ -2710,17 +2821,19 @@ const styles: Record<string, any> = {
 
   mobileQuickActions: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   mobileActionTiles: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 18 },
+  mobileHomeBanner: { display: 'none', background: 'linear-gradient(135deg, #eff6ff, #ffffff)', border: '1px solid #dbeafe', borderRadius: 18, padding: 16, marginBottom: 14, boxShadow: '0 10px 25px rgba(37,99,235,0.08)', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  mobileDashboardSummary: { display: 'none', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 },
   actionGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 },
   actionTile: { border: 0, background: '#2563eb', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
   actionTileGreen: { border: 0, background: '#059669', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
   actionTileDark: { border: 0, background: '#0f172a', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
   actionTileGray: { border: 0, background: '#64748b', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
   kpiRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', padding: '9px 0', gap: 12 },
-  floatingAdd: { display: 'none', position: 'fixed', right: 18, bottom: 86, width: 58, height: 58, borderRadius: '50%', border: 0, background: '#2563eb', color: 'white', fontSize: 34, zIndex: 10000, boxShadow: '0 12px 30px rgba(37,99,235,0.35)' },
+  floatingAdd: { display: 'none', position: 'fixed', right: 18, bottom: 88, width: 62, height: 62, borderRadius: '50%', border: 0, background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', fontSize: 34, zIndex: 10000, boxShadow: '0 16px 40px rgba(37,99,235,0.42)' },
   quickAddSheet: { display: 'none', position: 'fixed', right: 18, bottom: 152, background: 'white', borderRadius: 18, padding: 10, zIndex: 10000, boxShadow: '0 20px 50px rgba(15,23,42,0.25)', minWidth: 230 },
   quickAddItem: { width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: '12px 10px', borderRadius: 12, fontWeight: 800, color: '#0f172a' },
   quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
-  bottomNav: { display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #e5e7eb', zIndex: 9999, padding: '6px 8px', boxShadow: '0 -10px 30px rgba(15,23,42,0.12)' },
+  bottomNav: { display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: '1px solid #e5e7eb', zIndex: 9999, padding: '6px 8px', boxShadow: '0 -10px 30px rgba(15,23,42,0.12)' },
   bottomNavBtn: { flex: 1, border: 0, background: 'transparent', color: '#475569', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   bottomNavActive: { flex: 1, border: 0, background: '#dbeafe', color: '#1d4ed8', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontWeight: 800 },
   techJobList: { display: 'grid', gap: 14 },
@@ -2845,12 +2958,57 @@ const printCss = `
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 
+  .mobile-home-banner {
+    display: flex !important;
+  }
+
+  .mobile-home-banner p {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  .mobile-home-banner span {
+    font-size: 30px;
+  }
+
+  .mobile-dashboard-summary {
+    display: grid !important;
+  }
+
+  .mobile-dashboard-summary > div {
+    background: white;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  }
+
+  .mobile-dashboard-summary span {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .mobile-dashboard-summary b {
+    font-size: 15px;
+    color: #0f172a;
+  }
+
+  .topBar {
+    gap: 8px !important;
+  }
+
   .dash-card h2 {
     font-size: 26px !important;
   }
 
   .dash-card b {
     font-size: 15px !important;
+  }
+
+  .sectionCard {
+    border-radius: 18px !important;
   }
 }
 
