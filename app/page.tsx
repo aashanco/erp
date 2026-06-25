@@ -1,5 +1,6 @@
 'use client';
 
+import AuthGate from "../components/AuthGate";
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -1637,989 +1638,991 @@ export default function Home() {
   }
 
   return (
+    <AuthGate>
     <main style={styles.page}>
-      <style>{printCss}</style>
-
-      <div className="app-screen">
-        <header style={styles.header}>
-          <div>
-            <h1 style={styles.headerTitle}>Aashan ERP</h1>
-            <p style={styles.headerSub}>Field Service & Accounting</p>
-          </div>
-          <div style={styles.phaseBadge}>🔔 0</div>
-        </header>
-
-        <section style={styles.container}>
-          <div style={styles.erpShell}>
-{mobileMenuOpen && <div className="mobile-backdrop" onClick={() => setMobileMenuOpen(false)} />}
-            <aside className={mobileMenuOpen ? "sidebar-open" : ""} style={styles.sidebar}>
-              <div style={styles.sidebarBrand}><span>Aashan ERP</span><button className="mobile-close-button" style={styles.mobileCloseButton} onClick={() => setMobileMenuOpen(false)}>×</button></div>
-
-              <SidebarGroup title="Business">
-                <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => openTab('dashboard')} />
-                <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => openTab('customers')} />
-                <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => openTab('vendors')} />
-              </SidebarGroup>
-
-              <SidebarGroup title="Operations">
-                <SideButton label="Quotes" active={activeTab === 'quotes'} onClick={() => openTab('quotes')} />
-                <SideButton label="Jobs" active={activeTab === 'jobs'} onClick={() => openTab('jobs')} />
-                <SideButton label="Work Orders" active={activeTab === 'workorders'} onClick={() => openTab('workorders')} />
-                <SideButton label="Technician App" active={activeTab === 'technician'} onClick={() => openTab('technician')} />
-                <SideButton label="Calendar" active={activeTab === 'calendar'} onClick={() => openTab('calendar')} />
-              </SidebarGroup>
-
-              <SidebarGroup title="Finance">
-                <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => openTab('invoices')} />
-                <SideButton label="Payments" active={activeTab === 'payments'} onClick={() => openTab('payments')} />
-                <SideButton label="Receipts" active={activeTab === 'receipts'} onClick={() => openTab('receipts')} />
-                <SideButton label="Expenses" active={activeTab === 'expenses'} onClick={() => openTab('expenses')} />
-                <SideButton label="Purchase Invoices" active={activeTab === 'purchases'} onClick={() => openTab('purchases')} />
-                <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => openTab('journals')} />
-                <SideButton label="Banks" active={activeTab === 'banks'} onClick={() => openTab('banks')} />
-                <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => openTab('reports')} />
-              </SidebarGroup>
-
-              {canAdmin && (
-                <SidebarGroup title="Administration">
-                  <SideButton label="Masters" active={activeTab === 'masters'} onClick={() => openTab('masters')} />
-                  <SideButton label="Import / Export" active={activeTab === 'import'} onClick={() => openTab('import')} />
-                </SidebarGroup>
-              )}
-            </aside>
-
-            <div style={styles.contentArea}>
-              <div style={styles.topBar}>
-                <div>
-                  <h2 style={styles.pageTitle}>{activeTab[0].toUpperCase() + activeTab.slice(1)}</h2>
-                  <p style={styles.pageSub}>{greetingText()}, {profile?.email?.split('@')[0] || 'Anil'}</p>
-                </div>
-                <input placeholder="🔍 Search customer, invoice, work order..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
+          <style>{printCss}</style>
+    
+          <div className="app-screen">
+            <header style={styles.header}>
+              <div>
+                <h1 style={styles.headerTitle}>Aashan ERP</h1>
+                <p style={styles.headerSub}>Field Service & Accounting</p>
               </div>
-
-              <div className="mobile-action-tiles" style={styles.mobileActionTiles}>
-                <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
-                <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
-                <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
-                <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
-                <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
-                <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
-              </div>
-
-              {loading && <p>Loading...</p>}
-
-              {activeTab === 'dashboard' && (
-                <>
-                  <div style={styles.cards}>
-            <Card title="Customers" value={customers.length} />
-            <Card title="Quotes" value={quotes.length} />
-            <Card title="Open Quotes" value={openQuotes} />
-            <Card title="Jobs" value={jobs.length} />
-            <Card title="Work Orders" value={workOrders.length} />
-            <Card title="Today Schedule" value={todaysWorkOrders} />
-            <Card title="Invoices" value={invoices.length} />
-            <Card title="Open Invoices" value={openInvoices} />
-            <Card title="Outstanding" value={`$${outstanding.toFixed(2)}`} />
-            <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
-            <Card title="In Progress" value={jobsInProgress} />
-            <Card title="Completed Jobs" value={completedJobs} />
-            <Card title="Expenses" value={`$${totalExpenses.toFixed(2)}`} />
-            <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
-            <Card title="Vendors" value={vendors.length} />
-            <Card title="Banks" value={banks.length} />
-            <Card title="Receipts" value={receipts.length} />
+              <div style={styles.phaseBadge}>🔔 0</div>
+            </header>
+    
+            <section style={styles.container}>
+              <div style={styles.erpShell}>
+    {mobileMenuOpen && <div className="mobile-backdrop" onClick={() => setMobileMenuOpen(false)} />}
+                <aside className={mobileMenuOpen ? "sidebar-open" : ""} style={styles.sidebar}>
+                  <div style={styles.sidebarBrand}><span>Aashan ERP</span><button className="mobile-close-button" style={styles.mobileCloseButton} onClick={() => setMobileMenuOpen(false)}>×</button></div>
+    
+                  <SidebarGroup title="Business">
+                    <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => openTab('dashboard')} />
+                    <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => openTab('customers')} />
+                    <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => openTab('vendors')} />
+                  </SidebarGroup>
+    
+                  <SidebarGroup title="Operations">
+                    <SideButton label="Quotes" active={activeTab === 'quotes'} onClick={() => openTab('quotes')} />
+                    <SideButton label="Jobs" active={activeTab === 'jobs'} onClick={() => openTab('jobs')} />
+                    <SideButton label="Work Orders" active={activeTab === 'workorders'} onClick={() => openTab('workorders')} />
+                    <SideButton label="Technician App" active={activeTab === 'technician'} onClick={() => openTab('technician')} />
+                    <SideButton label="Calendar" active={activeTab === 'calendar'} onClick={() => openTab('calendar')} />
+                  </SidebarGroup>
+    
+                  <SidebarGroup title="Finance">
+                    <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => openTab('invoices')} />
+                    <SideButton label="Payments" active={activeTab === 'payments'} onClick={() => openTab('payments')} />
+                    <SideButton label="Receipts" active={activeTab === 'receipts'} onClick={() => openTab('receipts')} />
+                    <SideButton label="Expenses" active={activeTab === 'expenses'} onClick={() => openTab('expenses')} />
+                    <SideButton label="Purchase Invoices" active={activeTab === 'purchases'} onClick={() => openTab('purchases')} />
+                    <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => openTab('journals')} />
+                    <SideButton label="Banks" active={activeTab === 'banks'} onClick={() => openTab('banks')} />
+                    <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => openTab('reports')} />
+                  </SidebarGroup>
+    
+                  {canAdmin && (
+                    <SidebarGroup title="Administration">
+                      <SideButton label="Masters" active={activeTab === 'masters'} onClick={() => openTab('masters')} />
+                      <SideButton label="Import / Export" active={activeTab === 'import'} onClick={() => openTab('import')} />
+                    </SidebarGroup>
+                  )}
+                </aside>
+    
+                <div style={styles.contentArea}>
+                  <div style={styles.topBar}>
+                    <div>
+                      <h2 style={styles.pageTitle}>{activeTab[0].toUpperCase() + activeTab.slice(1)}</h2>
+                      <p style={styles.pageSub}>{greetingText()}, {profile?.email?.split('@')[0] || 'Anil'}</p>
+                    </div>
+                    <input placeholder="🔍 Search customer, invoice, work order..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
                   </div>
-
-                  <div style={styles.executiveCards}>
-                    <Card title="Bank Balance" value={`$${bankBalance.toFixed(2)}`} />
-                    <Card title="Accounts Receivable" value={`$${accountsReceivable.toFixed(2)}`} />
-                    <Card title="Accounts Payable" value={`$${accountsPayable.toFixed(2)}`} />
-                    <Card title="Revenue MTD" value={`$${revenueMTD.toFixed(2)}`} />
-                    <Card title="Expenses MTD" value={`$${expensesMTD.toFixed(2)}`} />
-                    <Card title="Profit MTD" value={`$${profitMTD.toFixed(2)}`} />
-                    <Card title="Pending Invoices" value={pendingInvoices} />
-                    <Card title="Overdue Invoices" value={overdueInvoices} />
+    
+                  <div className="mobile-action-tiles" style={styles.mobileActionTiles}>
+                    <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
+                    <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
+                    <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
+                    <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
+                    <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
+                    <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
                   </div>
-
-                  <div style={styles.dashboardGrid}>
-                    <SectionCard title="Quick Actions">
-                      <div style={styles.actionGrid}>
-                        <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
-                        <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
-                        <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
-                        <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
-                        <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
-                        <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
+    
+                  {loading && <p>Loading...</p>}
+    
+                  {activeTab === 'dashboard' && (
+                    <>
+                      <div style={styles.cards}>
+                <Card title="Customers" value={customers.length} />
+                <Card title="Quotes" value={quotes.length} />
+                <Card title="Open Quotes" value={openQuotes} />
+                <Card title="Jobs" value={jobs.length} />
+                <Card title="Work Orders" value={workOrders.length} />
+                <Card title="Today Schedule" value={todaysWorkOrders} />
+                <Card title="Invoices" value={invoices.length} />
+                <Card title="Open Invoices" value={openInvoices} />
+                <Card title="Outstanding" value={`$${outstanding.toFixed(2)}`} />
+                <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
+                <Card title="In Progress" value={jobsInProgress} />
+                <Card title="Completed Jobs" value={completedJobs} />
+                <Card title="Expenses" value={`$${totalExpenses.toFixed(2)}`} />
+                <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
+                <Card title="Vendors" value={vendors.length} />
+                <Card title="Banks" value={banks.length} />
+                <Card title="Receipts" value={receipts.length} />
                       </div>
-                    </SectionCard>
-
-                    <SectionCard title="Today Schedule">
-                      <p><b>{todaysWorkOrders}</b> work orders scheduled today.</p>
-                      <p><b>{scheduledWorkOrders}</b> work orders are scheduled or in progress.</p>
-                      <button style={styles.smallBtn} onClick={() => openTab('calendar')}>Open Calendar</button>
-                    </SectionCard>
-                  </div>
-
-                  <div style={styles.dashboardGrid}>
-                    <SectionCard title="Revenue vs Expenses - Last 6 Months">
-                      {monthlySummary.length === 0 && <p style={styles.helpText}>No revenue or expense data yet.</p>}
-                      {monthlySummary.map((m) => (
-                        <div key={m.month} style={styles.chartRow}>
-                          <div style={styles.chartLabel}>{m.month}</div>
-                          <div style={styles.chartTrack}>
-                            <div style={{ ...styles.chartBarRevenue, width: `${Math.max(4, (m.revenue / chartMax) * 100)}%` }}>Revenue ${m.revenue.toFixed(0)}</div>
-                            <div style={{ ...styles.chartBarExpense, width: `${Math.max(4, (m.expense / chartMax) * 100)}%` }}>Expense ${m.expense.toFixed(0)}</div>
+    
+                      <div style={styles.executiveCards}>
+                        <Card title="Bank Balance" value={`$${bankBalance.toFixed(2)}`} />
+                        <Card title="Accounts Receivable" value={`$${accountsReceivable.toFixed(2)}`} />
+                        <Card title="Accounts Payable" value={`$${accountsPayable.toFixed(2)}`} />
+                        <Card title="Revenue MTD" value={`$${revenueMTD.toFixed(2)}`} />
+                        <Card title="Expenses MTD" value={`$${expensesMTD.toFixed(2)}`} />
+                        <Card title="Profit MTD" value={`$${profitMTD.toFixed(2)}`} />
+                        <Card title="Pending Invoices" value={pendingInvoices} />
+                        <Card title="Overdue Invoices" value={overdueInvoices} />
+                      </div>
+    
+                      <div style={styles.dashboardGrid}>
+                        <SectionCard title="Quick Actions">
+                          <div style={styles.actionGrid}>
+                            <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
+                            <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
+                            <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
+                            <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
+                            <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
+                            <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
                           </div>
-                        </div>
-                      ))}
-                    </SectionCard>
-
-                    <SectionCard title="Top Customers by Revenue">
-                      {topCustomers.length === 0 && <p style={styles.helpText}>No paid customer revenue yet.</p>}
-                      {topCustomers.map((c) => (
-                        <div key={c.name} style={styles.topCustomerRow}>
-                          <span>{c.name}</span>
-                          <b>${c.revenue.toFixed(2)}</b>
-                        </div>
-                      ))}
-                    </SectionCard>
-                  </div>
-
-                  <div style={styles.dashboardGrid}>
-                    <SectionCard title="Operations Summary">
-                      <div style={styles.kpiList}>
-                        <div style={styles.kpiRow}><span>Open Quotes</span><b>{openQuotes}</b></div>
-                        <div style={styles.kpiRow}><span>Open Jobs</span><b>{jobs.filter((j) => ['New', 'Quoted', 'In Progress'].includes(j.status)).length}</b></div>
-                        <div style={styles.kpiRow}><span>Scheduled Jobs</span><b>{scheduledWorkOrders}</b></div>
-                        <div style={styles.kpiRow}><span>Completed Jobs</span><b>{completedJobs}</b></div>
+                        </SectionCard>
+    
+                        <SectionCard title="Today Schedule">
+                          <p><b>{todaysWorkOrders}</b> work orders scheduled today.</p>
+                          <p><b>{scheduledWorkOrders}</b> work orders are scheduled or in progress.</p>
+                          <button style={styles.smallBtn} onClick={() => openTab('calendar')}>Open Calendar</button>
+                        </SectionCard>
                       </div>
-                    </SectionCard>
-
-                    <SectionCard title="Financial Health">
-                      <div style={styles.kpiList}>
-                        <div style={styles.kpiRow}><span>Total Revenue</span><b>${paidRevenue.toFixed(2)}</b></div>
-                        <div style={styles.kpiRow}><span>Total Expenses</span><b>${totalExpenses.toFixed(2)}</b></div>
-                        <div style={styles.kpiRow}><span>Net Profit</span><b>${netProfit.toFixed(2)}</b></div>
-                        <div style={styles.kpiRow}><span>Outstanding AR</span><b>${outstanding.toFixed(2)}</b></div>
+    
+                      <div style={styles.dashboardGrid}>
+                        <SectionCard title="Revenue vs Expenses - Last 6 Months">
+                          {monthlySummary.length === 0 && <p style={styles.helpText}>No revenue or expense data yet.</p>}
+                          {monthlySummary.map((m) => (
+                            <div key={m.month} style={styles.chartRow}>
+                              <div style={styles.chartLabel}>{m.month}</div>
+                              <div style={styles.chartTrack}>
+                                <div style={{ ...styles.chartBarRevenue, width: `${Math.max(4, (m.revenue / chartMax) * 100)}%` }}>Revenue ${m.revenue.toFixed(0)}</div>
+                                <div style={{ ...styles.chartBarExpense, width: `${Math.max(4, (m.expense / chartMax) * 100)}%` }}>Expense ${m.expense.toFixed(0)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </SectionCard>
+    
+                        <SectionCard title="Top Customers by Revenue">
+                          {topCustomers.length === 0 && <p style={styles.helpText}>No paid customer revenue yet.</p>}
+                          {topCustomers.map((c) => (
+                            <div key={c.name} style={styles.topCustomerRow}>
+                              <span>{c.name}</span>
+                              <b>${c.revenue.toFixed(2)}</b>
+                            </div>
+                          ))}
+                        </SectionCard>
                       </div>
-                    </SectionCard>
-                  </div>
+    
+                      <div style={styles.dashboardGrid}>
+                        <SectionCard title="Operations Summary">
+                          <div style={styles.kpiList}>
+                            <div style={styles.kpiRow}><span>Open Quotes</span><b>{openQuotes}</b></div>
+                            <div style={styles.kpiRow}><span>Open Jobs</span><b>{jobs.filter((j) => ['New', 'Quoted', 'In Progress'].includes(j.status)).length}</b></div>
+                            <div style={styles.kpiRow}><span>Scheduled Jobs</span><b>{scheduledWorkOrders}</b></div>
+                            <div style={styles.kpiRow}><span>Completed Jobs</span><b>{completedJobs}</b></div>
+                          </div>
+                        </SectionCard>
+    
+                        <SectionCard title="Financial Health">
+                          <div style={styles.kpiList}>
+                            <div style={styles.kpiRow}><span>Total Revenue</span><b>${paidRevenue.toFixed(2)}</b></div>
+                            <div style={styles.kpiRow}><span>Total Expenses</span><b>${totalExpenses.toFixed(2)}</b></div>
+                            <div style={styles.kpiRow}><span>Net Profit</span><b>${netProfit.toFixed(2)}</b></div>
+                            <div style={styles.kpiRow}><span>Outstanding AR</span><b>${outstanding.toFixed(2)}</b></div>
+                          </div>
+                        </SectionCard>
+                      </div>
+                    </>
+                  )}
+    
+              {(activeTab === 'customers') && (
+                <>
+                  <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Name" value={customer.name} onChange={(v: string) => setCustomer({ ...customer, name: v })} />
+                      <Input label="Phone" value={customer.phone} onChange={(v: string) => setCustomer({ ...customer, phone: v })} />
+                      <Input label="Email" value={customer.email} onChange={(v: string) => setCustomer({ ...customer, email: v })} />
+                      <Input label="Address" value={customer.address} onChange={(v: string) => setCustomer({ ...customer, address: v })} />
+                    </div>
+                    <ButtonRow>
+                      <button onClick={saveCustomer} style={styles.primaryBtn}>{editingCustomerId ? 'Update Customer' : 'Save Customer'}</button>
+                      {editingCustomerId && <button onClick={() => { setCustomer(emptyCustomer); setEditingCustomerId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Customer List" headers={['Name', 'Phone', 'Email', 'Address', 'Actions']}>
+                    {filteredCustomers.map((c) => <tr key={c.id}><Td>{c.name}</Td><Td>{c.phone}</Td><Td>{c.email}</Td><Td>{c.address}</Td><Td><button style={styles.smallBtn} onClick={() => editCustomer(c)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteCustomer(c.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
                 </>
               )}
-
-          {(activeTab === 'customers') && (
-            <>
-              <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Name" value={customer.name} onChange={(v: string) => setCustomer({ ...customer, name: v })} />
-                  <Input label="Phone" value={customer.phone} onChange={(v: string) => setCustomer({ ...customer, phone: v })} />
-                  <Input label="Email" value={customer.email} onChange={(v: string) => setCustomer({ ...customer, email: v })} />
-                  <Input label="Address" value={customer.address} onChange={(v: string) => setCustomer({ ...customer, address: v })} />
-                </div>
-                <ButtonRow>
-                  <button onClick={saveCustomer} style={styles.primaryBtn}>{editingCustomerId ? 'Update Customer' : 'Save Customer'}</button>
-                  {editingCustomerId && <button onClick={() => { setCustomer(emptyCustomer); setEditingCustomerId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Customer List" headers={['Name', 'Phone', 'Email', 'Address', 'Actions']}>
-                {filteredCustomers.map((c) => <tr key={c.id}><Td>{c.name}</Td><Td>{c.phone}</Td><Td>{c.email}</Td><Td>{c.address}</Td><Td><button style={styles.smallBtn} onClick={() => editCustomer(c)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteCustomer(c.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-
-          {(activeTab === 'vendors') && (
-            <>
-              <SectionCard title={editingVendorId ? 'Edit Vendor' : 'Add Vendor'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Vendor No" value={vendor.vendor_no} onChange={(v: string) => setVendor({ ...vendor, vendor_no: v })} />
-                  <Input label="Vendor Name" value={vendor.vendor_name} onChange={(v: string) => setVendor({ ...vendor, vendor_name: v })} />
-                  <Input label="Contact Person" value={vendor.contact_person} onChange={(v: string) => setVendor({ ...vendor, contact_person: v })} />
-                  <Input label="Phone" value={vendor.phone} onChange={(v: string) => setVendor({ ...vendor, phone: v })} />
-                  <Input label="Email" value={vendor.email} onChange={(v: string) => setVendor({ ...vendor, email: v })} />
-                  <Input label="Address" value={vendor.address} onChange={(v: string) => setVendor({ ...vendor, address: v })} />
-                  <Input label="Tax ID" value={vendor.tax_id} onChange={(v: string) => setVendor({ ...vendor, tax_id: v })} />
-                  <Field label="Status"><select value={vendor.status} onChange={(e) => setVendor({ ...vendor, status: e.target.value })} style={styles.input}><option>Active</option><option>Inactive</option><option>Blocked</option></select></Field>
-                  <Input label="Notes" value={vendor.notes} onChange={(v: string) => setVendor({ ...vendor, notes: v })} />
-                </div>
-                <ButtonRow>
-                  <button onClick={saveVendor} style={styles.primaryBtn}>{editingVendorId ? 'Update Vendor' : 'Save Vendor'}</button>
-                  {editingVendorId && <button onClick={() => { setVendor(emptyVendor); setEditingVendorId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Vendor List" headers={['Vendor No', 'Name', 'Contact', 'Phone', 'Email', 'Status', 'Actions']}>
-                {filteredVendors.map((v) => <tr key={v.id}><Td>{v.vendor_no}</Td><Td>{v.vendor_name}</Td><Td>{v.contact_person}</Td><Td>{v.phone}</Td><Td>{v.email}</Td><Td><StatusBadge status={v.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editVendor(v)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteVendor(v.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-
-          {(activeTab === 'quotes') && (
-            <>
-              <SectionCard title={editingQuoteId ? 'Edit Quote' : 'Create Quote'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Quote No" value={quote.quote_no} onChange={(v: string) => setQuote({ ...quote, quote_no: v })} />
-                  <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote({ ...quote, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
-                  <Input label="Quote Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
-                  <Input label="Service / Description" value={quote.service} onChange={(v: string) => setQuote({ ...quote, service: v })} />
-                  <Input label="Amount" value={quote.amount} onChange={(v: string) => setQuote({ ...quote, amount: v })} />
-                  <Field label="Status"><select value={quote.status} onChange={(e) => setQuote({ ...quote, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Field>
-                  <Input label="Notes" value={quote.notes} onChange={(v: string) => setQuote({ ...quote, notes: v })} />
-                </div>
-                <ButtonRow>
-                  <button onClick={saveQuote} style={styles.primaryBtn}>{editingQuoteId ? 'Update Quote' : 'Save Quote'}</button>
-                  {editingQuoteId && <button onClick={() => { setQuote(emptyQuote); setEditingQuoteId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Quotes" headers={['Quote #', 'Customer', 'Date', 'Service', 'Amount', 'Status', 'Quick Status', 'Actions']}>
-                {filteredQuotes.map((qt) => (
-                  <tr key={qt.id}>
-                    <Td>{qt.quote_no}</Td>
-                    <Td>{qt.customer}</Td>
-                    <Td>{qt.quote_date}</Td>
-                    <Td>{qt.service}</Td>
-                    <Td>${Number(qt.amount || 0).toFixed(2)}</Td>
-                    <Td><StatusBadge status={qt.status} /></Td>
-                    <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Td>
-                    <Td>
-                      <button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button>
-                      <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
-                      <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
-                      <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, `Hi ${qt.customer},%0D%0A%0D%0APlease find quote ${qt.quote_no} for $${qt.amount}.`)}>Email</button>
-                      <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
-                      <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>
-                    </Td>
-                  </tr>
-                ))}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'jobs') && (
-            <>
-              <SectionCard title={editingJobId ? 'Edit Job / Quote' : 'Add Job / Quote'}>
-                <div style={styles.formGrid2}>
-                  <Field label="Customer"><select value={job.customer} onChange={(e) => setJob({ ...job, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
-                  <Input label="Service" value={job.service} onChange={(v: string) => setJob({ ...job, service: v })} />
-                  <Input label="Date" type="date" value={job.job_date} onChange={(v: string) => setJob({ ...job, job_date: v })} />
-                  <Input label="Amount" value={job.amount} onChange={(v: string) => setJob({ ...job, amount: v })} />
-                  <Field label="Status"><select value={job.status} onChange={(e) => setJob({ ...job, status: e.target.value })} style={styles.input}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Field>
-                </div>
-                <ButtonRow>
-                  <button onClick={saveJob} style={styles.greenBtn}>{editingJobId ? 'Update Job' : 'Save Job'}</button>
-                  {editingJobId && <button onClick={() => { setJob(emptyJob); setEditingJobId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Jobs & Quotes" headers={['Customer', 'Service', 'Date', 'Amount', 'Status', 'Quick Status', 'Actions']}>
-                {filteredJobs.map((j) => <tr key={j.id}><Td>{j.customer}</Td><Td>{j.service}</Td><Td>{j.job_date}</Td><Td>${Number(j.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={j.status} /></Td><Td><select value={j.status} onChange={(e) => quickJobStatus(j.id, e.target.value)} style={styles.smallSelect}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Td><Td><button style={styles.smallBtn} onClick={() => editJob(j)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJob(j.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-
-          {(activeTab === 'workorders') && (
-            <>
-              <SectionCard title={editingWorkOrderId ? 'Edit Work Order' : 'Create Work Order'}>
-                <div style={styles.formGrid2}>
-                  <Field label="From Job"><select value={workOrder.job_id ? String(workOrder.job_id) : ''} onChange={(e) => fillWorkOrderFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service}</option>)}</select></Field>
-                  <Input label="Work Order No" value={workOrder.work_order_no} onChange={(v: string) => setWorkOrder({ ...workOrder, work_order_no: v })} />
-                  <Input label="Customer" value={workOrder.customer} onChange={(v: string) => setWorkOrder({ ...workOrder, customer: v })} />
-                  <Input label="Service" value={workOrder.service} onChange={(v: string) => setWorkOrder({ ...workOrder, service: v })} />
-                  <Input label="Technician / Assigned To" value={workOrder.technician} onChange={(v: string) => setWorkOrder({ ...workOrder, technician: v })} />
-                  <Input label="Scheduled Date" type="date" value={workOrder.scheduled_date} onChange={(v: string) => setWorkOrder({ ...workOrder, scheduled_date: v })} />
-                  <Input label="Start Time" type="time" value={workOrder.start_time} onChange={(v: string) => setWorkOrder({ ...workOrder, start_time: v })} />
-                  <Input label="End Time" type="time" value={workOrder.end_time} onChange={(v: string) => setWorkOrder({ ...workOrder, end_time: v })} />
-                  <Field label="Status"><select value={workOrder.status} onChange={(e) => setWorkOrder({ ...workOrder, status: e.target.value })} style={styles.input}><option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></Field>
-                  <Input label="Notes" value={workOrder.notes} onChange={(v: string) => setWorkOrder({ ...workOrder, notes: v })} />
-                </div>
-                <ButtonRow>
-                  <button onClick={saveWorkOrder} style={styles.primaryBtn}>{editingWorkOrderId ? 'Update Work Order' : 'Save Work Order'}</button>
-                  {editingWorkOrderId && <button onClick={() => { setWorkOrder(emptyWorkOrder); setEditingWorkOrderId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Work Orders" headers={['WO #', 'Date', 'Time', 'Customer', 'Service', 'Technician', 'Status', 'Actions']}>
-                {filteredWorkOrders.map((wo) => (
-                  <tr key={wo.id}>
-                    <Td>{wo.work_order_no}</Td>
-                    <Td>{wo.scheduled_date}</Td>
-                    <Td>{wo.start_time} - {wo.end_time}</Td>
-                    <Td>{wo.customer}</Td>
-                    <Td>{wo.service}</Td>
-                    <Td>{wo.technician}</Td>
-                    <Td><select value={wo.status} onChange={(e) => quickWorkOrderStatus(wo.id, e.target.value, wo.job_id)} style={styles.smallSelect}><option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></Td>
-                    <Td><button style={styles.smallBtn} onClick={() => editWorkOrder(wo)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteWorkOrder(wo.id)}>Delete</button></Td>
-                  </tr>
-                ))}
-              </DataTable>
-            </>
-          )}
-
-
-          {(activeTab === 'technician') && (
-            <>
-              <SectionCard title="Technician Mobile App">
-                <p style={styles.helpText}>Simple mobile screen for field technicians to manage today's assigned work.</p>
-                <div style={styles.mobileQuickActions}>
-                  <button style={styles.primaryBtn} onClick={() => openTab('workorders')}>Create / Edit Work Order</button>
-                  <button style={styles.greenBtn} onClick={() => openTab('calendar')}>Open Schedule</button>
-                  <button style={styles.grayBtn} onClick={() => openTab('invoices')}>Create Invoice</button>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Today's Assigned Jobs">
-                {workOrders.filter((wo) => wo.scheduled_date === todayText && wo.status !== 'Cancelled').length === 0 && (
-                  <p style={styles.helpText}>No work orders scheduled for today.</p>
-                )}
-
-                <div style={styles.techJobList}>
-                  {workOrders
-                    .filter((wo) => wo.scheduled_date === todayText && wo.status !== 'Cancelled')
-                    .sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')))
-                    .map((wo) => (
-                      <div key={wo.id} style={styles.techJobCard}>
-                        <div style={styles.techJobHeader}>
-                          <div>
-                            <b>{wo.customer}</b>
-                            <p>{wo.service}</p>
-                          </div>
-                          <StatusBadge status={wo.status} />
-                        </div>
-
-                        <div style={styles.techMeta}>
-                          <span>WO: {wo.work_order_no}</span>
-                          <span>{wo.start_time || 'Start'} - {wo.end_time || 'End'}</span>
-                          <span>Tech: {wo.technician || 'Unassigned'}</span>
-                        </div>
-
-                        <div style={styles.mobileQuickActions}>
-                          <button style={styles.primaryBtn} onClick={() => quickWorkOrderStatus(wo.id, 'In Progress', wo.job_id)}>Start Job</button>
-                          <button style={styles.greenBtn} onClick={() => quickWorkOrderStatus(wo.id, 'Completed', wo.job_id)}>Complete</button>
-                          <button style={styles.grayBtn} onClick={() => editWorkOrder(wo)}>Details</button>
-                        </div>
-
-                        <div style={styles.techPlaceholders}>
-                          <button style={styles.smallBtn} onClick={() => alert('Photo upload will be added in Phase 15B')}>Upload Photos</button>
-                          <button style={styles.smallBtn} onClick={() => alert('Customer signature will be added in Phase 15B')}>Signature</button>
-                          <button style={styles.smallBtn} onClick={() => alert('GPS check-in will be added in Phase 15B')}>GPS Check-in</button>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </SectionCard>
-
-              <DataTable title="All Open Technician Work" headers={['Date', 'Time', 'Customer', 'Service', 'Technician', 'Status', 'Actions']}>
-                {workOrders
-                  .filter((wo) => ['Scheduled', 'In Progress'].includes(wo.status))
-                  .map((wo) => (
-                    <tr key={wo.id}>
-                      <Td>{wo.scheduled_date}</Td>
-                      <Td>{wo.start_time} - {wo.end_time}</Td>
-                      <Td>{wo.customer}</Td>
-                      <Td>{wo.service}</Td>
-                      <Td>{wo.technician}</Td>
-                      <Td><StatusBadge status={wo.status} /></Td>
-                      <Td><button style={styles.smallBtn} onClick={() => editWorkOrder(wo)}>Open</button></Td>
-                    </tr>
-                  ))}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'calendar') && (
-            <>
-              <SectionCard title="Calendar / Daily Schedule">
-                <div style={styles.cards}>
-                  <Card title="Today" value={todaysWorkOrders} />
-                  <Card title="Scheduled / In Progress" value={scheduledWorkOrders} />
-                  <Card title="Completed Work Orders" value={workOrders.filter((wo) => wo.status === 'Completed').length} />
-                </div>
-              </SectionCard>
-
-              <DataTable title="Upcoming Schedule" headers={['Date', 'Time', 'Customer', 'Service', 'Technician', 'Status']}>
-                {workOrders
-                  .filter((wo) => wo.status !== 'Cancelled')
-                  .sort((a, b) => String(a.scheduled_date + a.start_time).localeCompare(String(b.scheduled_date + b.start_time)))
-                  .map((wo) => <tr key={wo.id}><Td>{wo.scheduled_date}</Td><Td>{wo.start_time} - {wo.end_time}</Td><Td>{wo.customer}</Td><Td>{wo.service}</Td><Td>{wo.technician}</Td><Td><StatusBadge status={wo.status} /></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'invoices') && (
-            <>
-              <SectionCard title={editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}>
-                <div style={styles.formGrid2}>
-                  <Field label="From Job"><select value={invoice.job_id ? String(invoice.job_id) : ''} onChange={(e) => fillInvoiceFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{availableInvoiceJobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service} - ${j.amount}</option>)}</select></Field>
-                  <Input label="Invoice No" value={invoice.invoice_no} onChange={(v: string) => setInvoice({ ...invoice, invoice_no: v })} />
-                  <Field label="Customer"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
-                  <Input label="Invoice Date" type="date" value={invoice.invoice_date} onChange={(v: string) => setInvoice({ ...invoice, invoice_date: v })} />
-                  <Input label="Due Date" type="date" value={invoice.due_date} onChange={(v: string) => setInvoice({ ...invoice, due_date: v })} />
-                  <Input label="Amount" value={invoice.amount} onChange={(v: string) => setInvoice({ ...invoice, amount: v })} />
-                  <Input label="Customer Phone" value={invoice.customer_phone || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_phone: v })} />
-                  <Input label="Customer Email" value={invoice.customer_email || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_email: v })} />
-                  <Input label="Customer Address" value={invoice.customer_address || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_address: v })} />
-                  <Field label="Status"><select value={invoice.status} onChange={(e) => setInvoice({ ...invoice, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></Field>
-                  <Input label="Notes" value={invoice.notes || ''} onChange={(v: string) => setInvoice({ ...invoice, notes: v })} />
-                </div>
-                <ButtonRow>
-                  <button onClick={saveInvoice} style={styles.primaryBtn}>{editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</button>
-                  {editingInvoiceId && <button onClick={() => { setInvoice(emptyInvoice); setEditingInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, `Hi ${i.customer},%0D%0A%0D%0APlease find invoice ${i.invoice_no} for $${i.amount}.`)}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'payments') && (
-            <>
-              <SectionCard title={editingPaymentId ? 'Edit Payment' : 'Record Payment'}>
-                <div style={styles.formGrid2}>
-                  <Field label="Invoice"><select value={payment.invoice_id ? String(payment.invoice_id) : ''} onChange={(e) => fillPaymentFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{payableInvoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer} - Balance ${invoiceBalance(i).toFixed(2)}</option>)}</select></Field>
-                  <Input label="Customer" value={payment.customer} onChange={(v: string) => setPayment({ ...payment, customer: v })} />
-                  <Input label="Payment Date" type="date" value={payment.payment_date} onChange={(v: string) => setPayment({ ...payment, payment_date: v })} />
-                  <Input label="Amount" value={payment.amount} onChange={(v: string) => setPayment({ ...payment, amount: v })} />
-                  <Field label="Payment Method"><select value={payment.payment_method} onChange={(e) => setPayment({ ...payment, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
-                  <Input label="Notes" value={payment.notes} onChange={(v: string) => setPayment({ ...payment, notes: v })} />
-                </div>
-                <ButtonRow>
-                  <button onClick={savePayment} style={styles.primaryBtn}>{editingPaymentId ? 'Update Payment' : 'Save Payment'}</button>
-                  {editingPaymentId && <button onClick={() => { setPayment(emptyPayment); setEditingPaymentId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Notes', 'Actions']}>
-                {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-
-
-          {(activeTab === 'receipts') && (
-            <>
-              <SectionCard title={editingReceiptId ? 'Edit Receipt' : 'Create Receipt'}>
-                <div style={styles.formGrid2}>
-                  <Field label="From Invoice"><select onChange={(e) => fillReceiptFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{invoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer}</option>)}</select></Field>
-                  <Input label="Receipt No" value={receipt.receipt_no} onChange={(v: string) => setReceipt({ ...receipt, receipt_no: v })} />
-                  <Input label="Customer" value={receipt.customer} onChange={(v: string) => setReceipt({ ...receipt, customer: v })} />
-                  <Input label="Invoice No" value={receipt.invoice_no} onChange={(v: string) => setReceipt({ ...receipt, invoice_no: v })} />
-                  <Input label="Receipt Date" type="date" value={receipt.receipt_date} onChange={(v: string) => setReceipt({ ...receipt, receipt_date: v })} />
-                  <Input label="Amount" value={receipt.amount} onChange={(v: string) => setReceipt({ ...receipt, amount: v })} />
-                  <Field label="Payment Method"><select value={receipt.payment_method} onChange={(e) => setReceipt({ ...receipt, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
-                  <Field label="Bank"><select value={receipt.bank_name} onChange={(e) => setReceipt({ ...receipt, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
-                  <Input label="Notes" value={receipt.notes} onChange={(v: string) => setReceipt({ ...receipt, notes: v })} />
-                </div>
-                <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
-              </SectionCard>
-              <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
-                {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, `Hi ${r.customer},%0D%0A%0D%0AThank you for your payment of $${r.amount}. Receipt No: ${r.receipt_no}`)}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'banks') && (
-            <>
-              <SectionCard title={editingBankId ? 'Edit Bank' : 'Create Bank'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Bank Name" value={bank.bank_name} onChange={(v: string) => setBank({ ...bank, bank_name: v })} />
-                  <Input label="Account Name" value={bank.account_name} onChange={(v: string) => setBank({ ...bank, account_name: v })} />
-                  <Input label="Account Number" value={bank.account_number} onChange={(v: string) => setBank({ ...bank, account_number: v })} />
-                  <Input label="Routing Number" value={bank.routing_number} onChange={(v: string) => setBank({ ...bank, routing_number: v })} />
-                  <Input label="Opening Balance" value={bank.opening_balance} onChange={(v: string) => setBank({ ...bank, opening_balance: v })} />
-                  <Input label="Current Balance" value={bank.current_balance} onChange={(v: string) => setBank({ ...bank, current_balance: v })} />
-                  <Field label="Active"><select value={bank.is_active ? 'Yes' : 'No'} onChange={(e) => setBank({ ...bank, is_active: e.target.value === 'Yes' })} style={styles.input}><option>Yes</option><option>No</option></select></Field>
-                </div>
-                <ButtonRow><button onClick={saveBank} style={styles.primaryBtn}>{editingBankId ? 'Update Bank' : 'Save Bank'}</button>{editingBankId && <button onClick={() => { setBank(emptyBank); setEditingBankId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
-              </SectionCard>
-              <DataTable title="Bank Accounts" headers={['Bank', 'Account Name', 'Account #', 'Routing #', 'Opening', 'Current', 'Active', 'Actions']}>
-                {banks.map((b) => <tr key={b.id}><Td>{b.bank_name}</Td><Td>{b.account_name}</Td><Td>{b.account_number}</Td><Td>{b.routing_number}</Td><Td>${Number(b.opening_balance || 0).toFixed(2)}</Td><Td>${Number(b.current_balance || 0).toFixed(2)}</Td><Td>{b.is_active ? 'Yes' : 'No'}</Td><Td><button style={styles.smallBtn} onClick={() => editBank(b)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteBank(b.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'purchases') && (
-            <>
-              <SectionCard title={editingPurchaseInvoiceId ? 'Edit Purchase Invoice' : 'Create Purchase Invoice'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Purchase Invoice No" value={purchaseInvoice.purchase_invoice_no} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, purchase_invoice_no: v })} />
-                  <Field label="Vendor"><select value={purchaseInvoice.vendor} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, vendor: e.target.value })} style={styles.input}><option value="">Select Vendor</option>{vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}</select></Field>
-                  <Input label="Invoice Date" type="date" value={purchaseInvoice.invoice_date} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, invoice_date: v })} />
-                  <Input label="Due Date" type="date" value={purchaseInvoice.due_date} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, due_date: v })} />
-                  <Input label="Category" value={purchaseInvoice.category} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, category: v })} />
-                  <Input label="Description" value={purchaseInvoice.description} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, description: v })} />
-                  <Input label="Amount" value={purchaseInvoice.amount} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, amount: v })} />
-                  <Field label="Bank"><select value={purchaseInvoice.bank_name} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
-                  <Field label="Status"><select value={purchaseInvoice.status} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, status: e.target.value })} style={styles.input}><option>Open</option><option>Paid</option><option>Cancelled</option></select></Field>
-                </div>
-                <ButtonRow><button onClick={savePurchaseInvoice} style={styles.primaryBtn}>{editingPurchaseInvoiceId ? 'Update Purchase Invoice' : 'Save Purchase Invoice'}</button>{editingPurchaseInvoiceId && <button onClick={() => { setPurchaseInvoice(emptyPurchaseInvoice); setEditingPurchaseInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
-              </SectionCard>
-              <DataTable title="Purchase Invoices" headers={['Invoice #', 'Vendor', 'Date', 'Due', 'Category', 'Amount', 'Status', 'Actions']}>
-                {purchaseInvoices.map((pi) => <tr key={pi.id}><Td>{pi.purchase_invoice_no}</Td><Td>{pi.vendor}</Td><Td>{pi.invoice_date}</Td><Td>{pi.due_date}</Td><Td>{pi.category}</Td><Td>${Number(pi.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={pi.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editPurchaseInvoice(pi)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePurchaseInvoice(pi.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'journals') && (
-            <>
-              <SectionCard title={editingJournalEntryId ? 'Edit Journal Entry' : 'Create Journal Entry'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Journal No" value={journalEntry.journal_no} onChange={(v: string) => setJournalEntry({ ...journalEntry, journal_no: v })} />
-                  <Input label="Date" type="date" value={journalEntry.journal_date} onChange={(v: string) => setJournalEntry({ ...journalEntry, journal_date: v })} />
-                  <Input label="Description" value={journalEntry.description} onChange={(v: string) => setJournalEntry({ ...journalEntry, description: v })} />
-                  <Field label="Debit Account"><select value={journalEntry.debit_account} onChange={(e) => setJournalEntry({ ...journalEntry, debit_account: e.target.value })} style={styles.input}><option value="">Select Account</option>{accounts.map((a) => <option key={a.id} value={`${a.account_code} - ${a.account_name}`}>{a.account_code} - {a.account_name}</option>)}</select></Field>
-                  <Field label="Credit Account"><select value={journalEntry.credit_account} onChange={(e) => setJournalEntry({ ...journalEntry, credit_account: e.target.value })} style={styles.input}><option value="">Select Account</option>{accounts.map((a) => <option key={a.id} value={`${a.account_code} - ${a.account_name}`}>{a.account_code} - {a.account_name}</option>)}</select></Field>
-                  <Input label="Amount" value={journalEntry.amount} onChange={(v: string) => setJournalEntry({ ...journalEntry, amount: v })} />
-                  <Input label="Notes" value={journalEntry.notes} onChange={(v: string) => setJournalEntry({ ...journalEntry, notes: v })} />
-                </div>
-                <ButtonRow><button onClick={saveJournalEntry} style={styles.primaryBtn}>{editingJournalEntryId ? 'Update Journal' : 'Save Journal'}</button>{editingJournalEntryId && <button onClick={() => { setJournalEntry(emptyJournalEntry); setEditingJournalEntryId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
-              </SectionCard>
-              <DataTable title="Journal Entries" headers={['Journal #', 'Date', 'Description', 'Debit', 'Credit', 'Amount', 'Actions']}>
-                {journalEntries.map((je) => <tr key={je.id}><Td>{je.journal_no}</Td><Td>{je.journal_date}</Td><Td>{je.description}</Td><Td>{je.debit_account}</Td><Td>{je.credit_account}</Td><Td>${Number(je.amount || 0).toFixed(2)}</Td><Td><button style={styles.smallBtn} onClick={() => editJournalEntry(je)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJournalEntry(je.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'expenses') && (
-            <>
-              <SectionCard title={editingExpenseId ? 'Edit Expense' : 'Add Expense'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Expense No" value={expense.expense_no} onChange={(v: string) => setExpense({ ...expense, expense_no: v })} />
-                  <Input label="Date" type="date" value={expense.expense_date} onChange={(v: string) => setExpense({ ...expense, expense_date: v })} />
-                  <Field label="Vendor">
-                    <select value={expense.vendor} onChange={(e) => setExpense({ ...expense, vendor: e.target.value })} style={styles.input}>
-                      <option value="">Select Vendor</option>
-                      {vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Category"><select value={expense.category} onChange={(e) => setExpense({ ...expense, category: e.target.value })} style={styles.input}><option>Materials</option><option>Tools</option><option>Fuel</option><option>Labor</option><option>Subcontractor</option><option>Insurance</option><option>Marketing</option><option>Office Expense</option><option>Vehicle Expense</option><option>Other</option></select></Field>
-                  <Input label="Description" value={expense.description} onChange={(v: string) => setExpense({ ...expense, description: v })} />
-                  <Input label="Amount" value={expense.amount} onChange={(v: string) => setExpense({ ...expense, amount: v })} />
-                  <Field label="Payment Method"><select value={expense.payment_method} onChange={(e) => setExpense({ ...expense, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
-                  <Field label="Status"><select value={expense.status} onChange={(e) => setExpense({ ...expense, status: e.target.value })} style={styles.input}><option>Draft</option><option>Submitted</option><option>Approved</option><option>Paid</option></select></Field>
-                </div>
-                <ButtonRow>
-                  <button onClick={saveExpense} style={styles.primaryBtn}>{editingExpenseId ? 'Update Expense' : 'Save Expense'}</button>
-                  {editingExpenseId && <button onClick={() => { setExpense(emptyExpense); setEditingExpenseId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Expenses" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status', 'Actions']}>
-                {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>{e.description}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td>{e.payment_method}</Td><Td><StatusBadge status={e.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editExpense(e)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteExpense(e.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-          {(activeTab === 'reports') && (
-            <>
-              <SectionCard title="Profit & Loss Summary">
-                <div style={styles.cards}>
-                  <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
-                  <Card title="Total Expenses" value={`$${totalExpenses.toFixed(2)}`} />
-                  <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
-                  <Card title="Outstanding AR" value={`$${outstanding.toFixed(2)}`} />
-                  <Card title="Approved/Paid Expenses" value={`$${approvedExpenses.toFixed(2)}`} />
-                  <Card title="Draft/Submitted Expenses" value={`$${draftExpenses.toFixed(2)}`} />
-                </div>
-              </SectionCard>
-
-              <DataTable title="Revenue Report" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Paid', 'Balance', 'Status']}>
-                {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td></tr>)}
-              </DataTable>
-
-              <DataTable title="Expense Report" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Amount', 'Status']}>
-                {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={e.status} /></Td></tr>)}
-              </DataTable>
-            </>
-          )}
-
-
-          {(activeTab === 'import') && (
-            <>
-              <SectionCard title="Import Data from Excel">
-                <p style={styles.helpText}>Upload .xlsx files directly. The app will preview the first 20 rows and validate required columns before saving.</p>
-                <div style={styles.formGrid2}>
-                  <Field label="Import Customers Excel">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'customers')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Vendors Excel">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'vendors')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Expenses Excel">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'expenses')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Chart of Accounts Excel">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'accounts')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Existing Payments">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'payments')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Receipts">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'receipts')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Customer Invoices">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'invoices')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Purchase Invoices">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'purchase_invoices')} style={styles.input} />
-                  </Field>
-                  <Field label="Import Journal Entries">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'journal_entries')} style={styles.input} />
-                  </Field>
-                </div>
-                <ButtonRow>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('customers')}>Customer Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('vendors')}>Vendor Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('expenses')}>Expense Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('accounts')}>COA Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('payments')}>Payment Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('receipts')}>Receipt Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('invoices')}>Customer Invoice Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('purchase_invoices')}>Purchase Invoice Template</button>
-                  <button style={styles.greenBtn} onClick={() => downloadTemplate('journal_entries')}>Journal Template</button>
-                </ButtonRow>
-              </SectionCard>
-
-              {importPreview.length > 0 && (
-                <SectionCard title={`Import Preview - ${pendingImportType}`}>
-                  {importErrors.length > 0 ? (
-                    <div style={styles.errorBox}>
-                      <b>Errors found:</b>
-                      {importErrors.slice(0, 20).map((err, idx) => <p key={idx}>{err}</p>)}
+    
+    
+              {(activeTab === 'vendors') && (
+                <>
+                  <SectionCard title={editingVendorId ? 'Edit Vendor' : 'Add Vendor'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Vendor No" value={vendor.vendor_no} onChange={(v: string) => setVendor({ ...vendor, vendor_no: v })} />
+                      <Input label="Vendor Name" value={vendor.vendor_name} onChange={(v: string) => setVendor({ ...vendor, vendor_name: v })} />
+                      <Input label="Contact Person" value={vendor.contact_person} onChange={(v: string) => setVendor({ ...vendor, contact_person: v })} />
+                      <Input label="Phone" value={vendor.phone} onChange={(v: string) => setVendor({ ...vendor, phone: v })} />
+                      <Input label="Email" value={vendor.email} onChange={(v: string) => setVendor({ ...vendor, email: v })} />
+                      <Input label="Address" value={vendor.address} onChange={(v: string) => setVendor({ ...vendor, address: v })} />
+                      <Input label="Tax ID" value={vendor.tax_id} onChange={(v: string) => setVendor({ ...vendor, tax_id: v })} />
+                      <Field label="Status"><select value={vendor.status} onChange={(e) => setVendor({ ...vendor, status: e.target.value })} style={styles.input}><option>Active</option><option>Inactive</option><option>Blocked</option></select></Field>
+                      <Input label="Notes" value={vendor.notes} onChange={(v: string) => setVendor({ ...vendor, notes: v })} />
                     </div>
-                  ) : (
-                    <div style={styles.successBox}>Validation passed. Ready to import.</div>
-                  )}
-
-                  <div style={{ overflowX: 'auto', marginTop: 15 }}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          {Object.keys(importPreview[0] || {}).map((h) => <th key={h} style={styles.th}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {importPreview.map((row, idx) => (
-                          <tr key={idx}>
-                            {Object.keys(importPreview[0] || {}).map((h) => <Td key={h}>{row[h]}</Td>)}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <ButtonRow>
-                    <button style={styles.primaryBtn} onClick={confirmImport} disabled={importErrors.length > 0}>Confirm Import</button>
-                    <button style={styles.grayBtn} onClick={() => { setImportPreview([]); setImportErrors([]); setPendingImportType(''); }}>Cancel Import</button>
-                  </ButtonRow>
-                </SectionCard>
+                    <ButtonRow>
+                      <button onClick={saveVendor} style={styles.primaryBtn}>{editingVendorId ? 'Update Vendor' : 'Save Vendor'}</button>
+                      {editingVendorId && <button onClick={() => { setVendor(emptyVendor); setEditingVendorId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Vendor List" headers={['Vendor No', 'Name', 'Contact', 'Phone', 'Email', 'Status', 'Actions']}>
+                    {filteredVendors.map((v) => <tr key={v.id}><Td>{v.vendor_no}</Td><Td>{v.vendor_name}</Td><Td>{v.contact_person}</Td><Td>{v.phone}</Td><Td>{v.email}</Td><Td><StatusBadge status={v.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editVendor(v)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteVendor(v.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
               )}
-
-              <SectionCard title="Export Data">
-                <div style={styles.quickActions}>
-                  <button style={styles.primaryBtn} onClick={() => exportCsv('customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
-                  <button style={styles.primaryBtn} onClick={() => exportCsv('vendors.csv', [['Vendor No', 'Vendor Name', 'Contact', 'Phone', 'Email', 'Address', 'Tax ID', 'Status'], ...vendors.map(v => [v.vendor_no, v.vendor_name, v.contact_person, v.phone, v.email, v.address, v.tax_id, v.status])])}>Export Vendors</button>
-                  <button style={styles.primaryBtn} onClick={() => exportCsv('quotes.csv', [['Quote Number', 'Customer', 'Date', 'Service', 'Amount', 'Status'], ...quotes.map(q => [q.quote_no, q.customer, q.quote_date, q.service, q.amount, q.status])])}>Export Quotes</button>
-                  <button style={styles.primaryBtn} onClick={() => exportCsv('invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
-                  <button style={styles.primaryBtn} onClick={() => exportCsv('payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
-                  <button style={styles.primaryBtn} onClick={() => exportCsv('expenses.csv', [['Expense Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Expenses</button>
+    
+    
+              {(activeTab === 'quotes') && (
+                <>
+                  <SectionCard title={editingQuoteId ? 'Edit Quote' : 'Create Quote'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Quote No" value={quote.quote_no} onChange={(v: string) => setQuote({ ...quote, quote_no: v })} />
+                      <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote({ ...quote, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                      <Input label="Quote Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
+                      <Input label="Service / Description" value={quote.service} onChange={(v: string) => setQuote({ ...quote, service: v })} />
+                      <Input label="Amount" value={quote.amount} onChange={(v: string) => setQuote({ ...quote, amount: v })} />
+                      <Field label="Status"><select value={quote.status} onChange={(e) => setQuote({ ...quote, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Field>
+                      <Input label="Notes" value={quote.notes} onChange={(v: string) => setQuote({ ...quote, notes: v })} />
+                    </div>
+                    <ButtonRow>
+                      <button onClick={saveQuote} style={styles.primaryBtn}>{editingQuoteId ? 'Update Quote' : 'Save Quote'}</button>
+                      {editingQuoteId && <button onClick={() => { setQuote(emptyQuote); setEditingQuoteId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Quotes" headers={['Quote #', 'Customer', 'Date', 'Service', 'Amount', 'Status', 'Quick Status', 'Actions']}>
+                    {filteredQuotes.map((qt) => (
+                      <tr key={qt.id}>
+                        <Td>{qt.quote_no}</Td>
+                        <Td>{qt.customer}</Td>
+                        <Td>{qt.quote_date}</Td>
+                        <Td>{qt.service}</Td>
+                        <Td>${Number(qt.amount || 0).toFixed(2)}</Td>
+                        <Td><StatusBadge status={qt.status} /></Td>
+                        <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Td>
+                        <Td>
+                          <button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button>
+                          <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
+                          <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
+                          <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, `Hi ${qt.customer},%0D%0A%0D%0APlease find quote ${qt.quote_no} for $${qt.amount}.`)}>Email</button>
+                          <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
+                          <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>
+                        </Td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'jobs') && (
+                <>
+                  <SectionCard title={editingJobId ? 'Edit Job / Quote' : 'Add Job / Quote'}>
+                    <div style={styles.formGrid2}>
+                      <Field label="Customer"><select value={job.customer} onChange={(e) => setJob({ ...job, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                      <Input label="Service" value={job.service} onChange={(v: string) => setJob({ ...job, service: v })} />
+                      <Input label="Date" type="date" value={job.job_date} onChange={(v: string) => setJob({ ...job, job_date: v })} />
+                      <Input label="Amount" value={job.amount} onChange={(v: string) => setJob({ ...job, amount: v })} />
+                      <Field label="Status"><select value={job.status} onChange={(e) => setJob({ ...job, status: e.target.value })} style={styles.input}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Field>
+                    </div>
+                    <ButtonRow>
+                      <button onClick={saveJob} style={styles.greenBtn}>{editingJobId ? 'Update Job' : 'Save Job'}</button>
+                      {editingJobId && <button onClick={() => { setJob(emptyJob); setEditingJobId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Jobs & Quotes" headers={['Customer', 'Service', 'Date', 'Amount', 'Status', 'Quick Status', 'Actions']}>
+                    {filteredJobs.map((j) => <tr key={j.id}><Td>{j.customer}</Td><Td>{j.service}</Td><Td>{j.job_date}</Td><Td>${Number(j.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={j.status} /></Td><Td><select value={j.status} onChange={(e) => quickJobStatus(j.id, e.target.value)} style={styles.smallSelect}><option>New</option><option>Quoted</option><option>In Progress</option><option>Completed</option><option>Invoiced</option><option>Paid</option></select></Td><Td><button style={styles.smallBtn} onClick={() => editJob(j)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJob(j.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+    
+              {(activeTab === 'workorders') && (
+                <>
+                  <SectionCard title={editingWorkOrderId ? 'Edit Work Order' : 'Create Work Order'}>
+                    <div style={styles.formGrid2}>
+                      <Field label="From Job"><select value={workOrder.job_id ? String(workOrder.job_id) : ''} onChange={(e) => fillWorkOrderFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service}</option>)}</select></Field>
+                      <Input label="Work Order No" value={workOrder.work_order_no} onChange={(v: string) => setWorkOrder({ ...workOrder, work_order_no: v })} />
+                      <Input label="Customer" value={workOrder.customer} onChange={(v: string) => setWorkOrder({ ...workOrder, customer: v })} />
+                      <Input label="Service" value={workOrder.service} onChange={(v: string) => setWorkOrder({ ...workOrder, service: v })} />
+                      <Input label="Technician / Assigned To" value={workOrder.technician} onChange={(v: string) => setWorkOrder({ ...workOrder, technician: v })} />
+                      <Input label="Scheduled Date" type="date" value={workOrder.scheduled_date} onChange={(v: string) => setWorkOrder({ ...workOrder, scheduled_date: v })} />
+                      <Input label="Start Time" type="time" value={workOrder.start_time} onChange={(v: string) => setWorkOrder({ ...workOrder, start_time: v })} />
+                      <Input label="End Time" type="time" value={workOrder.end_time} onChange={(v: string) => setWorkOrder({ ...workOrder, end_time: v })} />
+                      <Field label="Status"><select value={workOrder.status} onChange={(e) => setWorkOrder({ ...workOrder, status: e.target.value })} style={styles.input}><option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></Field>
+                      <Input label="Notes" value={workOrder.notes} onChange={(v: string) => setWorkOrder({ ...workOrder, notes: v })} />
+                    </div>
+                    <ButtonRow>
+                      <button onClick={saveWorkOrder} style={styles.primaryBtn}>{editingWorkOrderId ? 'Update Work Order' : 'Save Work Order'}</button>
+                      {editingWorkOrderId && <button onClick={() => { setWorkOrder(emptyWorkOrder); setEditingWorkOrderId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Work Orders" headers={['WO #', 'Date', 'Time', 'Customer', 'Service', 'Technician', 'Status', 'Actions']}>
+                    {filteredWorkOrders.map((wo) => (
+                      <tr key={wo.id}>
+                        <Td>{wo.work_order_no}</Td>
+                        <Td>{wo.scheduled_date}</Td>
+                        <Td>{wo.start_time} - {wo.end_time}</Td>
+                        <Td>{wo.customer}</Td>
+                        <Td>{wo.service}</Td>
+                        <Td>{wo.technician}</Td>
+                        <Td><select value={wo.status} onChange={(e) => quickWorkOrderStatus(wo.id, e.target.value, wo.job_id)} style={styles.smallSelect}><option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></Td>
+                        <Td><button style={styles.smallBtn} onClick={() => editWorkOrder(wo)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteWorkOrder(wo.id)}>Delete</button></Td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                </>
+              )}
+    
+    
+              {(activeTab === 'technician') && (
+                <>
+                  <SectionCard title="Technician Mobile App">
+                    <p style={styles.helpText}>Simple mobile screen for field technicians to manage today's assigned work.</p>
+                    <div style={styles.mobileQuickActions}>
+                      <button style={styles.primaryBtn} onClick={() => openTab('workorders')}>Create / Edit Work Order</button>
+                      <button style={styles.greenBtn} onClick={() => openTab('calendar')}>Open Schedule</button>
+                      <button style={styles.grayBtn} onClick={() => openTab('invoices')}>Create Invoice</button>
+                    </div>
+                  </SectionCard>
+    
+                  <SectionCard title="Today's Assigned Jobs">
+                    {workOrders.filter((wo) => wo.scheduled_date === todayText && wo.status !== 'Cancelled').length === 0 && (
+                      <p style={styles.helpText}>No work orders scheduled for today.</p>
+                    )}
+    
+                    <div style={styles.techJobList}>
+                      {workOrders
+                        .filter((wo) => wo.scheduled_date === todayText && wo.status !== 'Cancelled')
+                        .sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')))
+                        .map((wo) => (
+                          <div key={wo.id} style={styles.techJobCard}>
+                            <div style={styles.techJobHeader}>
+                              <div>
+                                <b>{wo.customer}</b>
+                                <p>{wo.service}</p>
+                              </div>
+                              <StatusBadge status={wo.status} />
+                            </div>
+    
+                            <div style={styles.techMeta}>
+                              <span>WO: {wo.work_order_no}</span>
+                              <span>{wo.start_time || 'Start'} - {wo.end_time || 'End'}</span>
+                              <span>Tech: {wo.technician || 'Unassigned'}</span>
+                            </div>
+    
+                            <div style={styles.mobileQuickActions}>
+                              <button style={styles.primaryBtn} onClick={() => quickWorkOrderStatus(wo.id, 'In Progress', wo.job_id)}>Start Job</button>
+                              <button style={styles.greenBtn} onClick={() => quickWorkOrderStatus(wo.id, 'Completed', wo.job_id)}>Complete</button>
+                              <button style={styles.grayBtn} onClick={() => editWorkOrder(wo)}>Details</button>
+                            </div>
+    
+                            <div style={styles.techPlaceholders}>
+                              <button style={styles.smallBtn} onClick={() => alert('Photo upload will be added in Phase 15B')}>Upload Photos</button>
+                              <button style={styles.smallBtn} onClick={() => alert('Customer signature will be added in Phase 15B')}>Signature</button>
+                              <button style={styles.smallBtn} onClick={() => alert('GPS check-in will be added in Phase 15B')}>GPS Check-in</button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </SectionCard>
+    
+                  <DataTable title="All Open Technician Work" headers={['Date', 'Time', 'Customer', 'Service', 'Technician', 'Status', 'Actions']}>
+                    {workOrders
+                      .filter((wo) => ['Scheduled', 'In Progress'].includes(wo.status))
+                      .map((wo) => (
+                        <tr key={wo.id}>
+                          <Td>{wo.scheduled_date}</Td>
+                          <Td>{wo.start_time} - {wo.end_time}</Td>
+                          <Td>{wo.customer}</Td>
+                          <Td>{wo.service}</Td>
+                          <Td>{wo.technician}</Td>
+                          <Td><StatusBadge status={wo.status} /></Td>
+                          <Td><button style={styles.smallBtn} onClick={() => editWorkOrder(wo)}>Open</button></Td>
+                        </tr>
+                      ))}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'calendar') && (
+                <>
+                  <SectionCard title="Calendar / Daily Schedule">
+                    <div style={styles.cards}>
+                      <Card title="Today" value={todaysWorkOrders} />
+                      <Card title="Scheduled / In Progress" value={scheduledWorkOrders} />
+                      <Card title="Completed Work Orders" value={workOrders.filter((wo) => wo.status === 'Completed').length} />
+                    </div>
+                  </SectionCard>
+    
+                  <DataTable title="Upcoming Schedule" headers={['Date', 'Time', 'Customer', 'Service', 'Technician', 'Status']}>
+                    {workOrders
+                      .filter((wo) => wo.status !== 'Cancelled')
+                      .sort((a, b) => String(a.scheduled_date + a.start_time).localeCompare(String(b.scheduled_date + b.start_time)))
+                      .map((wo) => <tr key={wo.id}><Td>{wo.scheduled_date}</Td><Td>{wo.start_time} - {wo.end_time}</Td><Td>{wo.customer}</Td><Td>{wo.service}</Td><Td>{wo.technician}</Td><Td><StatusBadge status={wo.status} /></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'invoices') && (
+                <>
+                  <SectionCard title={editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}>
+                    <div style={styles.formGrid2}>
+                      <Field label="From Job"><select value={invoice.job_id ? String(invoice.job_id) : ''} onChange={(e) => fillInvoiceFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{availableInvoiceJobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service} - ${j.amount}</option>)}</select></Field>
+                      <Input label="Invoice No" value={invoice.invoice_no} onChange={(v: string) => setInvoice({ ...invoice, invoice_no: v })} />
+                      <Field label="Customer"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                      <Input label="Invoice Date" type="date" value={invoice.invoice_date} onChange={(v: string) => setInvoice({ ...invoice, invoice_date: v })} />
+                      <Input label="Due Date" type="date" value={invoice.due_date} onChange={(v: string) => setInvoice({ ...invoice, due_date: v })} />
+                      <Input label="Amount" value={invoice.amount} onChange={(v: string) => setInvoice({ ...invoice, amount: v })} />
+                      <Input label="Customer Phone" value={invoice.customer_phone || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_phone: v })} />
+                      <Input label="Customer Email" value={invoice.customer_email || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_email: v })} />
+                      <Input label="Customer Address" value={invoice.customer_address || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_address: v })} />
+                      <Field label="Status"><select value={invoice.status} onChange={(e) => setInvoice({ ...invoice, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></Field>
+                      <Input label="Notes" value={invoice.notes || ''} onChange={(v: string) => setInvoice({ ...invoice, notes: v })} />
+                    </div>
+                    <ButtonRow>
+                      <button onClick={saveInvoice} style={styles.primaryBtn}>{editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</button>
+                      {editingInvoiceId && <button onClick={() => { setInvoice(emptyInvoice); setEditingInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, `Hi ${i.customer},%0D%0A%0D%0APlease find invoice ${i.invoice_no} for $${i.amount}.`)}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'payments') && (
+                <>
+                  <SectionCard title={editingPaymentId ? 'Edit Payment' : 'Record Payment'}>
+                    <div style={styles.formGrid2}>
+                      <Field label="Invoice"><select value={payment.invoice_id ? String(payment.invoice_id) : ''} onChange={(e) => fillPaymentFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{payableInvoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer} - Balance ${invoiceBalance(i).toFixed(2)}</option>)}</select></Field>
+                      <Input label="Customer" value={payment.customer} onChange={(v: string) => setPayment({ ...payment, customer: v })} />
+                      <Input label="Payment Date" type="date" value={payment.payment_date} onChange={(v: string) => setPayment({ ...payment, payment_date: v })} />
+                      <Input label="Amount" value={payment.amount} onChange={(v: string) => setPayment({ ...payment, amount: v })} />
+                      <Field label="Payment Method"><select value={payment.payment_method} onChange={(e) => setPayment({ ...payment, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                      <Input label="Notes" value={payment.notes} onChange={(v: string) => setPayment({ ...payment, notes: v })} />
+                    </div>
+                    <ButtonRow>
+                      <button onClick={savePayment} style={styles.primaryBtn}>{editingPaymentId ? 'Update Payment' : 'Save Payment'}</button>
+                      {editingPaymentId && <button onClick={() => { setPayment(emptyPayment); setEditingPaymentId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Notes', 'Actions']}>
+                    {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+    
+    
+              {(activeTab === 'receipts') && (
+                <>
+                  <SectionCard title={editingReceiptId ? 'Edit Receipt' : 'Create Receipt'}>
+                    <div style={styles.formGrid2}>
+                      <Field label="From Invoice"><select onChange={(e) => fillReceiptFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{invoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer}</option>)}</select></Field>
+                      <Input label="Receipt No" value={receipt.receipt_no} onChange={(v: string) => setReceipt({ ...receipt, receipt_no: v })} />
+                      <Input label="Customer" value={receipt.customer} onChange={(v: string) => setReceipt({ ...receipt, customer: v })} />
+                      <Input label="Invoice No" value={receipt.invoice_no} onChange={(v: string) => setReceipt({ ...receipt, invoice_no: v })} />
+                      <Input label="Receipt Date" type="date" value={receipt.receipt_date} onChange={(v: string) => setReceipt({ ...receipt, receipt_date: v })} />
+                      <Input label="Amount" value={receipt.amount} onChange={(v: string) => setReceipt({ ...receipt, amount: v })} />
+                      <Field label="Payment Method"><select value={receipt.payment_method} onChange={(e) => setReceipt({ ...receipt, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                      <Field label="Bank"><select value={receipt.bank_name} onChange={(e) => setReceipt({ ...receipt, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
+                      <Input label="Notes" value={receipt.notes} onChange={(v: string) => setReceipt({ ...receipt, notes: v })} />
+                    </div>
+                    <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                  </SectionCard>
+                  <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
+                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, `Hi ${r.customer},%0D%0A%0D%0AThank you for your payment of $${r.amount}. Receipt No: ${r.receipt_no}`)}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'banks') && (
+                <>
+                  <SectionCard title={editingBankId ? 'Edit Bank' : 'Create Bank'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Bank Name" value={bank.bank_name} onChange={(v: string) => setBank({ ...bank, bank_name: v })} />
+                      <Input label="Account Name" value={bank.account_name} onChange={(v: string) => setBank({ ...bank, account_name: v })} />
+                      <Input label="Account Number" value={bank.account_number} onChange={(v: string) => setBank({ ...bank, account_number: v })} />
+                      <Input label="Routing Number" value={bank.routing_number} onChange={(v: string) => setBank({ ...bank, routing_number: v })} />
+                      <Input label="Opening Balance" value={bank.opening_balance} onChange={(v: string) => setBank({ ...bank, opening_balance: v })} />
+                      <Input label="Current Balance" value={bank.current_balance} onChange={(v: string) => setBank({ ...bank, current_balance: v })} />
+                      <Field label="Active"><select value={bank.is_active ? 'Yes' : 'No'} onChange={(e) => setBank({ ...bank, is_active: e.target.value === 'Yes' })} style={styles.input}><option>Yes</option><option>No</option></select></Field>
+                    </div>
+                    <ButtonRow><button onClick={saveBank} style={styles.primaryBtn}>{editingBankId ? 'Update Bank' : 'Save Bank'}</button>{editingBankId && <button onClick={() => { setBank(emptyBank); setEditingBankId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                  </SectionCard>
+                  <DataTable title="Bank Accounts" headers={['Bank', 'Account Name', 'Account #', 'Routing #', 'Opening', 'Current', 'Active', 'Actions']}>
+                    {banks.map((b) => <tr key={b.id}><Td>{b.bank_name}</Td><Td>{b.account_name}</Td><Td>{b.account_number}</Td><Td>{b.routing_number}</Td><Td>${Number(b.opening_balance || 0).toFixed(2)}</Td><Td>${Number(b.current_balance || 0).toFixed(2)}</Td><Td>{b.is_active ? 'Yes' : 'No'}</Td><Td><button style={styles.smallBtn} onClick={() => editBank(b)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteBank(b.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'purchases') && (
+                <>
+                  <SectionCard title={editingPurchaseInvoiceId ? 'Edit Purchase Invoice' : 'Create Purchase Invoice'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Purchase Invoice No" value={purchaseInvoice.purchase_invoice_no} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, purchase_invoice_no: v })} />
+                      <Field label="Vendor"><select value={purchaseInvoice.vendor} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, vendor: e.target.value })} style={styles.input}><option value="">Select Vendor</option>{vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}</select></Field>
+                      <Input label="Invoice Date" type="date" value={purchaseInvoice.invoice_date} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, invoice_date: v })} />
+                      <Input label="Due Date" type="date" value={purchaseInvoice.due_date} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, due_date: v })} />
+                      <Input label="Category" value={purchaseInvoice.category} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, category: v })} />
+                      <Input label="Description" value={purchaseInvoice.description} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, description: v })} />
+                      <Input label="Amount" value={purchaseInvoice.amount} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, amount: v })} />
+                      <Field label="Bank"><select value={purchaseInvoice.bank_name} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
+                      <Field label="Status"><select value={purchaseInvoice.status} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, status: e.target.value })} style={styles.input}><option>Open</option><option>Paid</option><option>Cancelled</option></select></Field>
+                    </div>
+                    <ButtonRow><button onClick={savePurchaseInvoice} style={styles.primaryBtn}>{editingPurchaseInvoiceId ? 'Update Purchase Invoice' : 'Save Purchase Invoice'}</button>{editingPurchaseInvoiceId && <button onClick={() => { setPurchaseInvoice(emptyPurchaseInvoice); setEditingPurchaseInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                  </SectionCard>
+                  <DataTable title="Purchase Invoices" headers={['Invoice #', 'Vendor', 'Date', 'Due', 'Category', 'Amount', 'Status', 'Actions']}>
+                    {purchaseInvoices.map((pi) => <tr key={pi.id}><Td>{pi.purchase_invoice_no}</Td><Td>{pi.vendor}</Td><Td>{pi.invoice_date}</Td><Td>{pi.due_date}</Td><Td>{pi.category}</Td><Td>${Number(pi.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={pi.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editPurchaseInvoice(pi)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePurchaseInvoice(pi.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'journals') && (
+                <>
+                  <SectionCard title={editingJournalEntryId ? 'Edit Journal Entry' : 'Create Journal Entry'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Journal No" value={journalEntry.journal_no} onChange={(v: string) => setJournalEntry({ ...journalEntry, journal_no: v })} />
+                      <Input label="Date" type="date" value={journalEntry.journal_date} onChange={(v: string) => setJournalEntry({ ...journalEntry, journal_date: v })} />
+                      <Input label="Description" value={journalEntry.description} onChange={(v: string) => setJournalEntry({ ...journalEntry, description: v })} />
+                      <Field label="Debit Account"><select value={journalEntry.debit_account} onChange={(e) => setJournalEntry({ ...journalEntry, debit_account: e.target.value })} style={styles.input}><option value="">Select Account</option>{accounts.map((a) => <option key={a.id} value={`${a.account_code} - ${a.account_name}`}>{a.account_code} - {a.account_name}</option>)}</select></Field>
+                      <Field label="Credit Account"><select value={journalEntry.credit_account} onChange={(e) => setJournalEntry({ ...journalEntry, credit_account: e.target.value })} style={styles.input}><option value="">Select Account</option>{accounts.map((a) => <option key={a.id} value={`${a.account_code} - ${a.account_name}`}>{a.account_code} - {a.account_name}</option>)}</select></Field>
+                      <Input label="Amount" value={journalEntry.amount} onChange={(v: string) => setJournalEntry({ ...journalEntry, amount: v })} />
+                      <Input label="Notes" value={journalEntry.notes} onChange={(v: string) => setJournalEntry({ ...journalEntry, notes: v })} />
+                    </div>
+                    <ButtonRow><button onClick={saveJournalEntry} style={styles.primaryBtn}>{editingJournalEntryId ? 'Update Journal' : 'Save Journal'}</button>{editingJournalEntryId && <button onClick={() => { setJournalEntry(emptyJournalEntry); setEditingJournalEntryId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                  </SectionCard>
+                  <DataTable title="Journal Entries" headers={['Journal #', 'Date', 'Description', 'Debit', 'Credit', 'Amount', 'Actions']}>
+                    {journalEntries.map((je) => <tr key={je.id}><Td>{je.journal_no}</Td><Td>{je.journal_date}</Td><Td>{je.description}</Td><Td>{je.debit_account}</Td><Td>{je.credit_account}</Td><Td>${Number(je.amount || 0).toFixed(2)}</Td><Td><button style={styles.smallBtn} onClick={() => editJournalEntry(je)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteJournalEntry(je.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'expenses') && (
+                <>
+                  <SectionCard title={editingExpenseId ? 'Edit Expense' : 'Add Expense'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Expense No" value={expense.expense_no} onChange={(v: string) => setExpense({ ...expense, expense_no: v })} />
+                      <Input label="Date" type="date" value={expense.expense_date} onChange={(v: string) => setExpense({ ...expense, expense_date: v })} />
+                      <Field label="Vendor">
+                        <select value={expense.vendor} onChange={(e) => setExpense({ ...expense, vendor: e.target.value })} style={styles.input}>
+                          <option value="">Select Vendor</option>
+                          {vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Category"><select value={expense.category} onChange={(e) => setExpense({ ...expense, category: e.target.value })} style={styles.input}><option>Materials</option><option>Tools</option><option>Fuel</option><option>Labor</option><option>Subcontractor</option><option>Insurance</option><option>Marketing</option><option>Office Expense</option><option>Vehicle Expense</option><option>Other</option></select></Field>
+                      <Input label="Description" value={expense.description} onChange={(v: string) => setExpense({ ...expense, description: v })} />
+                      <Input label="Amount" value={expense.amount} onChange={(v: string) => setExpense({ ...expense, amount: v })} />
+                      <Field label="Payment Method"><select value={expense.payment_method} onChange={(e) => setExpense({ ...expense, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                      <Field label="Status"><select value={expense.status} onChange={(e) => setExpense({ ...expense, status: e.target.value })} style={styles.input}><option>Draft</option><option>Submitted</option><option>Approved</option><option>Paid</option></select></Field>
+                    </div>
+                    <ButtonRow>
+                      <button onClick={saveExpense} style={styles.primaryBtn}>{editingExpenseId ? 'Update Expense' : 'Save Expense'}</button>
+                      {editingExpenseId && <button onClick={() => { setExpense(emptyExpense); setEditingExpenseId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Expenses" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status', 'Actions']}>
+                    {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>{e.description}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td>{e.payment_method}</Td><Td><StatusBadge status={e.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editExpense(e)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteExpense(e.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+              {(activeTab === 'reports') && (
+                <>
+                  <SectionCard title="Profit & Loss Summary">
+                    <div style={styles.cards}>
+                      <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
+                      <Card title="Total Expenses" value={`$${totalExpenses.toFixed(2)}`} />
+                      <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
+                      <Card title="Outstanding AR" value={`$${outstanding.toFixed(2)}`} />
+                      <Card title="Approved/Paid Expenses" value={`$${approvedExpenses.toFixed(2)}`} />
+                      <Card title="Draft/Submitted Expenses" value={`$${draftExpenses.toFixed(2)}`} />
+                    </div>
+                  </SectionCard>
+    
+                  <DataTable title="Revenue Report" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Paid', 'Balance', 'Status']}>
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td></tr>)}
+                  </DataTable>
+    
+                  <DataTable title="Expense Report" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Amount', 'Status']}>
+                    {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={e.status} /></Td></tr>)}
+                  </DataTable>
+                </>
+              )}
+    
+    
+              {(activeTab === 'import') && (
+                <>
+                  <SectionCard title="Import Data from Excel">
+                    <p style={styles.helpText}>Upload .xlsx files directly. The app will preview the first 20 rows and validate required columns before saving.</p>
+                    <div style={styles.formGrid2}>
+                      <Field label="Import Customers Excel">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'customers')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Vendors Excel">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'vendors')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Expenses Excel">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'expenses')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Chart of Accounts Excel">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'accounts')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Existing Payments">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'payments')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Receipts">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'receipts')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Customer Invoices">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'invoices')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Purchase Invoices">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'purchase_invoices')} style={styles.input} />
+                      </Field>
+                      <Field label="Import Journal Entries">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'journal_entries')} style={styles.input} />
+                      </Field>
+                    </div>
+                    <ButtonRow>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('customers')}>Customer Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('vendors')}>Vendor Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('expenses')}>Expense Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('accounts')}>COA Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('payments')}>Payment Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('receipts')}>Receipt Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('invoices')}>Customer Invoice Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('purchase_invoices')}>Purchase Invoice Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('journal_entries')}>Journal Template</button>
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  {importPreview.length > 0 && (
+                    <SectionCard title={`Import Preview - ${pendingImportType}`}>
+                      {importErrors.length > 0 ? (
+                        <div style={styles.errorBox}>
+                          <b>Errors found:</b>
+                          {importErrors.slice(0, 20).map((err, idx) => <p key={idx}>{err}</p>)}
+                        </div>
+                      ) : (
+                        <div style={styles.successBox}>Validation passed. Ready to import.</div>
+                      )}
+    
+                      <div style={{ overflowX: 'auto', marginTop: 15 }}>
+                        <table style={styles.table}>
+                          <thead>
+                            <tr>
+                              {Object.keys(importPreview[0] || {}).map((h) => <th key={h} style={styles.th}>{h}</th>)}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.map((row, idx) => (
+                              <tr key={idx}>
+                                {Object.keys(importPreview[0] || {}).map((h) => <Td key={h}>{row[h]}</Td>)}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+    
+                      <ButtonRow>
+                        <button style={styles.primaryBtn} onClick={confirmImport} disabled={importErrors.length > 0}>Confirm Import</button>
+                        <button style={styles.grayBtn} onClick={() => { setImportPreview([]); setImportErrors([]); setPendingImportType(''); }}>Cancel Import</button>
+                      </ButtonRow>
+                    </SectionCard>
+                  )}
+    
+                  <SectionCard title="Export Data">
+                    <div style={styles.quickActions}>
+                      <button style={styles.primaryBtn} onClick={() => exportCsv('customers.csv', [['Name', 'Phone', 'Email', 'Address'], ...customers.map(c => [c.name, c.phone, c.email, c.address])])}>Export Customers</button>
+                      <button style={styles.primaryBtn} onClick={() => exportCsv('vendors.csv', [['Vendor No', 'Vendor Name', 'Contact', 'Phone', 'Email', 'Address', 'Tax ID', 'Status'], ...vendors.map(v => [v.vendor_no, v.vendor_name, v.contact_person, v.phone, v.email, v.address, v.tax_id, v.status])])}>Export Vendors</button>
+                      <button style={styles.primaryBtn} onClick={() => exportCsv('quotes.csv', [['Quote Number', 'Customer', 'Date', 'Service', 'Amount', 'Status'], ...quotes.map(q => [q.quote_no, q.customer, q.quote_date, q.service, q.amount, q.status])])}>Export Quotes</button>
+                      <button style={styles.primaryBtn} onClick={() => exportCsv('invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
+                      <button style={styles.primaryBtn} onClick={() => exportCsv('payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
+                      <button style={styles.primaryBtn} onClick={() => exportCsv('expenses.csv', [['Expense Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Expenses</button>
+                    </div>
+                  </SectionCard>
+                </>
+              )}
+    
+              {(activeTab === 'masters') && (
+                <>
+                  <SectionCard title="Company Details">
+                    <div style={styles.formGrid2}>
+                      <Input label="Company Name" value={company.company_name} onChange={(v: string) => setCompany({ ...company, company_name: v })} />
+                      <Input label="Phone" value={company.phone} onChange={(v: string) => setCompany({ ...company, phone: v })} />
+                      <Input label="Email" value={company.email} onChange={(v: string) => setCompany({ ...company, email: v })} />
+                      <Input label="Website" value={company.website} onChange={(v: string) => setCompany({ ...company, website: v })} />
+                      <Input label="Address" value={company.address} onChange={(v: string) => setCompany({ ...company, address: v })} />
+                      <Input label="Logo URL / Path" value={company.logo_url} onChange={(v: string) => setCompany({ ...company, logo_url: v })} />
+                      <Input label="Tax Rate %" value={company.tax_rate} onChange={(v: string) => setCompany({ ...company, tax_rate: v })} />
+                      <Input label="Payment Terms" value={company.payment_terms} onChange={(v: string) => setCompany({ ...company, payment_terms: v })} />
+                      <Input label="Payment Instructions" value={company.payment_instructions} onChange={(v: string) => setCompany({ ...company, payment_instructions: v })} />
+                    </div>
+                    <ButtonRow><button onClick={saveCompany} style={styles.primaryBtn}>Save Company Details</button><button onClick={loadDefaultMasters} style={styles.greenBtn}>Load Sample Defaults</button></ButtonRow>
+                  </SectionCard>
+    
+                  <SectionCard title={editingSequenceId ? 'Edit Number Sequence' : 'Number Sequence Setup'}>
+                    <div style={styles.formGrid2}>
+                      <Field label="Document Type"><select value={sequence.document_type} onChange={(e) => setSequence({ ...sequence, document_type: e.target.value })} style={styles.input}><option value="">Select Type</option><option>Customer</option><option>Job</option><option>Quote</option><option>Invoice</option><option>Payment</option></select></Field>
+                      <Input label="Prefix" value={sequence.prefix} onChange={(v: string) => setSequence({ ...sequence, prefix: v })} />
+                      <Input label="Next Number" value={sequence.next_number} onChange={(v: string) => setSequence({ ...sequence, next_number: v })} />
+                      <Input label="Padding" value={sequence.padding} onChange={(v: string) => setSequence({ ...sequence, padding: v })} />
+                    </div>
+                    <ButtonRow><button onClick={saveSequence} style={styles.primaryBtn}>{editingSequenceId ? 'Update Sequence' : 'Save Sequence'}</button>{editingSequenceId && <button onClick={() => { setSequence(emptySequence); setEditingSequenceId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                  </SectionCard>
+                  <DataTable title="Number Sequences" headers={['Document Type', 'Prefix', 'Next Number', 'Padding', 'Actions']}>
+                    {sequences.map((s) => <tr key={s.id}><Td>{s.document_type}</Td><Td>{s.prefix}</Td><Td>{s.next_number}</Td><Td>{s.padding}</Td><Td><button style={styles.smallBtn} onClick={() => editSequence(s)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteSequence(s.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+    
+                  <SectionCard title={editingAccountId ? 'Edit Chart of Account' : 'Chart of Accounts'}>
+                    <div style={styles.formGrid2}>
+                      <Input label="Account Code" value={account.account_code} onChange={(v: string) => setAccount({ ...account, account_code: v })} />
+                      <Input label="Account Name" value={account.account_name} onChange={(v: string) => setAccount({ ...account, account_name: v })} />
+                      <Field label="Account Type"><select value={account.account_type} onChange={(e) => setAccount({ ...account, account_type: e.target.value })} style={styles.input}><option>Asset</option><option>Liability</option><option>Equity</option><option>Revenue</option><option>Expense</option><option>COGS</option></select></Field>
+                      <Field label="Normal Balance"><select value={account.normal_balance} onChange={(e) => setAccount({ ...account, normal_balance: e.target.value })} style={styles.input}><option>Debit</option><option>Credit</option></select></Field>
+                      <Field label="Active"><select value={account.is_active ? 'Yes' : 'No'} onChange={(e) => setAccount({ ...account, is_active: e.target.value === 'Yes' })} style={styles.input}><option>Yes</option><option>No</option></select></Field>
+                    </div>
+                    <ButtonRow><button onClick={saveAccount} style={styles.primaryBtn}>{editingAccountId ? 'Update Account' : 'Save Account'}</button>{editingAccountId && <button onClick={() => { setAccount(emptyAccount); setEditingAccountId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                  </SectionCard>
+                  <DataTable title="Chart of Accounts" headers={['Code', 'Name', 'Type', 'Normal Balance', 'Active', 'Actions']}>
+                    {accounts.map((a) => <tr key={a.id}><Td>{a.account_code}</Td><Td>{a.account_name}</Td><Td>{a.account_type}</Td><Td>{a.normal_balance}</Td><Td>{a.is_active ? 'Yes' : 'No'}</Td><Td><button style={styles.smallBtn} onClick={() => editAccount(a)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteAccount(a.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+    
+                  <SectionCard title="Email Setup">
+                    <div style={styles.formGrid2}>
+                      <Input label="From Name" value={emailSettings.from_name} onChange={(v: string) => setEmailSettings({ ...emailSettings, from_name: v })} />
+                      <Input label="From Email" value={emailSettings.from_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, from_email: v })} />
+                      <Input label="Reply-To Email" value={emailSettings.reply_to_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, reply_to_email: v })} />
+                      <Input label="BCC Email" value={emailSettings.bcc_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, bcc_email: v })} />
+                    </div>
+                    <ButtonRow><button onClick={saveEmailSettings} style={styles.primaryBtn}>Save Email Setup</button></ButtonRow>
+                  </SectionCard>
+    
+                  <SectionCard title={editingTemplateId ? 'Edit Email Template' : 'Email Templates'}>
+                    <div style={styles.formGrid2}>
+                      <Field label="Template Name"><select value={template.template_name} onChange={(e) => setTemplate({ ...template, template_name: e.target.value })} style={styles.input}><option value="">Select Template</option><option>Invoice Email</option><option>Quote Email</option><option>Payment Receipt Email</option><option>Overdue Reminder Email</option></select></Field>
+                      <Input label="Subject" value={template.subject} onChange={(v: string) => setTemplate({ ...template, subject: v })} />
+                    </div>
+                    <Field label="Body"><textarea value={template.body} onChange={(e) => setTemplate({ ...template, body: e.target.value })} style={{ ...styles.input, minHeight: 150, resize: 'vertical' }} /></Field>
+                    <ButtonRow><button onClick={saveTemplate} style={styles.primaryBtn}>{editingTemplateId ? 'Update Template' : 'Save Template'}</button>{editingTemplateId && <button onClick={() => { setTemplate(emptyTemplate); setEditingTemplateId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                  </SectionCard>
+                  <DataTable title="Email Templates" headers={['Template Name', 'Subject', 'Actions']}>
+                    {templates.map((t) => <tr key={t.id}><Td>{t.template_name}</Td><Td>{t.subject}</Td><Td><button style={styles.smallBtn} onClick={() => editTemplate(t)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteTemplate(t.id)}>Delete</button></Td></tr>)}
+                  </DataTable>
+    
+    
+                  <SectionCard title={editingPrintTemplateId ? 'Edit Print Template' : 'Printout Template Setup'}>
+                    <p style={styles.helpText}>Modify print headers, logo, footer, terms, and default notes for Quote, Invoice, and Receipt printouts. You can paste a PNG/image as a base64 data URL or use a public path such as /aashan-logo.png.</p>
+                    <div style={styles.formGrid2}>
+                      <Field label="Document Type">
+                        <select value={printTemplate.document_type} onChange={(e) => loadPrintDefaults(e.target.value)} style={styles.input}>
+                          <option>Quote</option>
+                          <option>Invoice</option>
+                          <option>Receipt</option>
+                        </select>
+                      </Field>
+                      <Input label="Header Title" value={printTemplate.header_title} onChange={(v: string) => setPrintTemplate({ ...printTemplate, header_title: v })} />
+                      <Input label="Header Subtitle" value={printTemplate.header_subtitle} onChange={(v: string) => setPrintTemplate({ ...printTemplate, header_subtitle: v })} />
+                      <Input label="Logo URL / Path" value={printTemplate.logo_url} onChange={(v: string) => setPrintTemplate({ ...printTemplate, logo_url: v })} />
+                    </div>
+    
+                    <Field label="Company Header Block">
+                      <textarea value={printTemplate.company_block} onChange={(e) => setPrintTemplate({ ...printTemplate, company_block: e.target.value })} style={{ ...styles.input, minHeight: 95, resize: 'vertical' }} />
+                    </Field>
+    
+                    <Field label="Paste PNG / Image Data URL">
+                      <textarea value={printTemplate.logo_data_url} onChange={(e) => setPrintTemplate({ ...printTemplate, logo_data_url: e.target.value })} placeholder="Paste data:image/png;base64,... here if needed" style={{ ...styles.input, minHeight: 90, resize: 'vertical' }} />
+                    </Field>
+    
+                    <div style={{ display: 'flex', gap: 15, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+                      <button onClick={pasteLogoFromClipboard} style={styles.grayBtn}>Paste Image from Clipboard</button>
+                      {(printTemplate.logo_data_url || printTemplate.logo_url) && <img src={printTemplate.logo_data_url || printTemplate.logo_url} alt="Logo Preview" style={{ width: 80, height: 80, objectFit: 'contain', border: '1px solid #e5e7eb', borderRadius: 8 }} />}
+                    </div>
+    
+                    <div style={styles.formGrid2}>
+                      <Input label="Footer Text" value={printTemplate.footer_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, footer_text: v })} />
+                      <Input label="Terms Text" value={printTemplate.terms_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, terms_text: v })} />
+                      <Input label="Default Notes" value={printTemplate.notes_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, notes_text: v })} />
+                    </div>
+    
+                    <ButtonRow>
+                      <button onClick={savePrintTemplate} style={styles.primaryBtn}>{editingPrintTemplateId ? 'Update Print Template' : 'Save Print Template'}</button>
+                      {editingPrintTemplateId && <button onClick={() => { setPrintTemplate(emptyPrintTemplate); setEditingPrintTemplateId(null); }} style={styles.grayBtn}>Cancel</button>}
+                    </ButtonRow>
+                  </SectionCard>
+    
+                  <DataTable title="Print Templates" headers={['Document Type', 'Header Title', 'Logo', 'Actions']}>
+                    {printTemplates.map((pt) => (
+                      <tr key={pt.id}>
+                        <Td>{pt.document_type}</Td>
+                        <Td>{pt.header_title}</Td>
+                        <Td>{pt.logo_data_url ? 'Pasted Image' : pt.logo_url}</Td>
+                        <Td><button style={styles.smallBtn} onClick={() => editPrintTemplate(pt)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePrintTemplate(pt.id)}>Delete</button></Td>
+                      </tr>
+                    ))}
+                  </DataTable>
+    
+                  <DataTable title="User Roles" headers={['Email', 'Name', 'Role', 'Active']}>
+                    {userProfiles.map((u) => (
+                      <tr key={u.id}>
+                        <Td>{u.email}</Td>
+                        <Td>{u.full_name}</Td>
+                        <Td>
+                          <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} style={styles.smallSelect}>
+                            <option>Admin</option>
+                            <option>Staff</option>
+                            <option>Technician</option>
+                            <option>Read Only</option>
+                          </select>
+                        </Td>
+                        <Td>{u.active ? 'Yes' : 'No'}</Td>
+                      </tr>
+                    ))}
+                  </DataTable>
+                </>
+              )}
                 </div>
-              </SectionCard>
-            </>
+              </div>
+            </section>
+          </div>
+    
+    
+    
+          {quickAddOpen && (
+            <div className="quick-add-sheet" style={styles.quickAddSheet}>
+              <button style={styles.quickAddItem} onClick={() => openTab('customers')}>👤 New Customer</button>
+              <button style={styles.quickAddItem} onClick={() => openTab('quotes')}>📄 New Quote</button>
+              <button style={styles.quickAddItem} onClick={() => openTab('workorders')}>🛠️ New Work Order</button>
+              <button style={styles.quickAddItem} onClick={() => openTab('invoices')}>🧾 New Invoice</button>
+              <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 New Receipt</button>
+              <button style={styles.quickAddItem} onClick={() => openTab('expenses')}>💳 New Expense</button>
+            </div>
           )}
-
-          {(activeTab === 'masters') && (
-            <>
-              <SectionCard title="Company Details">
-                <div style={styles.formGrid2}>
-                  <Input label="Company Name" value={company.company_name} onChange={(v: string) => setCompany({ ...company, company_name: v })} />
-                  <Input label="Phone" value={company.phone} onChange={(v: string) => setCompany({ ...company, phone: v })} />
-                  <Input label="Email" value={company.email} onChange={(v: string) => setCompany({ ...company, email: v })} />
-                  <Input label="Website" value={company.website} onChange={(v: string) => setCompany({ ...company, website: v })} />
-                  <Input label="Address" value={company.address} onChange={(v: string) => setCompany({ ...company, address: v })} />
-                  <Input label="Logo URL / Path" value={company.logo_url} onChange={(v: string) => setCompany({ ...company, logo_url: v })} />
-                  <Input label="Tax Rate %" value={company.tax_rate} onChange={(v: string) => setCompany({ ...company, tax_rate: v })} />
-                  <Input label="Payment Terms" value={company.payment_terms} onChange={(v: string) => setCompany({ ...company, payment_terms: v })} />
-                  <Input label="Payment Instructions" value={company.payment_instructions} onChange={(v: string) => setCompany({ ...company, payment_instructions: v })} />
+    
+          <button className="floating-add" style={styles.floatingAdd} onClick={() => setQuickAddOpen(!quickAddOpen)}>
+            {quickAddOpen ? '×' : '+'}
+          </button>
+    
+          <nav className="bottom-nav" style={styles.bottomNav}>
+            <button style={activeTab === 'dashboard' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('dashboard')}>🏠<span>Home</span></button>
+            <button style={activeTab === 'customers' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('customers')}>👥<span>Customers</span></button>
+            <button style={activeTab === 'quotes' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('quotes')}>📄<span>Quotes</span></button>
+            <button style={activeTab === 'invoices' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('invoices')}>🧾<span>Invoices</span></button>
+            <button style={activeTab === 'technician' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('technician')}>🛠️<span>Tech</span></button>
+          </nav>
+    
+          {printQuote && (
+            <div className="invoice-print">
+              <div className="invoice-page">
+                <div className="invoice-header">
+                  <div>
+                    <img src={printLogo('Quote')} className="invoice-logo" alt="Aashan & Co LLC" />
+                    <h1>{getPrintTemplate('Quote').header_title}</h1>
+                    <p>{getPrintTemplate('Quote').header_subtitle}</p>
+                  </div>
+                  <div className="invoice-company">
+                    {renderCompanyBlock('Quote')}
+                  </div>
                 </div>
-                <ButtonRow><button onClick={saveCompany} style={styles.primaryBtn}>Save Company Details</button><button onClick={loadDefaultMasters} style={styles.greenBtn}>Load Sample Defaults</button></ButtonRow>
-              </SectionCard>
-
-              <SectionCard title={editingSequenceId ? 'Edit Number Sequence' : 'Number Sequence Setup'}>
-                <div style={styles.formGrid2}>
-                  <Field label="Document Type"><select value={sequence.document_type} onChange={(e) => setSequence({ ...sequence, document_type: e.target.value })} style={styles.input}><option value="">Select Type</option><option>Customer</option><option>Job</option><option>Quote</option><option>Invoice</option><option>Payment</option></select></Field>
-                  <Input label="Prefix" value={sequence.prefix} onChange={(v: string) => setSequence({ ...sequence, prefix: v })} />
-                  <Input label="Next Number" value={sequence.next_number} onChange={(v: string) => setSequence({ ...sequence, next_number: v })} />
-                  <Input label="Padding" value={sequence.padding} onChange={(v: string) => setSequence({ ...sequence, padding: v })} />
-                </div>
-                <ButtonRow><button onClick={saveSequence} style={styles.primaryBtn}>{editingSequenceId ? 'Update Sequence' : 'Save Sequence'}</button>{editingSequenceId && <button onClick={() => { setSequence(emptySequence); setEditingSequenceId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
-              </SectionCard>
-              <DataTable title="Number Sequences" headers={['Document Type', 'Prefix', 'Next Number', 'Padding', 'Actions']}>
-                {sequences.map((s) => <tr key={s.id}><Td>{s.document_type}</Td><Td>{s.prefix}</Td><Td>{s.next_number}</Td><Td>{s.padding}</Td><Td><button style={styles.smallBtn} onClick={() => editSequence(s)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteSequence(s.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-
-              <SectionCard title={editingAccountId ? 'Edit Chart of Account' : 'Chart of Accounts'}>
-                <div style={styles.formGrid2}>
-                  <Input label="Account Code" value={account.account_code} onChange={(v: string) => setAccount({ ...account, account_code: v })} />
-                  <Input label="Account Name" value={account.account_name} onChange={(v: string) => setAccount({ ...account, account_name: v })} />
-                  <Field label="Account Type"><select value={account.account_type} onChange={(e) => setAccount({ ...account, account_type: e.target.value })} style={styles.input}><option>Asset</option><option>Liability</option><option>Equity</option><option>Revenue</option><option>Expense</option><option>COGS</option></select></Field>
-                  <Field label="Normal Balance"><select value={account.normal_balance} onChange={(e) => setAccount({ ...account, normal_balance: e.target.value })} style={styles.input}><option>Debit</option><option>Credit</option></select></Field>
-                  <Field label="Active"><select value={account.is_active ? 'Yes' : 'No'} onChange={(e) => setAccount({ ...account, is_active: e.target.value === 'Yes' })} style={styles.input}><option>Yes</option><option>No</option></select></Field>
-                </div>
-                <ButtonRow><button onClick={saveAccount} style={styles.primaryBtn}>{editingAccountId ? 'Update Account' : 'Save Account'}</button>{editingAccountId && <button onClick={() => { setAccount(emptyAccount); setEditingAccountId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
-              </SectionCard>
-              <DataTable title="Chart of Accounts" headers={['Code', 'Name', 'Type', 'Normal Balance', 'Active', 'Actions']}>
-                {accounts.map((a) => <tr key={a.id}><Td>{a.account_code}</Td><Td>{a.account_name}</Td><Td>{a.account_type}</Td><Td>{a.normal_balance}</Td><Td>{a.is_active ? 'Yes' : 'No'}</Td><Td><button style={styles.smallBtn} onClick={() => editAccount(a)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteAccount(a.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-
-              <SectionCard title="Email Setup">
-                <div style={styles.formGrid2}>
-                  <Input label="From Name" value={emailSettings.from_name} onChange={(v: string) => setEmailSettings({ ...emailSettings, from_name: v })} />
-                  <Input label="From Email" value={emailSettings.from_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, from_email: v })} />
-                  <Input label="Reply-To Email" value={emailSettings.reply_to_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, reply_to_email: v })} />
-                  <Input label="BCC Email" value={emailSettings.bcc_email} onChange={(v: string) => setEmailSettings({ ...emailSettings, bcc_email: v })} />
-                </div>
-                <ButtonRow><button onClick={saveEmailSettings} style={styles.primaryBtn}>Save Email Setup</button></ButtonRow>
-              </SectionCard>
-
-              <SectionCard title={editingTemplateId ? 'Edit Email Template' : 'Email Templates'}>
-                <div style={styles.formGrid2}>
-                  <Field label="Template Name"><select value={template.template_name} onChange={(e) => setTemplate({ ...template, template_name: e.target.value })} style={styles.input}><option value="">Select Template</option><option>Invoice Email</option><option>Quote Email</option><option>Payment Receipt Email</option><option>Overdue Reminder Email</option></select></Field>
-                  <Input label="Subject" value={template.subject} onChange={(v: string) => setTemplate({ ...template, subject: v })} />
-                </div>
-                <Field label="Body"><textarea value={template.body} onChange={(e) => setTemplate({ ...template, body: e.target.value })} style={{ ...styles.input, minHeight: 150, resize: 'vertical' }} /></Field>
-                <ButtonRow><button onClick={saveTemplate} style={styles.primaryBtn}>{editingTemplateId ? 'Update Template' : 'Save Template'}</button>{editingTemplateId && <button onClick={() => { setTemplate(emptyTemplate); setEditingTemplateId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
-              </SectionCard>
-              <DataTable title="Email Templates" headers={['Template Name', 'Subject', 'Actions']}>
-                {templates.map((t) => <tr key={t.id}><Td>{t.template_name}</Td><Td>{t.subject}</Td><Td><button style={styles.smallBtn} onClick={() => editTemplate(t)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteTemplate(t.id)}>Delete</button></Td></tr>)}
-              </DataTable>
-
-
-              <SectionCard title={editingPrintTemplateId ? 'Edit Print Template' : 'Printout Template Setup'}>
-                <p style={styles.helpText}>Modify print headers, logo, footer, terms, and default notes for Quote, Invoice, and Receipt printouts. You can paste a PNG/image as a base64 data URL or use a public path such as /aashan-logo.png.</p>
-                <div style={styles.formGrid2}>
-                  <Field label="Document Type">
-                    <select value={printTemplate.document_type} onChange={(e) => loadPrintDefaults(e.target.value)} style={styles.input}>
-                      <option>Quote</option>
-                      <option>Invoice</option>
-                      <option>Receipt</option>
-                    </select>
-                  </Field>
-                  <Input label="Header Title" value={printTemplate.header_title} onChange={(v: string) => setPrintTemplate({ ...printTemplate, header_title: v })} />
-                  <Input label="Header Subtitle" value={printTemplate.header_subtitle} onChange={(v: string) => setPrintTemplate({ ...printTemplate, header_subtitle: v })} />
-                  <Input label="Logo URL / Path" value={printTemplate.logo_url} onChange={(v: string) => setPrintTemplate({ ...printTemplate, logo_url: v })} />
-                </div>
-
-                <Field label="Company Header Block">
-                  <textarea value={printTemplate.company_block} onChange={(e) => setPrintTemplate({ ...printTemplate, company_block: e.target.value })} style={{ ...styles.input, minHeight: 95, resize: 'vertical' }} />
-                </Field>
-
-                <Field label="Paste PNG / Image Data URL">
-                  <textarea value={printTemplate.logo_data_url} onChange={(e) => setPrintTemplate({ ...printTemplate, logo_data_url: e.target.value })} placeholder="Paste data:image/png;base64,... here if needed" style={{ ...styles.input, minHeight: 90, resize: 'vertical' }} />
-                </Field>
-
-                <div style={{ display: 'flex', gap: 15, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-                  <button onClick={pasteLogoFromClipboard} style={styles.grayBtn}>Paste Image from Clipboard</button>
-                  {(printTemplate.logo_data_url || printTemplate.logo_url) && <img src={printTemplate.logo_data_url || printTemplate.logo_url} alt="Logo Preview" style={{ width: 80, height: 80, objectFit: 'contain', border: '1px solid #e5e7eb', borderRadius: 8 }} />}
-                </div>
-
-                <div style={styles.formGrid2}>
-                  <Input label="Footer Text" value={printTemplate.footer_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, footer_text: v })} />
-                  <Input label="Terms Text" value={printTemplate.terms_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, terms_text: v })} />
-                  <Input label="Default Notes" value={printTemplate.notes_text} onChange={(v: string) => setPrintTemplate({ ...printTemplate, notes_text: v })} />
-                </div>
-
-                <ButtonRow>
-                  <button onClick={savePrintTemplate} style={styles.primaryBtn}>{editingPrintTemplateId ? 'Update Print Template' : 'Save Print Template'}</button>
-                  {editingPrintTemplateId && <button onClick={() => { setPrintTemplate(emptyPrintTemplate); setEditingPrintTemplateId(null); }} style={styles.grayBtn}>Cancel</button>}
-                </ButtonRow>
-              </SectionCard>
-
-              <DataTable title="Print Templates" headers={['Document Type', 'Header Title', 'Logo', 'Actions']}>
-                {printTemplates.map((pt) => (
-                  <tr key={pt.id}>
-                    <Td>{pt.document_type}</Td>
-                    <Td>{pt.header_title}</Td>
-                    <Td>{pt.logo_data_url ? 'Pasted Image' : pt.logo_url}</Td>
-                    <Td><button style={styles.smallBtn} onClick={() => editPrintTemplate(pt)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePrintTemplate(pt.id)}>Delete</button></Td>
-                  </tr>
-                ))}
-              </DataTable>
-
-              <DataTable title="User Roles" headers={['Email', 'Name', 'Role', 'Active']}>
-                {userProfiles.map((u) => (
-                  <tr key={u.id}>
-                    <Td>{u.email}</Td>
-                    <Td>{u.full_name}</Td>
-                    <Td>
-                      <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} style={styles.smallSelect}>
-                        <option>Admin</option>
-                        <option>Staff</option>
-                        <option>Technician</option>
-                        <option>Read Only</option>
-                      </select>
-                    </Td>
-                    <Td>{u.active ? 'Yes' : 'No'}</Td>
-                  </tr>
-                ))}
-              </DataTable>
-            </>
+                <div className="invoice-title-row"><div><h2>QUOTE</h2><p><b>Quote #:</b> {printQuote.quote_no}</p><p><b>Status:</b> {printQuote.status}</p></div><div><p><b>Quote Date:</b> {printQuote.quote_date}</p></div></div>
+                <div className="invoice-billto"><h3>Quote To</h3><p><b>{printQuote.customer}</b></p><p>{getCustomerByName(printQuote.customer)?.address}</p><p>{getCustomerByName(printQuote.customer)?.phone}</p><p>{getCustomerByName(printQuote.customer)?.email}</p></div>
+                <table className="invoice-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>{printQuote.service}</td><td>${Number(printQuote.amount || 0).toFixed(2)}</td></tr></tbody></table>
+                <div className="invoice-total"><p><span>Total:</span> <b>${Number(printQuote.amount || 0).toFixed(2)}</b></p></div>
+                <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes || getPrintTemplate('Quote').notes_text}</p></div>
+                <div className="invoice-footer">{getPrintTemplate('Quote').footer_text}</div>
+              </div>
+              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
+            </div>
           )}
-            </div>
-          </div>
-        </section>
-      </div>
-
-
-
-      {quickAddOpen && (
-        <div className="quick-add-sheet" style={styles.quickAddSheet}>
-          <button style={styles.quickAddItem} onClick={() => openTab('customers')}>👤 New Customer</button>
-          <button style={styles.quickAddItem} onClick={() => openTab('quotes')}>📄 New Quote</button>
-          <button style={styles.quickAddItem} onClick={() => openTab('workorders')}>🛠️ New Work Order</button>
-          <button style={styles.quickAddItem} onClick={() => openTab('invoices')}>🧾 New Invoice</button>
-          <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 New Receipt</button>
-          <button style={styles.quickAddItem} onClick={() => openTab('expenses')}>💳 New Expense</button>
-        </div>
-      )}
-
-      <button className="floating-add" style={styles.floatingAdd} onClick={() => setQuickAddOpen(!quickAddOpen)}>
-        {quickAddOpen ? '×' : '+'}
-      </button>
-
-      <nav className="bottom-nav" style={styles.bottomNav}>
-        <button style={activeTab === 'dashboard' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('dashboard')}>🏠<span>Home</span></button>
-        <button style={activeTab === 'customers' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('customers')}>👥<span>Customers</span></button>
-        <button style={activeTab === 'quotes' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('quotes')}>📄<span>Quotes</span></button>
-        <button style={activeTab === 'invoices' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('invoices')}>🧾<span>Invoices</span></button>
-        <button style={activeTab === 'technician' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('technician')}>🛠️<span>Tech</span></button>
-      </nav>
-
-      {printQuote && (
-        <div className="invoice-print">
-          <div className="invoice-page">
-            <div className="invoice-header">
-              <div>
-                <img src={printLogo('Quote')} className="invoice-logo" alt="Aashan & Co LLC" />
-                <h1>{getPrintTemplate('Quote').header_title}</h1>
-                <p>{getPrintTemplate('Quote').header_subtitle}</p>
+    
+          {printReceipt && (
+            <div className="invoice-print">
+              <div className="invoice-page">
+                <div className="invoice-header">
+                  <div>
+                    <img src={printLogo('Receipt')} className="invoice-logo" alt="Aashan & Co LLC" />
+                    <h1>{getPrintTemplate('Receipt').header_title}</h1>
+                    <p>{getPrintTemplate('Receipt').header_subtitle}</p>
+                  </div>
+                  <div className="invoice-company">
+                    {renderCompanyBlock('Receipt')}
+                  </div>
+                </div>
+                <div className="invoice-title-row"><div><h2>RECEIPT</h2><p><b>Receipt #:</b> {printReceipt.receipt_no}</p><p><b>Invoice #:</b> {printReceipt.invoice_no}</p></div><div><p><b>Receipt Date:</b> {printReceipt.receipt_date}</p><p><b>Payment Method:</b> {printReceipt.payment_method}</p></div></div>
+                <div className="invoice-billto"><h3>Received From</h3><p><b>{printReceipt.customer}</b></p><p>{getCustomerByName(printReceipt.customer)?.address}</p><p>{getCustomerByName(printReceipt.customer)?.phone}</p><p>{getCustomerByName(printReceipt.customer)?.email}</p></div>
+                <table className="invoice-table"><thead><tr><th>Description</th><th>Amount Received</th></tr></thead><tbody><tr><td>Payment received for invoice {printReceipt.invoice_no}</td><td>${Number(printReceipt.amount || 0).toFixed(2)}</td></tr></tbody></table>
+                <div className="invoice-total"><p><span>Amount Received:</span> <b>${Number(printReceipt.amount || 0).toFixed(2)}</b></p></div>
+                <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || getPrintTemplate('Receipt').notes_text || 'Thank you for your payment.'}</p></div>
+                <div className="invoice-footer">{getPrintTemplate('Receipt').footer_text}</div>
               </div>
-              <div className="invoice-company">
-                {renderCompanyBlock('Quote')}
+              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
+            </div>
+          )}
+    
+          {printInvoice && (
+            <div className="invoice-print">
+              <div className="invoice-page">
+                <div className="invoice-header">
+                  <div>
+                    <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
+                    <h1>{company.company_name || 'Aashan & Co LLC'}</h1>
+                    <p>{company.website || 'Quality Work Through Dedication'}</p>
+                  </div>
+                  <div className="invoice-company">
+                    <p><b>Phone:</b> {company.phone || '(832) 210-4248'}</p>
+                    <p><b>Email:</b> {company.email || 'support@aashan.co'}</p>
+                    <p><b>Address:</b> {company.address || 'Dallas, Texas'}</p>
+                  </div>
+                </div>
+    
+                <div className="invoice-title-row">
+                  <div>
+                    <h2>INVOICE</h2>
+                    <p><b>Invoice #:</b> {printInvoice.invoice_no}</p>
+                    <p><b>Status:</b> {printInvoice.status}</p>
+                  </div>
+                  <div>
+                    <p><b>Invoice Date:</b> {printInvoice.invoice_date}</p>
+                    <p><b>Due Date:</b> {printInvoice.due_date}</p>
+                  </div>
+                </div>
+    
+                <div className="invoice-billto">
+                  <h3>Bill To</h3>
+                  <p><b>{printInvoice.customer}</b></p>
+                  <p>{printInvoice.customer_address || getCustomerByName(printInvoice.customer)?.address}</p>
+                  <p>{printInvoice.customer_phone || getCustomerByName(printInvoice.customer)?.phone}</p>
+                  <p>{printInvoice.customer_email || getCustomerByName(printInvoice.customer)?.email}</p>
+                </div>
+    
+                <table className="invoice-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{getJobById(printInvoice.job_id)?.service || 'Service'}</td>
+                      <td>${Number(printInvoice.amount || 0).toFixed(2)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+    
+                <div className="invoice-total">
+                  <p><span>Subtotal:</span> <b>${Number(printInvoice.amount || 0).toFixed(2)}</b></p>
+                  <p><span>Paid:</span> <b>${invoicePaidAmount(printInvoice.id, printInvoice.invoice_no).toFixed(2)}</b></p>
+                  <p><span>Balance Due:</span> <b>${invoiceBalance(printInvoice).toFixed(2)}</b></p>
+                </div>
+    
+                <div className="invoice-notes">
+                  <h3>Notes</h3>
+                  <p>{printInvoice.notes || getPrintTemplate('Invoice').notes_text || 'Thank you for choosing Aashan & Co LLC.'}</p>
+                  <p>{getPrintTemplate('Invoice').terms_text}</p>
+                </div>
+    
+                <div className="invoice-footer">
+                  {getPrintTemplate('Invoice').footer_text}
+                </div>
               </div>
+              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
             </div>
-            <div className="invoice-title-row"><div><h2>QUOTE</h2><p><b>Quote #:</b> {printQuote.quote_no}</p><p><b>Status:</b> {printQuote.status}</p></div><div><p><b>Quote Date:</b> {printQuote.quote_date}</p></div></div>
-            <div className="invoice-billto"><h3>Quote To</h3><p><b>{printQuote.customer}</b></p><p>{getCustomerByName(printQuote.customer)?.address}</p><p>{getCustomerByName(printQuote.customer)?.phone}</p><p>{getCustomerByName(printQuote.customer)?.email}</p></div>
-            <table className="invoice-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>{printQuote.service}</td><td>${Number(printQuote.amount || 0).toFixed(2)}</td></tr></tbody></table>
-            <div className="invoice-total"><p><span>Total:</span> <b>${Number(printQuote.amount || 0).toFixed(2)}</b></p></div>
-            <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes || getPrintTemplate('Quote').notes_text}</p></div>
-            <div className="invoice-footer">{getPrintTemplate('Quote').footer_text}</div>
-          </div>
-          <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
-        </div>
-      )}
-
-      {printReceipt && (
-        <div className="invoice-print">
-          <div className="invoice-page">
-            <div className="invoice-header">
-              <div>
-                <img src={printLogo('Receipt')} className="invoice-logo" alt="Aashan & Co LLC" />
-                <h1>{getPrintTemplate('Receipt').header_title}</h1>
-                <p>{getPrintTemplate('Receipt').header_subtitle}</p>
-              </div>
-              <div className="invoice-company">
-                {renderCompanyBlock('Receipt')}
-              </div>
-            </div>
-            <div className="invoice-title-row"><div><h2>RECEIPT</h2><p><b>Receipt #:</b> {printReceipt.receipt_no}</p><p><b>Invoice #:</b> {printReceipt.invoice_no}</p></div><div><p><b>Receipt Date:</b> {printReceipt.receipt_date}</p><p><b>Payment Method:</b> {printReceipt.payment_method}</p></div></div>
-            <div className="invoice-billto"><h3>Received From</h3><p><b>{printReceipt.customer}</b></p><p>{getCustomerByName(printReceipt.customer)?.address}</p><p>{getCustomerByName(printReceipt.customer)?.phone}</p><p>{getCustomerByName(printReceipt.customer)?.email}</p></div>
-            <table className="invoice-table"><thead><tr><th>Description</th><th>Amount Received</th></tr></thead><tbody><tr><td>Payment received for invoice {printReceipt.invoice_no}</td><td>${Number(printReceipt.amount || 0).toFixed(2)}</td></tr></tbody></table>
-            <div className="invoice-total"><p><span>Amount Received:</span> <b>${Number(printReceipt.amount || 0).toFixed(2)}</b></p></div>
-            <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || getPrintTemplate('Receipt').notes_text || 'Thank you for your payment.'}</p></div>
-            <div className="invoice-footer">{getPrintTemplate('Receipt').footer_text}</div>
-          </div>
-          <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
-        </div>
-      )}
-
-      {printInvoice && (
-        <div className="invoice-print">
-          <div className="invoice-page">
-            <div className="invoice-header">
-              <div>
-                <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
-                <h1>{company.company_name || 'Aashan & Co LLC'}</h1>
-                <p>{company.website || 'Quality Work Through Dedication'}</p>
-              </div>
-              <div className="invoice-company">
-                <p><b>Phone:</b> {company.phone || '(832) 210-4248'}</p>
-                <p><b>Email:</b> {company.email || 'support@aashan.co'}</p>
-                <p><b>Address:</b> {company.address || 'Dallas, Texas'}</p>
-              </div>
-            </div>
-
-            <div className="invoice-title-row">
-              <div>
-                <h2>INVOICE</h2>
-                <p><b>Invoice #:</b> {printInvoice.invoice_no}</p>
-                <p><b>Status:</b> {printInvoice.status}</p>
-              </div>
-              <div>
-                <p><b>Invoice Date:</b> {printInvoice.invoice_date}</p>
-                <p><b>Due Date:</b> {printInvoice.due_date}</p>
-              </div>
-            </div>
-
-            <div className="invoice-billto">
-              <h3>Bill To</h3>
-              <p><b>{printInvoice.customer}</b></p>
-              <p>{printInvoice.customer_address || getCustomerByName(printInvoice.customer)?.address}</p>
-              <p>{printInvoice.customer_phone || getCustomerByName(printInvoice.customer)?.phone}</p>
-              <p>{printInvoice.customer_email || getCustomerByName(printInvoice.customer)?.email}</p>
-            </div>
-
-            <table className="invoice-table">
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>{getJobById(printInvoice.job_id)?.service || 'Service'}</td>
-                  <td>${Number(printInvoice.amount || 0).toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div className="invoice-total">
-              <p><span>Subtotal:</span> <b>${Number(printInvoice.amount || 0).toFixed(2)}</b></p>
-              <p><span>Paid:</span> <b>${invoicePaidAmount(printInvoice.id, printInvoice.invoice_no).toFixed(2)}</b></p>
-              <p><span>Balance Due:</span> <b>${invoiceBalance(printInvoice).toFixed(2)}</b></p>
-            </div>
-
-            <div className="invoice-notes">
-              <h3>Notes</h3>
-              <p>{printInvoice.notes || getPrintTemplate('Invoice').notes_text || 'Thank you for choosing Aashan & Co LLC.'}</p>
-              <p>{getPrintTemplate('Invoice').terms_text}</p>
-            </div>
-
-            <div className="invoice-footer">
-              {getPrintTemplate('Invoice').footer_text}
-            </div>
-          </div>
-          <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
-        </div>
-      )}
-    </main>
+          )}
+        </main>
+  </AuthGate>
   );
 }
 
