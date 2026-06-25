@@ -20,8 +20,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
+    const savedEmail = localStorage.getItem('aashan_remember_email');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+
     loadSession();
 
     const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -60,21 +67,41 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }
 
+  function saveRememberedEmail() {
+    if (rememberMe && email) {
+      localStorage.setItem('aashan_remember_email', email.trim().toLowerCase());
+    } else {
+      localStorage.removeItem('aashan_remember_email');
+    }
+  }
+
   async function login() {
     if (!email || !password) return alert('Enter email and password.');
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
     if (error) {
       setLoading(false);
       return alert(error.message);
     }
+
+    saveRememberedEmail();
   }
 
   async function signup() {
     if (!email || !password) return alert('Enter email and password.');
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+    });
 
     if (error) {
       setLoading(false);
@@ -84,13 +111,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     if (data.user) {
       await supabase.from('user_profiles').insert({
         id: data.user.id,
-        email,
-        full_name: email.split('@')[0],
+        email: normalizedEmail,
+        full_name: normalizedEmail.split('@')[0],
         role: 'Technician',
         active: false,
       });
     }
 
+    saveRememberedEmail();
     setLoading(false);
     alert('Account created. Admin must activate this user before access is allowed.');
     setMode('login');
@@ -98,10 +126,19 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   async function resetPassword() {
     if (!email) return alert('Enter your email first.');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: window.location.origin,
     });
+
     if (error) return alert(error.message);
+
+    if (rememberMe) {
+      localStorage.setItem('aashan_remember_email', normalizedEmail);
+    }
+
     alert('Password reset email sent.');
     setMode('login');
   }
@@ -133,12 +170,35 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
           <div style={styles.form}>
             <label>Email</label>
-            <input style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="support@aashan.co" type="email" />
+            <input
+              style={styles.input}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="support@aashan.co"
+              type="email"
+              autoComplete="email"
+            />
 
             {mode !== 'forgot' && (
               <>
                 <label>Password</label>
-                <input style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
+                <input
+                  style={styles.input}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  type="password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                />
+
+                <label style={styles.rememberRow}>
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  Remember me
+                </label>
               </>
             )}
 
@@ -201,6 +261,7 @@ const styles: Record<string, React.CSSProperties> = {
   muted: { color: '#64748b', marginTop: -8 },
   form: { display: 'grid', gap: 10, marginTop: 20 },
   input: { padding: '13px 14px', borderRadius: 12, border: '1px solid #cbd5e1', fontSize: 16 },
+  rememberRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#334155', marginTop: 2, marginBottom: 4 },
   primaryBtn: { background: '#2563eb', color: 'white', border: 0, borderRadius: 12, padding: '13px 16px', fontWeight: 800, fontSize: 16, cursor: 'pointer' },
   links: { display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
   linkBtn: { background: 'transparent', border: 0, color: '#2563eb', cursor: 'pointer', fontWeight: 700 },
