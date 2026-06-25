@@ -896,9 +896,40 @@ export default function Home() {
   }
 
 
-  function emailDocument(type: string, to: string, subject: string, body: string) {
-    const url = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = url;
+  async function emailDocument(type: string, to: string, subject: string, body: string) {
+    if (!to) return alert('Customer email is missing.');
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    if (!token) return alert('Please login again before sending email.');
+
+    const htmlBody = String(body || '')
+      .replaceAll('%0D%0A', '<br />')
+      .replaceAll('\n', '<br />');
+
+    const response = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        to,
+        subject,
+        html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;">${htmlBody}<br /><br /><b>Aashan & Co LLC</b><br />support@aashan.co</div>`,
+        text: String(body || '').replaceAll('%0D%0A', '\n'),
+        documentType: type,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return alert(result.error || 'Email failed to send.');
+    }
+
+    alert(`${type} email sent to ${to}`);
   }
 
   function openInvoicePrint(inv: Invoice) {
