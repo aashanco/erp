@@ -144,6 +144,7 @@ export default function Home() {
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -1590,9 +1591,17 @@ export default function Home() {
     .slice(0, 5);
 
 
+  function greetingText() {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
+
   function openTab(tab: typeof activeTab) {
     setActiveTab(tab);
     setMobileMenuOpen(false);
+    setQuickAddOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -1606,7 +1615,7 @@ export default function Home() {
             <h1 style={styles.headerTitle}>Aashan ERP</h1>
             <p style={styles.headerSub}>Field Service & Accounting</p>
           </div>
-          <div style={styles.phaseBadge}>Phase 6 Masters</div>
+          <div style={styles.phaseBadge}>🔔 0</div>
         </header>
 
         <section style={styles.container}>
@@ -1652,17 +1661,18 @@ export default function Home() {
               <div style={styles.topBar}>
                 <div>
                   <h2 style={styles.pageTitle}>{activeTab[0].toUpperCase() + activeTab.slice(1)}</h2>
-                  <p style={styles.pageSub}>Professional ERP workspace for Aashan & Co LLC</p>
+                  <p style={styles.pageSub}>{greetingText()}, {profile?.email?.split('@')[0] || 'Anil'}</p>
                 </div>
-                <input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
+                <input placeholder="🔍 Search customer, invoice, work order..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
               </div>
 
-              <div className="mobile-quick-actions" style={styles.mobileQuickActions}>
-                <button style={styles.primaryBtn} onClick={() => openTab('customers')}>+ Customer</button>
-                <button style={styles.primaryBtn} onClick={() => openTab('quotes')}>+ Quote</button>
-                <button style={styles.greenBtn} onClick={() => openTab('workorders')}>+ Work Order</button>
-                <button style={styles.primaryBtn} onClick={() => openTab('invoices')}>+ Invoice</button>
-                <button style={styles.grayBtn} onClick={() => openTab('receipts')}>+ Receipt</button>
+              <div className="mobile-action-tiles" style={styles.mobileActionTiles}>
+                <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
+                <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
+                <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
+                <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
+                <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
+                <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
               </div>
 
               {loading && <p>Loading...</p>}
@@ -1702,12 +1712,13 @@ export default function Home() {
 
                   <div style={styles.dashboardGrid}>
                     <SectionCard title="Quick Actions">
-                      <div style={styles.quickActions}>
-                        <button style={styles.primaryBtn} onClick={() => openTab('quotes')}>Create Quote</button>
-                        <button style={styles.greenBtn} onClick={() => openTab('jobs')}>Create Job</button>
-                        <button style={styles.primaryBtn} onClick={() => openTab('invoices')}>Create Invoice</button>
-                        <button style={styles.primaryBtn} onClick={() => openTab('receipts')}>Create Receipt</button>
-                        <button style={styles.grayBtn} onClick={() => openTab('import')}>Import Data</button>
+                      <div style={styles.actionGrid}>
+                        <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
+                        <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
+                        <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
+                        <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
+                        <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
+                        <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
                       </div>
                     </SectionCard>
 
@@ -1746,19 +1757,19 @@ export default function Home() {
                   <div style={styles.dashboardGrid}>
                     <SectionCard title="Operations Summary">
                       <div style={styles.kpiList}>
-                        <div><span>Open Quotes</span><b>{openQuotes}</b></div>
-                        <div><span>Open Jobs</span><b>{jobs.filter((j) => ['New', 'Quoted', 'In Progress'].includes(j.status)).length}</b></div>
-                        <div><span>Scheduled Jobs</span><b>{scheduledWorkOrders}</b></div>
-                        <div><span>Completed Jobs</span><b>{completedJobs}</b></div>
+                        <div style={styles.kpiRow}><span>Open Quotes</span><b>{openQuotes}</b></div>
+                        <div style={styles.kpiRow}><span>Open Jobs</span><b>{jobs.filter((j) => ['New', 'Quoted', 'In Progress'].includes(j.status)).length}</b></div>
+                        <div style={styles.kpiRow}><span>Scheduled Jobs</span><b>{scheduledWorkOrders}</b></div>
+                        <div style={styles.kpiRow}><span>Completed Jobs</span><b>{completedJobs}</b></div>
                       </div>
                     </SectionCard>
 
                     <SectionCard title="Financial Health">
                       <div style={styles.kpiList}>
-                        <div><span>Total Revenue</span><b>${paidRevenue.toFixed(2)}</b></div>
-                        <div><span>Total Expenses</span><b>${totalExpenses.toFixed(2)}</b></div>
-                        <div><span>Net Profit</span><b>${netProfit.toFixed(2)}</b></div>
-                        <div><span>Outstanding AR</span><b>${outstanding.toFixed(2)}</b></div>
+                        <div style={styles.kpiRow}><span>Total Revenue</span><b>${paidRevenue.toFixed(2)}</b></div>
+                        <div style={styles.kpiRow}><span>Total Expenses</span><b>${totalExpenses.toFixed(2)}</b></div>
+                        <div style={styles.kpiRow}><span>Net Profit</span><b>${netProfit.toFixed(2)}</b></div>
+                        <div style={styles.kpiRow}><span>Outstanding AR</span><b>${outstanding.toFixed(2)}</b></div>
                       </div>
                     </SectionCard>
                   </div>
@@ -2436,6 +2447,21 @@ export default function Home() {
 
 
 
+      {quickAddOpen && (
+        <div className="quick-add-sheet" style={styles.quickAddSheet}>
+          <button style={styles.quickAddItem} onClick={() => openTab('customers')}>👤 New Customer</button>
+          <button style={styles.quickAddItem} onClick={() => openTab('quotes')}>📄 New Quote</button>
+          <button style={styles.quickAddItem} onClick={() => openTab('workorders')}>🛠️ New Work Order</button>
+          <button style={styles.quickAddItem} onClick={() => openTab('invoices')}>🧾 New Invoice</button>
+          <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 New Receipt</button>
+          <button style={styles.quickAddItem} onClick={() => openTab('expenses')}>💳 New Expense</button>
+        </div>
+      )}
+
+      <button className="floating-add" style={styles.floatingAdd} onClick={() => setQuickAddOpen(!quickAddOpen)}>
+        {quickAddOpen ? '×' : '+'}
+      </button>
+
       <nav className="bottom-nav" style={styles.bottomNav}>
         <button style={activeTab === 'dashboard' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('dashboard')}>🏠<span>Home</span></button>
         <button style={activeTab === 'customers' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('customers')}>👥<span>Customers</span></button>
@@ -2642,6 +2668,16 @@ const styles: Record<string, any> = {
   kpiListItem: {},
 
   mobileQuickActions: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  mobileActionTiles: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 18 },
+  actionGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 },
+  actionTile: { border: 0, background: '#2563eb', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileGreen: { border: 0, background: '#059669', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileDark: { border: 0, background: '#0f172a', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileGray: { border: 0, background: '#64748b', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  kpiRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', padding: '9px 0', gap: 12 },
+  floatingAdd: { display: 'none', position: 'fixed', right: 18, bottom: 86, width: 58, height: 58, borderRadius: '50%', border: 0, background: '#2563eb', color: 'white', fontSize: 34, zIndex: 10000, boxShadow: '0 12px 30px rgba(37,99,235,0.35)' },
+  quickAddSheet: { display: 'none', position: 'fixed', right: 18, bottom: 152, background: 'white', borderRadius: 18, padding: 10, zIndex: 10000, boxShadow: '0 20px 50px rgba(15,23,42,0.25)', minWidth: 230 },
+  quickAddItem: { width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: '12px 10px', borderRadius: 12, fontWeight: 800, color: '#0f172a' },
   quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
   bottomNav: { display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #e5e7eb', zIndex: 9999, padding: '6px 8px', boxShadow: '0 -10px 30px rgba(15,23,42,0.12)' },
   bottomNavBtn: { flex: 1, border: 0, background: 'transparent', color: '#475569', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
@@ -2744,8 +2780,13 @@ const printCss = `
     display: flex !important;
   }
 
+  .floating-add,
+  .quick-add-sheet {
+    display: block !important;
+  }
+
   .app-screen {
-    padding-bottom: 80px !important;
+    padding-bottom: 100px !important;
   }
 
   .mobile-quick-actions {
@@ -2757,6 +2798,18 @@ const printCss = `
 
   .mobile-quick-actions button {
     white-space: nowrap;
+  }
+
+  .mobile-action-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .dash-card h2 {
+    font-size: 26px !important;
+  }
+
+  .dash-card b {
+    font-size: 15px !important;
   }
 }
 
