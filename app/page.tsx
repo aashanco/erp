@@ -1557,44 +1557,7 @@ export default function Home() {
   const draftExpenses = expenses.filter((e) => ['Draft', 'Submitted'].includes(e.status)).reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
 
-  if (authLoading) {
-    return <main style={styles.loginPage}><div style={styles.loginCard}><h2>Loading Aashan ERP...</h2></div></main>;
-  }
-
-  if (!session) {
-    return (
-      <main style={styles.loginPage}>
-        <div style={styles.loginCard}>
-          <div style={styles.loginLogo}>Aashan ERP</div>
-          <h1 style={{ marginTop: 0 }}>{authMode === 'login' ? 'Sign in' : 'Create account'}</h1>
-          <p style={{ color: '#64748b' }}>Secure access for Aashan & Co LLC</p>
-
-          <Field label="Email">
-            <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} style={styles.input} />
-          </Field>
-
-          <Field label="Password">
-            <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} style={styles.input} />
-          </Field>
-
-          <div style={styles.buttonRow}>
-            {authMode === 'login'
-              ? <button style={styles.primaryBtn} onClick={login}>Login</button>
-              : <button style={styles.primaryBtn} onClick={signUp}>Create Account</button>
-            }
-            <button style={styles.grayBtn} onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>
-              {authMode === 'login' ? 'Create new account' : 'Back to login'}
-            </button>
-          </div>
-
-          <p style={{ color: '#64748b', fontSize: 13 }}>
-            First registered user becomes Admin. Other new users become Staff.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
+  // Authentication is now handled by components/AuthGate.tsx.
 
   const accountsReceivable = outstanding;
   const accountsPayable = purchaseInvoices
@@ -1673,7 +1636,7 @@ export default function Home() {
 
   return (
     <AuthGate>
-    <main style={styles.page}>
+      <main style={styles.page}>
           <style>{printCss}</style>
     
           <div className="app-screen">
@@ -2739,8 +2702,8 @@ export default function Home() {
               <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
             </div>
           )}
-        </main>
-  </AuthGate>
+      </main>
+    </AuthGate>
   );
 }
 
