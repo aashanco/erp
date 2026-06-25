@@ -1,5 +1,6 @@
 'use client';
 
+import UserManagement from "../components/UserManagement";
 import AuthGate from "../components/AuthGate";
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -2338,6 +2339,12 @@ export default function Home() {
     
               {(activeTab === 'masters') && (
                 <>
+                  {canAdmin && (
+                    <SectionCard title="User Management">
+                      <UserManagement />
+                    </SectionCard>
+                  )}
+
                   <SectionCard title="Company Details">
                     <div style={styles.formGrid2}>
                       <Input label="Company Name" value={company.company_name} onChange={(v: string) => setCompany({ ...company, company_name: v })} />
