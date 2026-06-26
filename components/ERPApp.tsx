@@ -2,14 +2,13 @@
 
 import AccountingEngine from "./AccountingEngine";
 import UserManagement from "./UserManagement";
-import PostingProfiles from "./PostingProfiles";
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 
 type Customer = { id?: number; name: string; phone: string; email: string; address: string };
 type Job = { id?: number; customer: string; service: string; job_date: string; amount: string; status: string };
-type Quote = { id?: number; quote_no: string; customer: string; service: string; quote_date: string; amount: string; status: string; notes: string };
+type Quote = { id?: number; quote_no: string; customer: string; service: string; quote_date: string; amount: string; status: string; notes: string; qty?: string; unit_price?: string; discount?: string; tax_rate?: string; tax_amount?: string; subtotal?: string; total_amount?: string };
 type WorkOrder = { id?: number; work_order_no: string; job_id?: number | null; customer: string; service: string; technician: string; scheduled_date: string; start_time: string; end_time: string; status: string; notes: string };
 type Invoice = {
   id?: number;
@@ -17,6 +16,13 @@ type Invoice = {
   customer: string;
   job_id?: number | null;
   amount: string;
+  qty?: string;
+  unit_price?: string;
+  discount?: string;
+  tax_rate?: string;
+  tax_amount?: string;
+  subtotal?: string;
+  total_amount?: string;
   invoice_date: string;
   due_date: string;
   status: string;
@@ -90,13 +96,20 @@ const LOGO_SRC = '/aashan-logo.png';
 
 const emptyCustomer: Customer = { name: '', phone: '', email: '', address: '' };
 const emptyJob: Job = { customer: '', service: '', job_date: '', amount: '', status: 'New' };
-const emptyQuote: Quote = { quote_no: '', customer: '', service: '', quote_date: '', amount: '', status: 'Draft', notes: '' };
+const emptyQuote: Quote = { quote_no: '', customer: '', service: '', quote_date: '', amount: '', qty: '1', unit_price: '', discount: '0', tax_rate: '0', tax_amount: '0', subtotal: '0', total_amount: '0', status: 'Draft', notes: '' };
 const emptyWorkOrder: WorkOrder = { work_order_no: '', job_id: null, customer: '', service: '', technician: '', scheduled_date: '', start_time: '', end_time: '', status: 'Scheduled', notes: '' };
 const emptyInvoice: Invoice = {
   invoice_no: '',
   customer: '',
   job_id: null,
   amount: '',
+  qty: '1',
+  unit_price: '',
+  discount: '0',
+  tax_rate: '0',
+  tax_amount: '0',
+  subtotal: '0',
+  total_amount: '0',
   invoice_date: '',
   due_date: '',
   status: 'Draft',
@@ -448,6 +461,58 @@ export default function ERPApp() {
     return jobs.find((j) => Number(j.id) === Number(jobId));
   }
 
+  function calculateLineAmount(doc: { qty?: any; unit_price?: any; discount?: any; tax_rate?: any; amount?: any }) {
+    const qty = Number(doc.qty || 0);
+    const unitPrice = Number(doc.unit_price || 0);
+    const discount = Number(doc.discount || 0);
+    const taxRate = Number(doc.tax_rate || 0);
+    const subtotal = qty * unitPrice;
+    const taxableAmount = Math.max(subtotal - discount, 0);
+    const taxAmount = taxableAmount * (taxRate / 100);
+    const totalAmount = taxableAmount + taxAmount;
+
+    return {
+      qty,
+      unit_price: unitPrice,
+      discount,
+      tax_rate: taxRate,
+      subtotal,
+      tax_amount: taxAmount,
+      total_amount: totalAmount,
+      amount: totalAmount,
+    };
+  }
+
+  function applyQuoteCalculation(nextQuote: Quote) {
+    const calc = calculateLineAmount(nextQuote);
+    return {
+      ...nextQuote,
+      qty: String(nextQuote.qty ?? '1'),
+      unit_price: String(nextQuote.unit_price ?? ''),
+      discount: String(nextQuote.discount ?? '0'),
+      tax_rate: String(nextQuote.tax_rate ?? '0'),
+      subtotal: String(calc.subtotal || 0),
+      tax_amount: String(calc.tax_amount || 0),
+      total_amount: String(calc.total_amount || 0),
+      amount: String(calc.total_amount || 0),
+    };
+  }
+
+  function applyInvoiceCalculation(nextInvoice: Invoice) {
+    const calc = calculateLineAmount(nextInvoice);
+    return {
+      ...nextInvoice,
+      qty: String(nextInvoice.qty ?? '1'),
+      unit_price: String(nextInvoice.unit_price ?? ''),
+      discount: String(nextInvoice.discount ?? '0'),
+      tax_rate: String(nextInvoice.tax_rate ?? '0'),
+      subtotal: String(calc.subtotal || 0),
+      tax_amount: String(calc.tax_amount || 0),
+      total_amount: String(calc.total_amount || 0),
+      amount: String(calc.total_amount || 0),
+    };
+  }
+
   async function refreshInvoicePaymentStatus(inv: Invoice) {
     if (!inv.id) return;
     const balance = invoiceBalance(inv);
@@ -490,12 +555,20 @@ export default function ERPApp() {
   async function saveQuote() {
     if (!quote.customer.trim() || !quote.service.trim()) return alert('Select customer and enter service');
     const today = new Date().toISOString().slice(0, 10);
+    const calc = calculateLineAmount(quote);
     const payload = {
       quote_no: quote.quote_no || nextQuoteNo(),
       customer: quote.customer,
       service: quote.service,
       quote_date: quote.quote_date || today,
-      amount: Number(quote.amount || 0),
+      qty: calc.qty,
+      unit_price: calc.unit_price,
+      discount: calc.discount,
+      tax_rate: calc.tax_rate,
+      subtotal: calc.subtotal,
+      tax_amount: calc.tax_amount,
+      total_amount: calc.total_amount,
+      amount: calc.total_amount,
       status: quote.status,
       notes: quote.notes || '',
     };
@@ -511,7 +584,7 @@ export default function ERPApp() {
   }
 
   function editQuote(q: Quote) {
-    setQuote({ ...q, amount: String(q.amount || '') });
+    setQuote({ ...q, amount: String(q.amount || ''), qty: String(q.qty || '1'), unit_price: String(q.unit_price || q.amount || ''), discount: String(q.discount || '0'), tax_rate: String(q.tax_rate || '0'), subtotal: String(q.subtotal || 0), tax_amount: String(q.tax_amount || 0), total_amount: String(q.total_amount || q.amount || 0) });
     setEditingQuoteId(q.id || null);
     setActiveTab('quotes');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -554,7 +627,14 @@ export default function ERPApp() {
       invoice_no: nextInvoiceNo(),
       customer: q.customer,
       job_id: null,
-      amount: Number(q.amount || 0),
+      qty: Number(q.qty || 1),
+      unit_price: Number(q.unit_price || q.amount || 0),
+      discount: Number(q.discount || 0),
+      tax_rate: Number(q.tax_rate || 0),
+      subtotal: Number(q.subtotal || q.amount || 0),
+      tax_amount: Number(q.tax_amount || 0),
+      total_amount: Number(q.total_amount || q.amount || 0),
+      amount: Number(q.total_amount || q.amount || 0),
       invoice_date: today,
       due_date: today,
       status: 'Draft',
@@ -682,6 +762,13 @@ export default function ERPApp() {
       customer: selected.customer,
       job_id: selected.id || null,
       amount: String(selected.amount || ''),
+      qty: invoice.qty || '1',
+      unit_price: invoice.unit_price || String(selected.amount || ''),
+      discount: invoice.discount || '0',
+      tax_rate: invoice.tax_rate || '0',
+      subtotal: invoice.subtotal || String(selected.amount || 0),
+      tax_amount: invoice.tax_amount || '0',
+      total_amount: invoice.total_amount || String(selected.amount || 0),
       invoice_date: invoice.invoice_date || today,
       due_date: invoice.due_date || today,
       status: invoice.status || 'Draft',
@@ -708,11 +795,19 @@ export default function ERPApp() {
     if (!invoice.amount) return alert('Enter invoice amount');
 
     const c = getCustomerByName(invoice.customer);
+    const calc = calculateLineAmount(invoice);
     const payload = {
       invoice_no: invoice.invoice_no || nextInvoiceNo(),
       customer: invoice.customer,
       job_id: invoice.job_id || null,
-      amount: Number(invoice.amount || 0),
+      qty: calc.qty,
+      unit_price: calc.unit_price,
+      discount: calc.discount,
+      tax_rate: calc.tax_rate,
+      subtotal: calc.subtotal,
+      tax_amount: calc.tax_amount,
+      total_amount: calc.total_amount,
+      amount: calc.total_amount,
       invoice_date: invoice.invoice_date || null,
       due_date: invoice.due_date || null,
       status: invoice.status,
@@ -740,6 +835,13 @@ export default function ERPApp() {
     setInvoice({
       ...inv,
       amount: String(inv.amount || ''),
+      qty: String(inv.qty || '1'),
+      unit_price: String(inv.unit_price || inv.amount || ''),
+      discount: String(inv.discount || '0'),
+      tax_rate: String(inv.tax_rate || '0'),
+      subtotal: String(inv.subtotal || 0),
+      tax_amount: String(inv.tax_amount || 0),
+      total_amount: String(inv.total_amount || inv.amount || 0),
       customer_phone: inv.customer_phone || c?.phone || '',
       customer_email: inv.customer_email || c?.email || '',
       customer_address: inv.customer_address || c?.address || '',
@@ -1955,7 +2057,13 @@ export default function ERPApp() {
                       <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote({ ...quote, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
                       <Input label="Quote Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
                       <Input label="Service / Description" value={quote.service} onChange={(v: string) => setQuote({ ...quote, service: v })} />
-                      <Input label="Amount" value={quote.amount} onChange={(v: string) => setQuote({ ...quote, amount: v })} />
+                      <Input label="Qty" type="number" value={quote.qty || '1'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, qty: v }))} />
+                      <Input label="Unit Price" type="number" value={quote.unit_price || ''} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, unit_price: v }))} />
+                      <Input label="Discount" type="number" value={quote.discount || '0'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, discount: v }))} />
+                      <Input label="Tax %" type="number" value={quote.tax_rate || '0'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, tax_rate: v }))} />
+                      <Input label="Subtotal" value={Number(quote.subtotal || 0).toFixed(2)} onChange={() => {}} />
+                      <Input label="Tax Amount" value={Number(quote.tax_amount || 0).toFixed(2)} onChange={() => {}} />
+                      <Input label="Total Amount" value={Number(quote.total_amount || quote.amount || 0).toFixed(2)} onChange={() => {}} />
                       <Field label="Status"><select value={quote.status} onChange={(e) => setQuote({ ...quote, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Field>
                       <Input label="Notes" value={quote.notes} onChange={(v: string) => setQuote({ ...quote, notes: v })} />
                     </div>
@@ -1972,14 +2080,14 @@ export default function ERPApp() {
                         <Td>{qt.customer}</Td>
                         <Td>{qt.quote_date}</Td>
                         <Td>{qt.service}</Td>
-                        <Td>${Number(qt.amount || 0).toFixed(2)}</Td>
+                        <Td>${Number(qt.total_amount || qt.amount || 0).toFixed(2)}</Td>
                         <Td><StatusBadge status={qt.status} /></Td>
                         <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Td>
                         <Td>
                           <button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button>
                           <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
                           <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
-                          <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find quote {{quote_no}} for $' + '{{amount}}' + '.', { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.amount })}>Email</button>
+                          <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find quote {{quote_no}} for $' + '{{amount}}' + '.', { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount })}>Email</button>
                           <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
                           <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>
                         </Td>
@@ -2149,7 +2257,13 @@ export default function ERPApp() {
                       <Field label="Customer"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
                       <Input label="Invoice Date" type="date" value={invoice.invoice_date} onChange={(v: string) => setInvoice({ ...invoice, invoice_date: v })} />
                       <Input label="Due Date" type="date" value={invoice.due_date} onChange={(v: string) => setInvoice({ ...invoice, due_date: v })} />
-                      <Input label="Amount" value={invoice.amount} onChange={(v: string) => setInvoice({ ...invoice, amount: v })} />
+                      <Input label="Qty" type="number" value={invoice.qty || '1'} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, qty: v }))} />
+                      <Input label="Unit Price" type="number" value={invoice.unit_price || ''} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, unit_price: v }))} />
+                      <Input label="Discount" type="number" value={invoice.discount || '0'} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, discount: v }))} />
+                      <Input label="Tax %" type="number" value={invoice.tax_rate || '0'} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, tax_rate: v }))} />
+                      <Input label="Subtotal" value={Number(invoice.subtotal || 0).toFixed(2)} onChange={() => {}} />
+                      <Input label="Tax Amount" value={Number(invoice.tax_amount || 0).toFixed(2)} onChange={() => {}} />
+                      <Input label="Total Amount" value={Number(invoice.total_amount || invoice.amount || 0).toFixed(2)} onChange={() => {}} />
                       <Input label="Customer Phone" value={invoice.customer_phone || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_phone: v })} />
                       <Input label="Customer Email" value={invoice.customer_email || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_email: v })} />
                       <Input label="Customer Address" value={invoice.customer_address || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_address: v })} />
@@ -2163,7 +2277,7 @@ export default function ERPApp() {
                   </SectionCard>
     
                   <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find invoice {{invoice_no}} for $' + '{{amount}}' + '.', { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find invoice {{invoice_no}} for $' + '{{amount}}' + '.', { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.total_amount || i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2328,7 +2442,7 @@ export default function ERPApp() {
                   </SectionCard>
     
                   <DataTable title="Revenue Report" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Paid', 'Balance', 'Status']}>
-                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td></tr>)}
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td></tr>)}
                   </DataTable>
     
                   <DataTable title="Expense Report" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Amount', 'Status']}>
@@ -2439,10 +2553,6 @@ export default function ERPApp() {
                       <UserManagement />
                     </SectionCard>
                   )}
-
-                  <SectionCard title="Posting Profiles">
-                    <PostingProfiles />
-                  </SectionCard>
 
                   <SectionCard title="Company Details">
                     <div style={styles.formGrid2}>
@@ -2656,8 +2766,8 @@ export default function ERPApp() {
                 </div>
                 <div className="invoice-title-row"><div><h2>QUOTE</h2><p><b>Quote #:</b> {printQuote.quote_no}</p><p><b>Status:</b> {printQuote.status}</p></div><div><p><b>Quote Date:</b> {printQuote.quote_date}</p></div></div>
                 <div className="invoice-billto"><h3>Quote To</h3><p><b>{printQuote.customer}</b></p><p>{getCustomerByName(printQuote.customer)?.address}</p><p>{getCustomerByName(printQuote.customer)?.phone}</p><p>{getCustomerByName(printQuote.customer)?.email}</p></div>
-                <table className="invoice-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>{printQuote.service}</td><td>${Number(printQuote.amount || 0).toFixed(2)}</td></tr></tbody></table>
-                <div className="invoice-total"><p><span>Total:</span> <b>${Number(printQuote.amount || 0).toFixed(2)}</b></p></div>
+                <table className="invoice-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>{printQuote.service}</td><td>${Number(printQuote.total_amount || printQuote.amount || 0).toFixed(2)}</td></tr></tbody></table>
+                <div className="invoice-total"><p><span>Total:</span> <b>${Number(printQuote.total_amount || printQuote.amount || 0).toFixed(2)}</b></p></div>
                 <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes || getPrintTemplate('Quote').notes_text}</p></div>
                 <div className="invoice-footer">{getPrintTemplate('Quote').footer_text}</div>
               </div>
@@ -2735,13 +2845,13 @@ export default function ERPApp() {
                   <tbody>
                     <tr>
                       <td>{getJobById(printInvoice.job_id)?.service || 'Service'}</td>
-                      <td>${Number(printInvoice.amount || 0).toFixed(2)}</td>
+                      <td>${Number(printInvoice.total_amount || printInvoice.amount || 0).toFixed(2)}</td>
                     </tr>
                   </tbody>
                 </table>
     
                 <div className="invoice-total">
-                  <p><span>Subtotal:</span> <b>${Number(printInvoice.amount || 0).toFixed(2)}</b></p>
+                  <p><span>Subtotal:</span> <b>${Number(printInvoice.total_amount || printInvoice.amount || 0).toFixed(2)}</b></p>
                   <p><span>Paid:</span> <b>${invoicePaidAmount(printInvoice.id, printInvoice.invoice_no).toFixed(2)}</b></p>
                   <p><span>Balance Due:</span> <b>${invoiceBalance(printInvoice).toFixed(2)}</b></p>
                 </div>
