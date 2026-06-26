@@ -2,6 +2,7 @@
 
 import AccountingEngine from "./AccountingEngine";
 import UserManagement from "./UserManagement";
+import CRMEngine from "./CRMEngine";
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -150,7 +151,7 @@ export default function ERPApp() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'accounting' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'customers' | 'vendors' | 'accounting' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -221,9 +222,9 @@ export default function ERPApp() {
 
   function getAllowedTabsForRole(): Array<typeof activeTab> {
     if (isTechnician) return ['dashboard', 'jobs', 'workorders', 'technician', 'customers'];
-    if (isCustomer) return ['dashboard', 'quotes', 'invoices', 'receipts'];
+    if (isCustomer) return ['dashboard', 'crm', 'quotes', 'invoices', 'receipts'];
     if (profile?.role === 'Read Only') return ['dashboard', 'customers', 'quotes', 'jobs', 'workorders', 'invoices', 'receipts', 'reports'];
-    return ['dashboard', 'customers', 'vendors', 'accounting', 'quotes', 'jobs', 'workorders', 'technician', 'calendar', 'invoices', 'payments', 'receipts', 'expenses', 'purchases', 'journals', 'banks', 'reports', 'masters', 'import'];
+    return ['dashboard', 'crm', 'customers', 'vendors', 'accounting', 'quotes', 'jobs', 'workorders', 'technician', 'calendar', 'invoices', 'payments', 'receipts', 'expenses', 'purchases', 'journals', 'banks', 'reports', 'masters', 'import'];
   }
 
   async function loadUserProfile(user: any) {
@@ -388,7 +389,7 @@ export default function ERPApp() {
 
   useEffect(() => {
     if (printInvoice || printQuote || printReceipt) {
-      const timer = setTimeout(() => window.print(), 900);
+      const timer = setTimeout(() => window.print(), 600);
       return () => clearTimeout(timer);
     }
   }, [printInvoice, printQuote, printReceipt]);
@@ -1323,7 +1324,7 @@ export default function ERPApp() {
     setTemplate({
       template_name: 'Invoice Email',
       subject: 'Invoice {{invoice_no}} from Aashan & Co LLC',
-      body: 'Hi {{customer}},\n\nPlease find your invoice {{invoice_no}} for $' + '{{amount}}' + '.\n\nDue Date: {{due_date}}\nBalance Due: $' + '{{balance}}' + '\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC'
+      body: 'Hi {{customer}},\n\nPlease find your invoice {{invoice_no}} for ${{amount}}.\n\nDue Date: {{due_date}}\nBalance Due: ${{balance}}\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC'
     });
   }
 
@@ -1714,6 +1715,7 @@ export default function ERPApp() {
     
                   <SidebarGroup title="Business">
                     <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => openTab('dashboard')} />
+                    <SideButton label="CRM" active={activeTab === 'crm'} onClick={() => openTab('crm')} />
                     <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => openTab('customers')} />
                     <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => openTab('vendors')} />
                   </SidebarGroup>
@@ -1897,6 +1899,12 @@ export default function ERPApp() {
                     </>
                   )}
     
+              {(activeTab === 'crm') && (
+                <SectionCard title="CRM">
+                  <CRMEngine />
+                </SectionCard>
+              )}
+
               {(activeTab === 'customers') && (
                 <>
                   <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
@@ -2656,7 +2664,7 @@ export default function ERPApp() {
                 <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes || getPrintTemplate('Quote').notes_text}</p></div>
                 <div className="invoice-footer">{getPrintTemplate('Quote').footer_text}</div>
               </div>
-              <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
+              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
             </div>
           )}
     
@@ -2680,7 +2688,7 @@ export default function ERPApp() {
                 <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || getPrintTemplate('Receipt').notes_text || 'Thank you for your payment.'}</p></div>
                 <div className="invoice-footer">{getPrintTemplate('Receipt').footer_text}</div>
               </div>
-              <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
+              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
             </div>
           )}
     
@@ -2689,12 +2697,14 @@ export default function ERPApp() {
               <div className="invoice-page">
                 <div className="invoice-header">
                   <div>
-                    <img src={printLogo('Invoice')} className="invoice-logo" alt="Aashan & Co LLC" />
-                    <h1>{getPrintTemplate('Invoice').header_title}</h1>
-                    <p>{getPrintTemplate('Invoice').header_subtitle}</p>
+                    <img src={company.logo_url || LOGO_SRC} className="invoice-logo" alt="Aashan & Co LLC" />
+                    <h1>{company.company_name || 'Aashan & Co LLC'}</h1>
+                    <p>{company.website || 'Quality Work Through Dedication'}</p>
                   </div>
                   <div className="invoice-company">
-                    {renderCompanyBlock('Invoice')}
+                    <p><b>Phone:</b> {company.phone || '(832) 210-4248'}</p>
+                    <p><b>Email:</b> {company.email || 'support@aashan.co'}</p>
+                    <p><b>Address:</b> {company.address || 'Dallas, Texas'}</p>
                   </div>
                 </div>
     
@@ -2749,7 +2759,7 @@ export default function ERPApp() {
                   {getPrintTemplate('Invoice').footer_text}
                 </div>
               </div>
-              <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
+              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
             </div>
           )}
     </main>
@@ -2908,7 +2918,6 @@ const styles: Record<string, any> = {
 
 const printCss = `
 .invoice-print { display: none; }
-
 @media (max-width: 900px) {
   .app-screen section > div {
     display: block !important;
@@ -3041,70 +3050,41 @@ const printCss = `
   }
 }
 
-.dash-card { border-left: 6px solid #2563eb; }
-.dash-card-customer { border-left-color: #2563eb !important; }
-.dash-card-quote { border-left-color: #7c3aed !important; }
-.dash-card-work { border-left-color: #f97316 !important; }
-.dash-card-invoice { border-left-color: #16a34a !important; }
-.dash-card-danger { border-left-color: #dc2626 !important; }
-.dash-card-success { border-left-color: #15803d !important; }
-
-@media screen {
-  .invoice-print {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.72);
-    z-index: 99999;
-    overflow: auto;
-    padding: 32px 16px;
-    display: block;
-  }
-
-  .invoice-page {
-    background: white;
-    color: #111827;
-    width: 8.5in;
-    min-height: 11in;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 0.45in;
-    box-sizing: border-box;
-    font-family: Arial, sans-serif;
-    box-shadow: 0 20px 70px rgba(15, 23, 42, 0.35);
-  }
-
-  .close-print {
-    display: block;
-    margin: 0;
-    padding: 11px 18px;
-    border: none;
-    background: #dc2626;
-    color: white;
-    border-radius: 9px;
-    cursor: pointer;
-    font-weight: 800;
-  }
-
-  .print-action-row {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin: 16px auto 0;
-  }
-
-  .print-action-row .close-print:first-child {
-    background: #2563eb;
-  }
+.dash-card {
+  border-left: 6px solid #2563eb;
 }
 
+.dash-card-customer {
+  border-left-color: #2563eb !important;
+}
+
+.dash-card-quote {
+  border-left-color: #7c3aed !important;
+}
+
+.dash-card-work {
+  border-left-color: #f97316 !important;
+}
+
+.dash-card-invoice {
+  border-left-color: #16a34a !important;
+}
+
+.dash-card-danger {
+  border-left-color: #dc2626 !important;
+}
+
+.dash-card-success {
+  border-left-color: #15803d !important;
+}
+}
 @media print {
   @page {
     size: Letter;
     margin: 0.35in;
   }
 
-  html,
-  body {
+  html, body {
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
@@ -3117,179 +3097,167 @@ const printCss = `
     print-color-adjust: exact !important;
   }
 
-  body * {
-    visibility: hidden !important;
-  }
-
-  .invoice-print,
-  .invoice-print * {
-    visibility: visible !important;
-  }
-
-  .app-screen,
-  .topBar,
-  .bottom-nav,
-  .floating-add,
-  .quick-add-sheet,
-  .close-print,
-  .print-action-row {
+  .app-screen {
     display: none !important;
-    visibility: hidden !important;
   }
 
   .invoice-print {
     display: block !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
+    position: static !important;
+    inset: auto !important;
     background: white !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
-    z-index: 999999 !important;
   }
 
   .invoice-page {
     display: block !important;
     width: 100% !important;
-    min-height: auto !important;
     max-width: none !important;
+    min-height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     page-break-after: auto !important;
     page-break-inside: avoid !important;
-    font-family: Arial, sans-serif !important;
-    color: #111827 !important;
-    background: white !important;
+  }
+
+  .close-print {
+    display: none !important;
+  }
+
+  .invoice-logo {
+    display: block !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
   }
 }
-
+@media screen {
+  .invoice-print {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.70);
+    z-index: 9999;
+    overflow: auto;
+    padding: 30px;
+  }
+  .close-print {
+    display: block;
+    margin: 15px auto;
+    padding: 10px 16px;
+    border: none;
+    background: #dc2626;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+  }
+}
+.invoice-page {
+  background: white;
+  color: #111827;
+  max-width: 850px;
+  margin: 0 auto;
+  padding: 36px;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+  border-radius: 0;
+}
 .invoice-header {
   display: flex;
   justify-content: space-between;
-  border-bottom: 4px solid #0f172a;
-  padding-bottom: 18px;
-  gap: 24px;
+  border-bottom: 3px solid #0f172a;
+  padding-bottom: 16px;
+  gap: 25px;
 }
-
 .invoice-logo {
-  width: 94px;
-  height: 94px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
-  border-radius: 12px;
-  display: block;
-  background: #ffffff;
+  border-radius: 10px;
 }
-
 .invoice-header h1 {
-  margin: 10px 0 4px;
+  margin: 8px 0 4px;
   color: #0f172a;
-  font-size: 26px;
 }
-
 .invoice-header p {
   margin: 4px 0;
 }
-
 .invoice-company {
   text-align: right;
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 14px;
 }
-
 .invoice-title-row {
   display: flex;
   justify-content: space-between;
-  margin-top: 24px;
-  gap: 24px;
+  margin-top: 22px;
+  gap: 25px;
 }
-
 .invoice-title-row h2 {
-  font-size: 32px;
+  font-size: 30px;
   margin: 0 0 10px;
   color: #0f172a;
-  letter-spacing: 0.04em;
 }
-
 .invoice-billto {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  padding: 15px;
-  border-radius: 12px;
-  margin-top: 22px;
+  padding: 14px;
+  border-radius: 10px;
+  margin-top: 20px;
 }
-
 .invoice-billto h3 {
-  margin: 0 0 8px;
-  color: #0f172a;
+  margin-top: 0;
 }
-
 .invoice-billto p {
   margin: 5px 0;
 }
-
 .invoice-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 22px;
+  margin-top: 20px;
 }
-
 .invoice-table th {
   background: #0f172a;
   color: white;
-  padding: 12px;
+  padding: 11px;
   text-align: left;
 }
-
 .invoice-table td {
   border-bottom: 1px solid #e5e7eb;
-  padding: 13px 12px;
+  padding: 12px 11px;
 }
-
 .invoice-table td:last-child,
 .invoice-table th:last-child {
   text-align: right;
 }
-
 .invoice-total {
-  width: 320px;
+  width: 300px;
   margin-left: auto;
   margin-top: 20px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  padding: 14px;
-  border-radius: 12px;
+  padding: 13px;
+  border-radius: 10px;
 }
-
 .invoice-total p {
   display: flex;
   justify-content: space-between;
   margin: 8px 0;
   font-size: 15px;
 }
-
 .invoice-total p:last-child {
   font-size: 18px;
   border-top: 2px solid #0f172a;
   padding-top: 10px;
 }
-
 .invoice-notes {
-  margin-top: 28px;
+  margin-top: 26px;
   border-top: 1px solid #e5e7eb;
-  padding-top: 15px;
-  color: #334155;
-  line-height: 1.55;
+  padding-top: 14px;
 }
-
 .invoice-footer {
-  margin-top: 32px;
+  margin-top: 30px;
   text-align: center;
-  font-weight: 800;
+  font-weight: 700;
   color: #0f172a;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 16px;
 }
 `;
