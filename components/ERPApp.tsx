@@ -315,7 +315,7 @@ export default function ERPApp() {
     const { data: expenseData, error: expenseError } = await supabase.from('expenses').select('*').order('id', { ascending: false });
     const { data: companyData } = await supabase.from('company_settings').select('*').limit(1);
     const { data: sequenceData } = await supabase.from('number_sequences').select('*').order('id', { ascending: true });
-    const { data: accountData } = await supabase.from('chart_of_accounts').select('*').order('account_code', { ascending: true });
+    const { data: accountData } = await supabase.from('gl_accounts').select('*').order('account_code', { ascending: true });
     const { data: emailSettingsData } = await supabase.from('email_settings').select('*').limit(1);
     const { data: templateData } = await supabase.from('email_templates').select('*').order('template_name', { ascending: true });
     const { data: printTemplateData } = await supabase.from('print_templates').select('*').order('document_type', { ascending: true });
@@ -922,13 +922,53 @@ export default function ERPApp() {
   }
 
 
-  async function emailDocument(type: string, to: string, subject: string, body: string) {
+  function emailTemplateName(type: string) {
+    const clean = String(type || '').toLowerCase();
+    if (clean.includes('invoice')) return 'Invoice Email';
+    if (clean.includes('quote')) return 'Quote Email';
+    if (clean.includes('receipt') || clean.includes('payment')) return 'Payment Receipt Email';
+    if (clean.includes('overdue')) return 'Overdue Reminder Email';
+    return type;
+  }
+
+  function getEmailTemplate(type: string) {
+    const name = emailTemplateName(type);
+    return templates.find((t) => t.template_name === name);
+  }
+
+  function replaceTemplateVariables(text: string, data: Record<string, any>) {
+    let output = String(text || '');
+
+    const merged = {
+      company_name: company.company_name || 'Aashan & Co LLC',
+      company_phone: company.phone || '(832) 210-4248',
+      company_email: company.email || 'support@aashan.co',
+      company_website: company.website || 'www.aashan.co',
+      company_address: company.address || 'Dallas, Texas',
+      facebook_review: 'https://www.facebook.com/profile.php?id=61584788072935&sk=reviews',
+      ...data,
+    };
+
+    Object.keys(merged).forEach((key) => {
+      output = output
+        .replaceAll(`{{${key}}}`, String(merged[key] ?? ''))
+        .replaceAll(`{{ ${key} }}`, String(merged[key] ?? ''));
+    });
+
+    return output;
+  }
+
+  async function emailDocument(type: string, to: string, fallbackSubject: string, fallbackBody: string, data: Record<string, any> = {}) {
     if (!to) return alert('Customer email is missing.');
 
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
 
     if (!token) return alert('Please login again before sending email.');
+
+    const masterTemplate = getEmailTemplate(type);
+    const subject = replaceTemplateVariables(masterTemplate?.subject || fallbackSubject, data);
+    const body = replaceTemplateVariables(masterTemplate?.body || fallbackBody, data);
 
     const htmlBody = String(body || '')
       .replaceAll('%0D%0A', '<br />')
@@ -943,9 +983,19 @@ export default function ERPApp() {
       body: JSON.stringify({
         to,
         subject,
-        html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;">${htmlBody}<br /><br /><b>Aashan & Co LLC</b><br />support@aashan.co</div>`,
+        html: htmlBody,
         text: String(body || '').replaceAll('%0D%0A', '\n'),
         documentType: type,
+        templateName: emailTemplateName(type),
+        customer: data.customer || data.customer_name || '',
+        customerName: data.customer || data.customer_name || '',
+        documentNo: data.document_no || data.invoice_no || data.quote_no || data.receipt_no || '',
+        invoiceNo: data.invoice_no || '',
+        quoteNo: data.quote_no || '',
+        receiptNo: data.receipt_no || '',
+        amount: data.amount || '',
+        balance: data.balance || '',
+        dueDate: data.due_date || '',
       }),
     });
 
@@ -955,7 +1005,7 @@ export default function ERPApp() {
       return alert(result.error || 'Email failed to send.');
     }
 
-    alert(`${type} email sent to ${to}`);
+    alert(result.message || `${type} email sent to ${to}`);
   }
 
   function openInvoicePrint(inv: Invoice) {
@@ -1244,12 +1294,12 @@ export default function ERPApp() {
   async function saveAccount() {
     if (!account.account_code.trim() || !account.account_name.trim()) return alert('Enter account code and name');
     const payload = { account_code: account.account_code, account_name: account.account_name, account_type: account.account_type, normal_balance: account.normal_balance, is_active: account.is_active };
-    const res = editingAccountId ? await supabase.from('chart_of_accounts').update(payload).eq('id', editingAccountId) : await supabase.from('chart_of_accounts').insert([payload]);
+    const res = editingAccountId ? await supabase.from('gl_accounts').update(payload).eq('id', editingAccountId) : await supabase.from('gl_accounts').insert([payload]);
     if (res.error) return alert(res.error.message);
     setAccount(emptyAccount); setEditingAccountId(null); await loadData();
   }
   function editAccount(a: Account) { setAccount(a); setEditingAccountId(a.id || null); }
-  async function deleteAccount(id?: number) { if (!id || !confirm('Delete this account?')) return; const { error } = await supabase.from('chart_of_accounts').delete().eq('id', id); if (error) return alert(error.message); await loadData(); }
+  async function deleteAccount(id?: number) { if (!id || !confirm('Delete this account?')) return; const { error } = await supabase.from('gl_accounts').delete().eq('id', id); if (error) return alert(error.message); await loadData(); }
   async function saveEmailSettings() {
     const payload = { from_name: emailSettings.from_name, from_email: emailSettings.from_email, reply_to_email: emailSettings.reply_to_email, bcc_email: emailSettings.bcc_email };
     const res = emailSettings.id ? await supabase.from('email_settings').update(payload).eq('id', emailSettings.id) : await supabase.from('email_settings').insert([payload]);
@@ -1270,7 +1320,11 @@ export default function ERPApp() {
     setSequence({ document_type: 'Invoice', prefix: 'INV-', next_number: '1001', padding: '4' });
     setAccount({ account_code: '4000', account_name: 'Service Revenue', account_type: 'Revenue', normal_balance: 'Credit', is_active: true });
     setEmailSettings(emptyEmailSettings);
-    setTemplate({ template_name: 'Invoice Email', subject: 'Invoice {{invoice_no}} from Aashan & Co LLC', body: 'Hi {{customer}},\n\nPlease find your invoice {{invoice_no}} for ${{amount}}.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC' });
+    setTemplate({
+      template_name: 'Invoice Email',
+      subject: 'Invoice {{invoice_no}} from Aashan & Co LLC',
+      body: 'Hi {{customer}},\n\nPlease find your invoice {{invoice_no}} for ${{amount}}.\n\nDue Date: {{due_date}}\nBalance Due: ${{balance}}\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC'
+    });
   }
 
 
@@ -1456,7 +1510,7 @@ export default function ERPApp() {
         is_active: String(r.is_active || 'true').toLowerCase() !== 'false',
       })).filter((r) => r.account_code && r.account_name);
 
-      const { error } = await supabase.from('chart_of_accounts').insert(payload);
+      const { error } = await supabase.from('gl_accounts').insert(payload);
       if (error) return alert(error.message);
     }
 
@@ -1924,7 +1978,7 @@ export default function ERPApp() {
                           <button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button>
                           <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
                           <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
-                          <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, `Hi ${qt.customer},%0D%0A%0D%0APlease find quote ${qt.quote_no} for $${qt.amount}.`)}>Email</button>
+                          <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find quote {{quote_no}} for ${{amount}}.', { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.amount })}>Email</button>
                           <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
                           <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>
                         </Td>
@@ -2108,7 +2162,7 @@ export default function ERPApp() {
                   </SectionCard>
     
                   <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, `Hi ${i.customer},%0D%0A%0D%0APlease find invoice ${i.invoice_no} for $${i.amount}.`)}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find invoice {{invoice_no}} for ${{amount}}.', { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2155,7 +2209,7 @@ export default function ERPApp() {
                     <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
                   </SectionCard>
                   <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
-                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, `Hi ${r.customer},%0D%0A%0D%0AThank you for your payment of $${r.amount}. Receipt No: ${r.receipt_no}`)}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
+                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0AThank you for your payment of ${{amount}}. Receipt No: {{receipt_no}}', { customer: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2856,8 +2910,7 @@ const styles: Record<string, any> = {
 
 const printCss = `
 .invoice-print { display: none; }
-@media (max-width: 900px) {
-  .app-screen section > div {
+@media (max-width: 900px) { ...app-screen section > div {
     display: block !important;
   }
 
@@ -3071,8 +3124,7 @@ const printCss = `
     -webkit-print-color-adjust: exact !important;
   }
 }
-@media screen {
-  .invoice-print {
+@media screen { ...invoice-print {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.70);
