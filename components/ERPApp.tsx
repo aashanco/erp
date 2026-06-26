@@ -2,7 +2,7 @@
 
 import AccountingEngine from "./AccountingEngine";
 import UserManagement from "./UserManagement";
-import CRMEngine from "./CRMEngine";
+import PostingProfiles from "./PostingProfiles";
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -151,7 +151,7 @@ export default function ERPApp() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'customers' | 'vendors' | 'accounting' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'customers' | 'vendors' | 'accounting' | 'quotes' | 'jobs' | 'workorders' | 'technician' | 'calendar' | 'invoices' | 'payments' | 'receipts' | 'expenses' | 'purchases' | 'journals' | 'banks' | 'reports' | 'masters' | 'import'>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -222,9 +222,9 @@ export default function ERPApp() {
 
   function getAllowedTabsForRole(): Array<typeof activeTab> {
     if (isTechnician) return ['dashboard', 'jobs', 'workorders', 'technician', 'customers'];
-    if (isCustomer) return ['dashboard', 'crm', 'quotes', 'invoices', 'receipts'];
+    if (isCustomer) return ['dashboard', 'quotes', 'invoices', 'receipts'];
     if (profile?.role === 'Read Only') return ['dashboard', 'customers', 'quotes', 'jobs', 'workorders', 'invoices', 'receipts', 'reports'];
-    return ['dashboard', 'crm', 'customers', 'vendors', 'accounting', 'quotes', 'jobs', 'workorders', 'technician', 'calendar', 'invoices', 'payments', 'receipts', 'expenses', 'purchases', 'journals', 'banks', 'reports', 'masters', 'import'];
+    return ['dashboard', 'customers', 'vendors', 'accounting', 'quotes', 'jobs', 'workorders', 'technician', 'calendar', 'invoices', 'payments', 'receipts', 'expenses', 'purchases', 'journals', 'banks', 'reports', 'masters', 'import'];
   }
 
   async function loadUserProfile(user: any) {
@@ -1715,7 +1715,6 @@ export default function ERPApp() {
     
                   <SidebarGroup title="Business">
                     <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => openTab('dashboard')} />
-                    <SideButton label="CRM" active={activeTab === 'crm'} onClick={() => openTab('crm')} />
                     <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => openTab('customers')} />
                     <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => openTab('vendors')} />
                   </SidebarGroup>
@@ -1899,12 +1898,6 @@ export default function ERPApp() {
                     </>
                   )}
     
-              {(activeTab === 'crm') && (
-                <SectionCard title="CRM">
-                  <CRMEngine />
-                </SectionCard>
-              )}
-
               {(activeTab === 'customers') && (
                 <>
                   <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
@@ -2446,6 +2439,10 @@ export default function ERPApp() {
                       <UserManagement />
                     </SectionCard>
                   )}
+
+                  <SectionCard title="Posting Profiles">
+                    <PostingProfiles />
+                  </SectionCard>
 
                   <SectionCard title="Company Details">
                     <div style={styles.formGrid2}>
