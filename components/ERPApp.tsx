@@ -3228,6 +3228,7 @@ const printCss = `
   }
 
   .app-screen,
+  .app-screen *,
   .topBar,
   .bottom-nav,
   .floating-add,
@@ -3238,30 +3239,39 @@ const printCss = `
     visibility: hidden !important;
   }
 
+  main,
+  body > div,
+  body > div > div {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
   .invoice-print {
     display: block !important;
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
-    min-height: 100% !important;
+    min-height: 0 !important;
     background: white !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
-    z-index: 999999 !important;
+    z-index: auto !important;
   }
 
   .invoice-page {
     display: block !important;
     width: 100% !important;
-    min-height: auto !important;
+    min-height: 0 !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
-    page-break-after: auto !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
     page-break-inside: avoid !important;
+    break-after: avoid !important;
+    break-before: avoid !important;
+    break-inside: avoid !important;
     font-family: Arial, sans-serif !important;
     color: #111827 !important;
     background: white !important;
