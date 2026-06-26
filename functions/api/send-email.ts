@@ -1,13 +1,13 @@
-// Aashan ERP Phase 21.1 - Business Email Engine
+// Aashan ERP Phase 21.2 - Resend Email Engine
 // Cloudflare Pages Function: functions/api/send-email.ts
-// Sends transactional ERP emails using MailChannels API from Cloudflare.
-// No SMTP socket is used because Cloudflare Pages Functions do not support raw SMTP connections.
+// Uses Resend REST API. No SMTP and no MailChannels.
 
 type Env = {
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
   NEXT_PUBLIC_SUPABASE_URL?: string;
   NEXT_PUBLIC_SUPABASE_ANON_KEY?: string;
+  RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   EMAIL_REPLY_TO?: string;
   EMAIL_BCC?: string;
@@ -34,23 +34,6 @@ function stripHtml(html: string) {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
-}
-
-function parseEmailAddress(input: string) {
-  const value = String(input || "").trim();
-  const match = value.match(/^(.*?)\s*<([^>]+)>$/);
-
-  if (match) {
-    return {
-      name: match[1].trim().replace(/^"|"$/g, "") || "Aashan & Co LLC",
-      email: match[2].trim(),
-    };
-  }
-
-  return {
-    name: "Aashan & Co LLC",
-    email: value || "support@aashan.co",
-  };
 }
 
 async function verifySupabaseToken(env: Env, token: string) {
@@ -117,6 +100,10 @@ export async function onRequestPost(context: any) {
     const auth = await verifySupabaseToken(env, token);
     if (!auth.ok) return jsonResponse({ error: auth.error }, 401);
 
+    if (!env.RESEND_API_KEY) {
+      return jsonResponse({ error: "RESEND_API_KEY is missing in Cloudflare variables." }, 500);
+    }
+
     const body = await context.request.json();
 
     const to = String(body.to || "").trim();
@@ -129,46 +116,50 @@ export async function onRequestPost(context: any) {
     if (!subject) return jsonResponse({ error: "Email subject is missing." }, 400);
     if (!html && !text) return jsonResponse({ error: "Email body is missing." }, 400);
 
-    const from = parseEmailAddress(env.EMAIL_FROM || "Aashan & Co LLC <support@aashan.co>");
-    const replyTo = parseEmailAddress(env.EMAIL_REPLY_TO || from.email);
+    const toList = to.split(",").map((email: string) => email.trim()).filter(Boolean);
+    const bccList = String(env.EMAIL_BCC || "").split(",").map((email: string) => email.trim()).filter(Boolean);
 
-    const recipients = to.split(",").map((email: string) => email.trim()).filter(Boolean).map((email: string) => ({ email }));
-    const bccList = String(env.EMAIL_BCC || "").split(",").map((email: string) => email.trim()).filter(Boolean).map((email: string) => ({ email }));
-
-    const mailPayload: any = {
-      personalizations: [
-        {
-          to: recipients,
-          ...(bccList.length ? { bcc: bccList } : {}),
-        },
-      ],
-      from,
-      reply_to: replyTo,
+    const resendPayload: any = {
+      from: env.EMAIL_FROM || "Aashan & Co LLC <support@aashan.co>",
+      to: toList,
       subject,
-      content: [
-        { type: "text/plain", value: text || stripHtml(html) },
-        { type: "text/html", value: html || text.replace(/\n/g, "<br />") },
-      ],
+      html: html || text.replace(/\n/g, "<br />"),
+      text: text || stripHtml(html),
     };
 
-    const sendResponse = await fetch("https://api.mailchannels.net/tx/v1/send", {
+    if (env.EMAIL_REPLY_TO) resendPayload.reply_to = env.EMAIL_REPLY_TO;
+    if (bccList.length) resendPayload.bcc = bccList;
+
+    const sendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(mailPayload),
+      headers: {
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(resendPayload),
     });
 
-    const responseText = await sendResponse.text();
+    const responseBody = await sendResponse.text();
+    let resendResult: any = {};
+
+    try {
+      resendResult = responseBody ? JSON.parse(responseBody) : {};
+    } catch {
+      resendResult = { raw: responseBody };
+    }
 
     if (!sendResponse.ok) {
+      const message = resendResult?.message || resendResult?.error || responseBody || sendResponse.statusText;
+
       await logEmail(env, {
         to_email: to,
         subject,
         document_type: documentType,
         status: "Failed",
-        error_message: responseText.slice(0, 500),
+        error_message: String(message).slice(0, 500),
       }, token);
 
-      return jsonResponse({ error: `Email failed: ${responseText || sendResponse.statusText}` }, 500);
+      return jsonResponse({ error: `Email failed: ${message}` }, 500);
     }
 
     await logEmail(env, {
@@ -179,7 +170,11 @@ export async function onRequestPost(context: any) {
       error_message: "",
     }, token);
 
-    return jsonResponse({ ok: true, message: `${documentType} email sent to ${to}` });
+    return jsonResponse({
+      ok: true,
+      id: resendResult?.id || "",
+      message: `${documentType} email sent to ${to}`,
+    });
   } catch (error: any) {
     return jsonResponse({ error: error?.message || "Unexpected email error." }, 500);
   }
