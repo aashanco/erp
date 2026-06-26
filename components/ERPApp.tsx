@@ -402,7 +402,7 @@ export default function ERPApp() {
 
   useEffect(() => {
     if (printInvoice || printQuote || printReceipt) {
-      const timer = setTimeout(() => window.print(), 600);
+      const timer = setTimeout(() => window.print(), 900);
       return () => clearTimeout(timer);
     }
   }, [printInvoice, printQuote, printReceipt]);
@@ -2771,7 +2771,7 @@ export default function ERPApp() {
                 <div className="invoice-notes"><h3>Notes</h3><p>{printQuote.notes || getPrintTemplate('Quote').notes_text}</p></div>
                 <div className="invoice-footer">{getPrintTemplate('Quote').footer_text}</div>
               </div>
-              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
+              <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
             </div>
           )}
     
@@ -2795,7 +2795,7 @@ export default function ERPApp() {
                 <div className="invoice-notes"><h3>Notes</h3><p>{printReceipt.notes || getPrintTemplate('Receipt').notes_text || 'Thank you for your payment.'}</p></div>
                 <div className="invoice-footer">{getPrintTemplate('Receipt').footer_text}</div>
               </div>
-              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
+              <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
             </div>
           )}
     
@@ -2866,7 +2866,7 @@ export default function ERPApp() {
                   {getPrintTemplate('Invoice').footer_text}
                 </div>
               </div>
-              <button className="close-print" onClick={closePrintPreview}>Close Print Preview</button>
+              <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
             </div>
           )}
     </main>
@@ -3025,6 +3025,7 @@ const styles: Record<string, any> = {
 
 const printCss = `
 .invoice-print { display: none; }
+
 @media (max-width: 900px) {
   .app-screen section > div {
     display: block !important;
@@ -3139,59 +3140,72 @@ const printCss = `
     font-size: 15px;
     color: #0f172a;
   }
+}
 
-  .topBar {
-    gap: 8px !important;
+.dash-card { border-left: 6px solid #2563eb; }
+.dash-card-customer { border-left-color: #2563eb !important; }
+.dash-card-quote { border-left-color: #7c3aed !important; }
+.dash-card-work { border-left-color: #f97316 !important; }
+.dash-card-invoice { border-left-color: #16a34a !important; }
+.dash-card-danger { border-left-color: #dc2626 !important; }
+.dash-card-success { border-left-color: #15803d !important; }
+
+@media screen {
+  .invoice-print {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.72);
+    z-index: 99999;
+    overflow: auto;
+    padding: 32px 16px;
+    display: block;
   }
 
-  .dash-card h2 {
-    font-size: 26px !important;
+  .invoice-page {
+    background: white;
+    color: #111827;
+    width: 8.5in;
+    min-height: 11in;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0.45in;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 20px 70px rgba(15, 23, 42, 0.35);
   }
 
-  .dash-card b {
-    font-size: 15px !important;
+  .close-print {
+    display: block;
+    margin: 0;
+    padding: 11px 18px;
+    border: none;
+    background: #dc2626;
+    color: white;
+    border-radius: 9px;
+    cursor: pointer;
+    font-weight: 800;
   }
 
-  .sectionCard {
-    border-radius: 18px !important;
+  .print-action-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 16px auto 0;
+  }
+
+  .print-action-row .close-print:first-child {
+    background: #2563eb;
   }
 }
 
-.dash-card {
-  border-left: 6px solid #2563eb;
-}
-
-.dash-card-customer {
-  border-left-color: #2563eb !important;
-}
-
-.dash-card-quote {
-  border-left-color: #7c3aed !important;
-}
-
-.dash-card-work {
-  border-left-color: #f97316 !important;
-}
-
-.dash-card-invoice {
-  border-left-color: #16a34a !important;
-}
-
-.dash-card-danger {
-  border-left-color: #dc2626 !important;
-}
-
-.dash-card-success {
-  border-left-color: #15803d !important;
-}
-}
 @media print {
   @page {
     size: Letter;
     margin: 0.35in;
   }
 
-  html, body {
+  html,
+  body {
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
@@ -3204,167 +3218,180 @@ const printCss = `
     print-color-adjust: exact !important;
   }
 
-  .app-screen {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .invoice-print,
+  .invoice-print * {
+    visibility: visible !important;
+  }
+
+  .app-screen,
+  .topBar,
+  .bottom-nav,
+  .floating-add,
+  .quick-add-sheet,
+  .close-print,
+  .print-action-row {
     display: none !important;
+    visibility: hidden !important;
   }
 
   .invoice-print {
     display: block !important;
-    position: static !important;
-    inset: auto !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    min-height: 100% !important;
     background: white !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
+    z-index: 999999 !important;
   }
 
   .invoice-page {
     display: block !important;
     width: 100% !important;
-    max-width: none !important;
     min-height: auto !important;
+    max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     page-break-after: auto !important;
     page-break-inside: avoid !important;
+    font-family: Arial, sans-serif !important;
+    color: #111827 !important;
+    background: white !important;
   }
+}
 
-  .close-print {
-    display: none !important;
-  }
-
-  .invoice-logo {
-    display: block !important;
-    print-color-adjust: exact !important;
-    -webkit-print-color-adjust: exact !important;
-  }
-}
-@media screen {
-  .invoice-print {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.70);
-    z-index: 9999;
-    overflow: auto;
-    padding: 30px;
-  }
-  .close-print {
-    display: block;
-    margin: 15px auto;
-    padding: 10px 16px;
-    border: none;
-    background: #dc2626;
-    color: white;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 700;
-  }
-}
-.invoice-page {
-  background: white;
-  color: #111827;
-  max-width: 850px;
-  margin: 0 auto;
-  padding: 36px;
-  box-sizing: border-box;
-  font-family: Arial, sans-serif;
-  border-radius: 0;
-}
 .invoice-header {
   display: flex;
   justify-content: space-between;
-  border-bottom: 3px solid #0f172a;
-  padding-bottom: 16px;
-  gap: 25px;
+  border-bottom: 4px solid #0f172a;
+  padding-bottom: 18px;
+  gap: 24px;
 }
+
 .invoice-logo {
-  width: 96px;
-  height: 96px;
+  width: 94px;
+  height: 94px;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: 12px;
+  display: block;
+  background: #ffffff;
 }
+
 .invoice-header h1 {
-  margin: 8px 0 4px;
+  margin: 10px 0 4px;
   color: #0f172a;
+  font-size: 26px;
 }
+
 .invoice-header p {
   margin: 4px 0;
 }
+
 .invoice-company {
   text-align: right;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.45;
 }
+
 .invoice-title-row {
   display: flex;
   justify-content: space-between;
-  margin-top: 22px;
-  gap: 25px;
+  margin-top: 24px;
+  gap: 24px;
 }
+
 .invoice-title-row h2 {
-  font-size: 30px;
+  font-size: 32px;
   margin: 0 0 10px;
   color: #0f172a;
+  letter-spacing: 0.04em;
 }
+
 .invoice-billto {
   background: #f8fafc;
-  padding: 14px;
-  border-radius: 10px;
-  margin-top: 20px;
+  border: 1px solid #e2e8f0;
+  padding: 15px;
+  border-radius: 12px;
+  margin-top: 22px;
 }
+
 .invoice-billto h3 {
-  margin-top: 0;
+  margin: 0 0 8px;
+  color: #0f172a;
 }
+
 .invoice-billto p {
   margin: 5px 0;
 }
+
 .invoice-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 20px;
+  margin-top: 22px;
 }
+
 .invoice-table th {
   background: #0f172a;
   color: white;
-  padding: 11px;
+  padding: 12px;
   text-align: left;
 }
+
 .invoice-table td {
   border-bottom: 1px solid #e5e7eb;
-  padding: 12px 11px;
+  padding: 13px 12px;
 }
+
 .invoice-table td:last-child,
 .invoice-table th:last-child {
   text-align: right;
 }
+
 .invoice-total {
-  width: 300px;
+  width: 320px;
   margin-left: auto;
   margin-top: 20px;
   background: #f8fafc;
-  padding: 13px;
-  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 14px;
+  border-radius: 12px;
 }
+
 .invoice-total p {
   display: flex;
   justify-content: space-between;
   margin: 8px 0;
   font-size: 15px;
 }
+
 .invoice-total p:last-child {
   font-size: 18px;
   border-top: 2px solid #0f172a;
   padding-top: 10px;
 }
+
 .invoice-notes {
-  margin-top: 26px;
+  margin-top: 28px;
   border-top: 1px solid #e5e7eb;
-  padding-top: 14px;
+  padding-top: 15px;
+  color: #334155;
+  line-height: 1.55;
 }
+
 .invoice-footer {
-  margin-top: 30px;
+  margin-top: 32px;
   text-align: center;
-  font-weight: 700;
+  font-weight: 800;
   color: #0f172a;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
 }
 `;
