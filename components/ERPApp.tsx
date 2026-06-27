@@ -2763,13 +2763,15 @@ export default function ERPApp() {
                     </div>
                   </div>
                   <div className="doc-contact">
-                    <p>Phone: {company.phone || '(832) 210-4248'}</p>
-                    <p>Email: {company.email || 'support@aashan.co'}</p>
-                    <p>Web: {company.website || 'www.aashan.co'}</p>
-                    <p>Dallas–Fort Worth metroplex</p>
+                    <p>☎ {company.phone || '(832) 210-4248'}</p>
+                    <p>✉ {company.email || 'support@aashan.co'}</p>
+                    <p>🌐 {company.website || 'www.aashan.co'}</p>
+                    <p>📍 Dallas–Fort Worth metroplex</p>
                   </div>
                 </div>
+
                 <div className="doc-line" />
+
                 <div className="doc-title-row">
                   <div>
                     <h2>QUOTE</h2>
@@ -2778,9 +2780,10 @@ export default function ERPApp() {
                   </div>
                   <div className="doc-date-box">
                     <p><b>Issue date</b><span>{printQuote.quote_date}</span></p>
-                    <p><b>Expiry date</b><span>{(() => { const d = new Date(printQuote.quote_date || new Date().toISOString().slice(0, 10)); d.setDate(d.getDate() + 10); return d.toISOString().slice(0, 10); })()}</span></p>
+                    <p><b>Expiry date</b><span>{(() => { const d = new Date(printQuote.quote_date || new Date().toISOString().slice(0,10)); d.setDate(d.getDate() + 10); return d.toISOString().slice(0,10); })()}</span></p>
                   </div>
                 </div>
+
                 <div className="doc-bill-box">
                   <h3>Quote To</h3>
                   <p><b>{printQuote.customer}</b></p>
@@ -2788,9 +2791,20 @@ export default function ERPApp() {
                   <p>{getCustomerByName(printQuote.customer)?.phone}</p>
                   <p>{getCustomerByName(printQuote.customer)?.email}</p>
                 </div>
+
                 <h3 className="doc-service-title">{printQuote.service || 'Quotation'}</h3>
+
                 <table className="doc-items">
-                  <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Price</th><th>Discount</th><th>Total</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Qty</th>
+                      <th>Unit price</th>
+                      <th>Price</th>
+                      <th>Discount</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     <tr>
                       <td>{printQuote.service}</td>
@@ -2802,11 +2816,13 @@ export default function ERPApp() {
                     </tr>
                   </tbody>
                 </table>
+
                 <div className="doc-totals">
                   <p><span>Sub-total</span><b>${Number((Number(printQuote.subtotal || 0) - Number(printQuote.discount || 0)) || printQuote.amount || 0).toFixed(2)}</b></p>
                   <p><span>Tax {Number(printQuote.tax_rate || 0).toFixed(2)}%</span><b>${Number(printQuote.tax_amount || 0).toFixed(2)}</b></p>
                   <p className="doc-grand-total"><span>Total</span><b>${Number(printQuote.total_amount || printQuote.amount || 0).toFixed(2)}</b></p>
                 </div>
+
                 <div className="doc-terms">
                   <p><b>Quotation Validity</b><br />All quotes are valid for a limited period, typically ten (10) days from the date of the quotation.</p>
                   <p><b>Scope of Work / Supply</b><br />Only items listed in the estimate are covered. Changes or additions must be documented in writing.</p>
@@ -2815,6 +2831,7 @@ export default function ERPApp() {
                   <p><b>Cancellations & Changes</b><br />Any cancellation or modification must be communicated in writing. Cancellation fees may apply if work has already commenced or materials have been ordered.</p>
                   <p><b>Acceptance of Quotation</b><br />Acceptance of this quotation, whether written, electronic, or verbal, constitutes acceptance of these terms and conditions.</p>
                 </div>
+
                 <div className="doc-footer">{getPrintTemplate('Quote').footer_text || 'Thank you for the opportunity.'}</div>
               </div>
               <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
@@ -2857,17 +2874,27 @@ export default function ERPApp() {
                     </div>
                   </div>
                   <div className="doc-contact">
-                    <p>Phone: {company.phone || '(832) 210-4248'}</p>
-                    <p>Email: {company.email || 'support@aashan.co'}</p>
-                    <p>Web: {company.website || 'www.aashan.co'}</p>
-                    <p>Dallas–Fort Worth metroplex</p>
+                    <p>☎ {company.phone || '(832) 210-4248'}</p>
+                    <p>✉ {company.email || 'support@aashan.co'}</p>
+                    <p>🌐 {company.website || 'www.aashan.co'}</p>
+                    <p>📍 Dallas–Fort Worth metroplex</p>
                   </div>
                 </div>
+
                 <div className="doc-line" />
+
                 <div className="doc-title-row">
-                  <div><h2>INVOICE</h2><p><b>Invoice #:</b> {printInvoice.invoice_no}</p><p><b>Status:</b> {printInvoice.status}</p></div>
-                  <div className="doc-date-box"><p><b>Invoice date</b><span>{printInvoice.invoice_date}</span></p><p><b>Due date</b><span>{printInvoice.due_date}</span></p></div>
+                  <div>
+                    <h2>INVOICE</h2>
+                    <p><b>Invoice #:</b> {printInvoice.invoice_no}</p>
+                    <p><b>Status:</b> {printInvoice.status}</p>
+                  </div>
+                  <div className="doc-date-box">
+                    <p><b>Invoice date</b><span>{printInvoice.invoice_date}</span></p>
+                    <p><b>Due date</b><span>{printInvoice.due_date}</span></p>
+                  </div>
                 </div>
+
                 <div className="doc-bill-box">
                   <h3>Bill To</h3>
                   <p><b>{printInvoice.customer}</b></p>
@@ -2875,76 +2902,556 @@ export default function ERPApp() {
                   <p>{printInvoice.customer_phone || getCustomerByName(printInvoice.customer)?.phone}</p>
                   <p>{printInvoice.customer_email || getCustomerByName(printInvoice.customer)?.email}</p>
                 </div>
+
                 <h3 className="doc-service-title">{printInvoice.notes || 'Invoice'}</h3>
-                <table className="doc-items"><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Price</th><th>Discount</th><th>Total</th></tr></thead>
-                  <tbody><tr><td>{printInvoice.notes || 'Service'}</td><td>{Number(printInvoice.qty || 1).toFixed(0)}</td><td>{Number(printInvoice.unit_price || printInvoice.amount || 0).toFixed(2)}</td><td>{Number(printInvoice.subtotal || (Number(printInvoice.qty || 1) * Number(printInvoice.unit_price || printInvoice.amount || 0))).toFixed(2)}</td><td>{Number(printInvoice.discount || 0).toFixed(2)}</td><td>{Number((Number(printInvoice.subtotal || 0) - Number(printInvoice.discount || 0)) || printInvoice.amount || 0).toFixed(2)}</td></tr></tbody>
+
+                <table className="doc-items">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Qty</th>
+                      <th>Unit price</th>
+                      <th>Price</th>
+                      <th>Discount</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{printInvoice.notes || 'Service'}</td>
+                      <td>{Number(printInvoice.qty || 1).toFixed(0)}</td>
+                      <td>{Number(printInvoice.unit_price || printInvoice.amount || 0).toFixed(2)}</td>
+                      <td>{Number(printInvoice.subtotal || (Number(printInvoice.qty || 1) * Number(printInvoice.unit_price || printInvoice.amount || 0))).toFixed(2)}</td>
+                      <td>{Number(printInvoice.discount || 0).toFixed(2)}</td>
+                      <td>{Number((Number(printInvoice.subtotal || 0) - Number(printInvoice.discount || 0)) || printInvoice.amount || 0).toFixed(2)}</td>
+                    </tr>
+                  </tbody>
                 </table>
-                <div className="doc-totals"><p><span>Sub-total</span><b>${Number((Number(printInvoice.subtotal || 0) - Number(printInvoice.discount || 0)) || printInvoice.amount || 0).toFixed(2)}</b></p><p><span>Tax {Number(printInvoice.tax_rate || 0).toFixed(2)}%</span><b>${Number(printInvoice.tax_amount || 0).toFixed(2)}</b></p><p className="doc-grand-total"><span>Total</span><b>${Number(printInvoice.total_amount || printInvoice.amount || 0).toFixed(2)}</b></p></div>
-                <div className="doc-terms"><p><b>Payment Terms</b><br />{getPrintTemplate('Invoice').terms_text || 'Payment due within agreed terms.'}</p><p><b>Scope of Work / Supply</b><br />Only items listed in this invoice are covered. Changes or additions must be documented in writing.</p><p><b>Pricing</b><br />Pricing is based on labor hours, material costs, and services provided.</p><p><b>Questions</b><br />Please contact Aashan & Co LLC if you have any questions regarding this invoice.</p></div>
+
+                <div className="doc-totals">
+                  <p><span>Sub-total</span><b>${Number((Number(printInvoice.subtotal || 0) - Number(printInvoice.discount || 0)) || printInvoice.amount || 0).toFixed(2)}</b></p>
+                  <p><span>Tax {Number(printInvoice.tax_rate || 0).toFixed(2)}%</span><b>${Number(printInvoice.tax_amount || 0).toFixed(2)}</b></p>
+                  <p className="doc-grand-total"><span>Total</span><b>${Number(printInvoice.total_amount || printInvoice.amount || 0).toFixed(2)}</b></p>
+                </div>
+
+                <div className="doc-terms">
+                  <p><b>Payment Terms</b><br />{getPrintTemplate('Invoice').terms_text || 'Payment due within agreed terms.'}</p>
+                  <p><b>Scope of Work / Supply</b><br />Only items listed in this invoice are covered. Changes or additions must be documented in writing.</p>
+                  <p><b>Pricing</b><br />Pricing is based on labor hours, material costs, and services provided.</p>
+                  <p><b>Questions</b><br />Please contact Aashan & Co LLC if you have any questions regarding this invoice.</p>
+                </div>
+
                 <div className="doc-footer">{getPrintTemplate('Invoice').footer_text || 'Thank you for choosing Aashan & Co LLC.'}</div>
               </div>
               <div className="print-action-row"><button className="close-print" onClick={() => window.print()}>Print Document</button><button className="close-print" onClick={closePrintPreview}>Close Print Preview</button></div>
             </div>
           )}
+    </main>
+  );
+}
+
+
+function SidebarGroup({ title, children }: any) {
+  return (
+    <div style={styles.sidebarGroup}>
+      <div style={styles.sidebarGroupTitle}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function SideButton({ label, active, onClick }: any) {
+  return (
+    <button style={active ? styles.sideButtonActive : styles.sideButton} onClick={onClick}>
+      {label}
+    </button>
+  );
+}
+
+function Card({ title, value }: { title: string; value: any }) {
+  const tone =
+    title.toLowerCase().includes('outstanding') ? '#dc2626' :
+    title.toLowerCase().includes('revenue') || title.toLowerCase().includes('profit') ? '#16a34a' :
+    title.toLowerCase().includes('work') || title.toLowerCase().includes('job') ? '#f97316' :
+    title.toLowerCase().includes('quote') ? '#7c3aed' :
+    title.toLowerCase().includes('invoice') || title.toLowerCase().includes('receipt') ? '#2563eb' :
+    '#0f172a';
+
+  return (
+    <div className="dash-card" style={{ ...styles.card, borderLeft: `6px solid ${tone}` }}>
+      <div style={styles.cardTitle}>{title}</div>
+      <div style={styles.cardValue}>{value}</div>
+    </div>
+  );
+}
+function SectionCard({ title, children }: any) {
+  return <div style={styles.sectionCard}><h2 style={styles.sectionTitle}>{title}</h2>{children}</div>;
+}
+function Field({ label, children }: any) {
+  return <div style={styles.field}><label style={styles.label}>{label}</label>{children}</div>;
+}
+function Input({ label, value, onChange, type = 'text' }: any) {
+  return <Field label={label}><input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)} style={styles.input} /></Field>;
+}
+function DataTable({ title, headers, children }: any) {
+  return <div style={styles.sectionCard}><h2 style={styles.sectionTitle}>{title}</h2><div style={{ overflowX: 'auto' }}><table style={styles.table}><thead><tr>{headers.map((h: string) => <th key={h} style={styles.th}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div></div>;
+}
+function Td({ children }: any) { return <td style={styles.td}>{children}</td>; }
+function ButtonRow({ children }: any) { return <div style={styles.buttonRow}>{children}</div>; }
+function StatusBadge({ status }: { status: string }) {
+  const color = status === 'Paid' ? styles.badgeGreen : status === 'Partially Paid' ? styles.badgeOrange : status === 'Cancelled' ? styles.badgeRed : status === 'Sent' || status === 'Invoiced' ? styles.badgeBlue : styles.badgeGray;
+  return <span style={{ ...styles.badge, ...color }}>{status}</span>;
+}
+
+const styles: Record<string, any> = {
+  page: { fontFamily: 'Arial, sans-serif', background: '#f3f6fa', minHeight: '100vh', color: '#0f172a' },
+  loginPage: { fontFamily: 'Arial, sans-serif', background: 'linear-gradient(135deg, #0f172a, #2563eb)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  loginCard: { background: 'white', borderRadius: 18, padding: 28, width: '100%', maxWidth: 430, boxShadow: '0 25px 60px rgba(0,0,0,0.25)' },
+  loginLogo: { background: '#0f172a', color: 'white', padding: '10px 14px', borderRadius: 12, fontWeight: 800, display: 'inline-block', marginBottom: 18 },
+  logoutBtn: { background: '#dc2626', color: 'white', border: 0, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontWeight: 700 },
+  header: { background: 'linear-gradient(135deg, #0f172a, #1d4ed8)', color: 'white', padding: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap', position: 'sticky', top: 0, zIndex: 9998, boxShadow: '0 12px 35px rgba(15,23,42,0.18)' },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
+  rolePill: { background: 'rgba(255,255,255,0.14)', padding: '8px 12px', borderRadius: 999, fontWeight: 800, fontSize: 13 },
+  headerTitle: { margin: 0, fontSize: 28 },
+  headerSub: { margin: '6px 0 0', opacity: 0.9 },
+  phaseBadge: { background: '#1d4ed8', padding: '8px 14px', borderRadius: 999, fontWeight: 700 },
+  container: { maxWidth: 1500, margin: '0 auto', padding: 18 },
+  erpShell: { display: 'grid', gridTemplateColumns: '260px 1fr', gap: 18, alignItems: 'start' },
+  sidebar: { background: '#0f172a', color: 'white', borderRadius: 18, padding: 16, position: 'sticky', top: 16, minHeight: 'calc(100vh - 130px)' },
+  sidebarBrand: { fontSize: 20, fontWeight: 800, padding: '8px 10px 18px', borderBottom: '1px solid rgba(255,255,255,0.14)', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  mobileMenuButton: { display: 'none', background: '#2563eb', color: 'white', border: 0, borderRadius: 10, padding: '9px 13px', cursor: 'pointer', fontWeight: 800 },
+  mobileCloseButton: { display: 'none', background: 'transparent', color: 'white', border: 0, fontSize: 28, cursor: 'pointer' },
+  sidebarGroup: { marginBottom: 18 },
+  sidebarGroupTitle: { fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, margin: '12px 10px 8px' },
+  sideButton: { width: '100%', textAlign: 'left', background: 'transparent', color: '#dbeafe', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 },
+  sideButtonActive: { width: '100%', textAlign: 'left', background: '#2563eb', color: 'white', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 800, marginBottom: 4 },
+  contentArea: { minWidth: 0 },
+  topBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18, flexWrap: 'wrap' },
+  pageTitle: { margin: 0, fontSize: 26 },
+  pageSub: { margin: '4px 0 0', color: '#64748b' },
+  dashboardGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 18 },
+  executiveCards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, marginTop: 18, marginBottom: 18 },
+  chartRow: { display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, alignItems: 'center', marginBottom: 12 },
+  chartLabel: { fontWeight: 800, color: '#334155' },
+  chartTrack: { display: 'flex', flexDirection: 'column', gap: 4 },
+  chartBarRevenue: { background: '#dcfce7', color: '#166534', borderRadius: 999, padding: '5px 8px', fontSize: 12, whiteSpace: 'nowrap', minWidth: 75 },
+  chartBarExpense: { background: '#fee2e2', color: '#991b1b', borderRadius: 999, padding: '5px 8px', fontSize: 12, whiteSpace: 'nowrap', minWidth: 75 },
+  topCustomerRow: { display: 'flex', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid #e5e7eb', padding: '10px 0' },
+  kpiList: { display: 'grid', gap: 10 },
+  kpiListItem: {},
+
+  mobileQuickActions: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  mobileActionTiles: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 18 },
+  mobileHomeBanner: { display: 'none', background: 'linear-gradient(135deg, #eff6ff, #ffffff)', border: '1px solid #dbeafe', borderRadius: 18, padding: 16, marginBottom: 14, boxShadow: '0 10px 25px rgba(37,99,235,0.08)', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  mobileDashboardSummary: { display: 'none', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 },
+  actionGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 },
+  actionTile: { border: 0, background: '#2563eb', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileGreen: { border: 0, background: '#059669', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileDark: { border: 0, background: '#0f172a', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileGray: { border: 0, background: '#64748b', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  kpiRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', padding: '9px 0', gap: 12 },
+  floatingAdd: { display: 'none', position: 'fixed', right: 18, bottom: 88, width: 62, height: 62, borderRadius: '50%', border: 0, background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', fontSize: 34, zIndex: 10000, boxShadow: '0 16px 40px rgba(37,99,235,0.42)' },
+  quickAddSheet: { display: 'none', position: 'fixed', right: 18, bottom: 152, background: 'white', borderRadius: 18, padding: 10, zIndex: 10000, boxShadow: '0 20px 50px rgba(15,23,42,0.25)', minWidth: 230 },
+  quickAddItem: { width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: '12px 10px', borderRadius: 12, fontWeight: 800, color: '#0f172a' },
+  quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
+  bottomNav: { display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: '1px solid #e5e7eb', zIndex: 9999, padding: '6px 8px', boxShadow: '0 -10px 30px rgba(15,23,42,0.12)' },
+  bottomNavBtn: { flex: 1, border: 0, background: 'transparent', color: '#475569', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  bottomNavActive: { flex: 1, border: 0, background: '#dbeafe', color: '#1d4ed8', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontWeight: 800 },
+  techJobList: { display: 'grid', gap: 14 },
+  techJobCard: { background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 16, padding: 15 },
+  techJobHeader: { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' },
+  techMeta: { display: 'grid', gap: 5, color: '#64748b', fontSize: 13, margin: '10px 0' },
+  techPlaceholders: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  helpText: { color: '#64748b', marginTop: 0 },
+  errorBox: { background: '#fee2e2', color: '#991b1b', padding: 14, borderRadius: 10 },
+  successBox: { background: '#dcfce7', color: '#166534', padding: 14, borderRadius: 10, fontWeight: 700 },
+  toolbar: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 },
+  tab: { background: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #e5e7eb', boxShadow: '0 3px 10px rgba(15,23,42,0.08)', cursor: 'pointer' },
+  tabActive: { background: '#2563eb', color: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #2563eb', boxShadow: '0 3px 10px rgba(37,99,235,0.25)', cursor: 'pointer' },
+  search: { width: '100%', maxWidth: 520, padding: 12, margin: '0 0 20px', border: '1px solid #cbd5e1', borderRadius: 10, boxSizing: 'border-box', background: 'white' },
+  cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 16, marginBottom: 22 },
+  card: { background: 'white', padding: 18, borderRadius: 16, boxShadow: '0 8px 20px rgba(15,23,42,0.08)', minHeight: 92 },
+  cardTitle: { fontWeight: 700, color: '#334155', marginBottom: 10 },
+  cardValue: { fontSize: 28, fontWeight: 800 },
+  sectionCard: { background: 'white', padding: 22, borderRadius: 16, boxShadow: '0 8px 20px rgba(15,23,42,0.08)', marginTop: 22 },
+  sectionTitle: { marginTop: 0, marginBottom: 18 },
+  formGrid2: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18, alignItems: 'end' },
+  field: { display: 'flex', flexDirection: 'column', gap: 7 },
+  label: { fontSize: 14, fontWeight: 700, color: '#0f172a' },
+  input: { width: '100%', height: 42, padding: '9px 10px', border: '1px solid #cbd5e1', borderRadius: 8, boxSizing: 'border-box', background: 'white' },
+  buttonRow: { display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' },
+  primaryBtn: { background: '#2563eb', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
+  greenBtn: { background: '#059669', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
+  grayBtn: { background: '#64748b', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
+  smallBtn: { background: '#2563eb', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  greenSmallBtn: { background: '#059669', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  printBtn: { background: '#111827', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  dangerBtn: { background: '#dc2626', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, cursor: 'pointer' },
+  smallSelect: { padding: 7, border: '1px solid #cbd5e1', borderRadius: 7 },
+  badge: { padding: '5px 9px', borderRadius: 999, fontWeight: 700, fontSize: 12 },
+  badgeGreen: { background: '#dcfce7', color: '#166534' },
+  badgeOrange: { background: '#ffedd5', color: '#9a3412' },
+  badgeRed: { background: '#fee2e2', color: '#991b1b' },
+  badgeBlue: { background: '#dbeafe', color: '#1d4ed8' },
+  badgeGray: { background: '#e5e7eb', color: '#374151' },
+  table: { width: '100%', borderCollapse: 'collapse' },
+  th: { textAlign: 'left', padding: 12, background: '#f8fafc', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' },
+  td: { padding: 12, borderBottom: '1px solid #e5e7eb', verticalAlign: 'middle' },
+};
+
 const printCss = `
 .invoice-print { display: none; }
 
 @media screen {
-  .invoice-print { position: fixed; inset: 0; background: rgba(15,23,42,.72); z-index: 99999; overflow: auto; padding: 22px 12px; display: block; }
-  .quote-page { background: #fff; color: #0f172a; width: 8.5in; min-height: 11in; max-width: 100%; margin: 0 auto; padding: .36in; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; box-shadow: 0 20px 70px rgba(15,23,42,.35); }
-  .print-action-row { display: flex; justify-content: center; gap: 10px; margin: 16px auto 0; }
-  .close-print { display: block; margin: 0; padding: 11px 18px; border: none; background: #dc2626; color: white; border-radius: 9px; cursor: pointer; font-weight: 800; }
-  .print-action-row .close-print:first-child { background: #2563eb; }
+  .invoice-print {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.72);
+    z-index: 99999;
+    overflow: auto;
+    padding: 22px 12px;
+    display: block;
+  }
+
+  .quote-page {
+    background: #ffffff;
+    color: #0f172a;
+    width: 8.5in;
+    min-height: 11in;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0.36in;
+    box-sizing: border-box;
+    font-family: Arial, Helvetica, sans-serif;
+    box-shadow: 0 20px 70px rgba(15, 23, 42, 0.35);
+  }
+
+  .print-action-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 16px auto 0;
+  }
+
+  .close-print {
+    display: block;
+    margin: 0;
+    padding: 11px 18px;
+    border: none;
+    background: #dc2626;
+    color: white;
+    border-radius: 9px;
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .print-action-row .close-print:first-child {
+    background: #2563eb;
+  }
 }
 
 @media print {
-  @page { size: Letter; margin: .32in; }
-  html, body { margin: 0 !important; padding: 0 !important; background: white !important; height: auto !important; overflow: visible !important; }
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  body * { visibility: hidden !important; }
-  .invoice-print, .invoice-print * { visibility: visible !important; }
-  .app-screen, .app-screen *, .topBar, .bottom-nav, .floating-add, .quick-add-sheet, .close-print, .print-action-row { display: none !important; visibility: hidden !important; }
-  .invoice-print { display: block !important; position: static !important; width: 100% !important; min-height: 0 !important; background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; z-index: auto !important; }
-  .quote-page { display: block !important; width: 100% !important; min-height: 0 !important; max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; page-break-after: avoid !important; page-break-before: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; break-before: avoid !important; break-inside: avoid !important; font-family: Arial, Helvetica, sans-serif !important; color: #0f172a !important; background: white !important; }
+  @page {
+    size: Letter;
+    margin: 0.32in;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .invoice-print,
+  .invoice-print * {
+    visibility: visible !important;
+  }
+
+  .app-screen,
+  .app-screen *,
+  .topBar,
+  .bottom-nav,
+  .floating-add,
+  .quick-add-sheet,
+  .close-print,
+  .print-action-row {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .invoice-print {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    z-index: auto !important;
+  }
+
+  .quote-page {
+    display: block !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid !important;
+    break-before: avoid !important;
+    break-inside: avoid !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    color: #0f172a !important;
+    background: white !important;
+  }
 }
 
-.doc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 22px; }
-.doc-brand { display: flex; align-items: center; gap: 20px; }
-.doc-logo { width: 112px; height: 112px; object-fit: contain; display: block; }
-.doc-brand h1 { margin: 0; font-size: 27px; color: #0f172a; line-height: 1.15; }
-.doc-brand p { margin: 6px 0 0; font-size: 17px; color: #1f2937; }
-.doc-contact { text-align: left; font-size: 14px; line-height: 1.45; min-width: 220px; }
-.doc-contact p { margin: 0 0 7px; }
-.doc-line { border-top: 4px solid #0f172a; margin: 24px 0 18px; }
-.doc-title-row { display: flex; justify-content: space-between; gap: 28px; margin-bottom: 20px; }
-.doc-title-row h2 { margin: 0 0 8px; font-size: 38px; letter-spacing: .06em; color: #0f172a; }
-.doc-title-row p { margin: 4px 0; font-size: 14px; }
-.doc-date-box { min-width: 220px; padding-top: 8px; }
-.doc-date-box p { display: grid; grid-template-columns: 110px 1fr; gap: 10px; margin: 0 0 13px; font-size: 15px; }
-.doc-bill-box { width: 360px; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 13px 16px; margin: 8px 0 30px; background: #fff; }
-.doc-bill-box h3 { margin: 0 0 8px; color: #0f172a; font-size: 18px; }
-.doc-bill-box p { margin: 3px 0; font-size: 14px; }
-.doc-service-title { margin: 0 0 12px; font-size: 18px; color: #0f172a; }
-.doc-items { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
-.doc-items th { background: #0f172a; color: white; border: 1px solid #334155; padding: 9px 10px; text-align: left; font-size: 14px; }
-.doc-items th:not(:first-child), .doc-items td:not(:first-child) { text-align: right; }
-.doc-items td { border: 1px solid #94a3b8; padding: 10px; vertical-align: top; min-height: 42px; }
-.doc-items th:first-child { width: 46%; }
-.doc-totals { width: 245px; margin-left: auto; margin-top: 12px; border: 1px solid #94a3b8; font-size: 14px; }
-.doc-totals p { display: flex; justify-content: space-between; margin: 0; padding: 8px 10px; border-bottom: 1px solid #cbd5e1; }
-.doc-totals p:last-child { border-bottom: 0; }
-.doc-grand-total { background: #0f172a; color: #fff; font-size: 16px; font-weight: 900; }
-.doc-terms { margin-top: 28px; font-size: 13px; line-height: 1.45; }
-.doc-terms p { margin: 0 0 10px; }
-.doc-terms b { color: #0f172a; }
-.doc-footer { margin-top: 24px; border-top: 1px solid #0f172a; padding-top: 12px; text-align: center; font-weight: 900; color: #0f172a; }
+.doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 22px;
+}
+
+.doc-brand {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.doc-logo {
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  display: block;
+}
+
+.doc-brand h1 {
+  margin: 0;
+  font-size: 27px;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+.doc-brand p {
+  margin: 6px 0 0;
+  font-size: 17px;
+  color: #1f2937;
+}
+
+.doc-contact {
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.45;
+  min-width: 220px;
+}
+
+.doc-contact p {
+  margin: 0 0 7px;
+}
+
+.doc-line {
+  border-top: 4px solid #0f172a;
+  margin: 24px 0 18px;
+}
+
+.doc-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 20px;
+}
+
+.doc-title-row h2 {
+  margin: 0 0 8px;
+  font-size: 38px;
+  letter-spacing: 0.06em;
+  color: #0f172a;
+}
+
+.doc-title-row p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.doc-date-box {
+  min-width: 220px;
+  padding-top: 8px;
+}
+
+.doc-date-box p {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  margin: 0 0 13px;
+  font-size: 15px;
+}
+
+.doc-bill-box {
+  width: 360px;
+  max-width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 13px 16px;
+  margin: 8px 0 30px;
+  background: #ffffff;
+}
+
+.doc-bill-box h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.doc-bill-box p {
+  margin: 3px 0;
+  font-size: 14px;
+}
+
+.doc-service-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.doc-items {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.doc-items th {
+  background: #0f172a;
+  color: white;
+  border: 1px solid #334155;
+  padding: 9px 10px;
+  text-align: left;
+  font-size: 14px;
+}
+
+.doc-items th:not(:first-child),
+.doc-items td:not(:first-child) {
+  text-align: right;
+}
+
+.doc-items td {
+  border: 1px solid #94a3b8;
+  padding: 10px;
+  vertical-align: top;
+  min-height: 42px;
+}
+
+.doc-items th:first-child {
+  width: 46%;
+}
+
+.doc-totals {
+  width: 245px;
+  margin-left: auto;
+  margin-top: 12px;
+  border: 1px solid #94a3b8;
+  font-size: 14px;
+}
+
+.doc-totals p {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.doc-totals p:last-child {
+  border-bottom: 0;
+}
+
+.doc-grand-total {
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.doc-terms {
+  margin-top: 28px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.doc-terms p {
+  margin: 0 0 10px;
+}
+
+.doc-terms b {
+  color: #0f172a;
+}
+
+.doc-footer {
+  margin-top: 24px;
+  border-top: 1px solid #0f172a;
+  padding-top: 12px;
+  text-align: center;
+  font-weight: 900;
+  color: #0f172a;
+}
 
 @media (max-width: 900px) {
-  .app-screen section > div { display: block !important; }
-  .mobile-menu-button { display: inline-flex !important; align-items: center; gap: 6px; }
-  .mobile-close-button { display: block !important; }
-  aside { position: fixed !important; top: 0 !important; left: 0 !important; width: 82vw !important; max-width: 330px !important; height: 100vh !important; min-height: 100vh !important; z-index: 10001 !important; border-radius: 0 18px 18px 0 !important; overflow-y: auto !important; transform: translateX(-110%); transition: transform .2s ease; margin: 0 !important; }
-  aside.sidebar-open { transform: translateX(0); }
-  .bottom-nav { display: flex !important; }
+  .app-screen section > div {
+    display: block !important;
+  }
+
+  .mobile-menu-button {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mobile-close-button {
+    display: block !important;
+  }
+
+  aside {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 82vw !important;
+    max-width: 330px !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    z-index: 10001 !important;
+    border-radius: 0 18px 18px 0 !important;
+    overflow-y: auto !important;
+    transform: translateX(-110%);
+    transition: transform 0.2s ease;
+    margin: 0 !important;
+  }
+
+  aside.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .bottom-nav {
+    display: flex !important;
+  }
 }
 `;
+
