@@ -810,10 +810,11 @@ export default function ERPApp() {
     const today = new Date().toISOString().slice(0, 10);
     const c = getCustomerByName(selected.customer);
 
-    setInvoice({
+    setInvoice(applyInvoiceCalculation({
       invoice_no: invoice.invoice_no || nextInvoiceNo(),
       customer: selected.customer,
       job_id: selected.id || null,
+      quote_id: null,
       amount: String(selected.amount || ''),
       qty: invoice.qty || '1',
       unit_price: invoice.unit_price || String(selected.amount || ''),
