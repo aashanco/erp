@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 
-type Customer = { id?: number; name: string; phone: string; email: string; address: string };
+type Customer = { id?: number; customer_no?: string; name: string; phone: string; email: string; address: string };
 type Job = { id?: number; customer: string; service: string; job_date: string; amount: string; status: string };
 type Quote = { id?: number; quote_no: string; customer: string; service: string; quote_date: string; amount: string; status: string; notes: string; qty?: string; unit_price?: string; discount?: string; tax_rate?: string; tax_amount?: string; subtotal?: string; total_amount?: string };
 type WorkOrder = { id?: number; work_order_no: string; job_id?: number | null; customer: string; service: string; technician: string; scheduled_date: string; start_time: string; end_time: string; status: string; notes: string };
@@ -15,6 +15,7 @@ type Invoice = {
   invoice_no: string;
   customer: string;
   job_id?: number | null;
+  quote_id?: number | null;
   amount: string;
   qty?: string;
   unit_price?: string;
@@ -39,6 +40,7 @@ type Payment = {
   payment_date: string;
   amount: string;
   payment_method: string;
+  bank_name?: string;
   notes: string;
 };
 
@@ -94,7 +96,7 @@ type EmailTemplate = { id?: number; template_name: string; subject: string; body
 
 const LOGO_SRC = '/aashan-logo.png';
 
-const emptyCustomer: Customer = { name: '', phone: '', email: '', address: '' };
+const emptyCustomer: Customer = { customer_no: '', name: '', phone: '', email: '', address: '' };
 const emptyJob: Job = { customer: '', service: '', job_date: '', amount: '', status: 'New' };
 const emptyQuote: Quote = { quote_no: '', customer: '', service: '', quote_date: '', amount: '', qty: '1', unit_price: '', discount: '0', tax_rate: '0', tax_amount: '0', subtotal: '0', total_amount: '0', status: 'Draft', notes: '' };
 const emptyWorkOrder: WorkOrder = { work_order_no: '', job_id: null, customer: '', service: '', technician: '', scheduled_date: '', start_time: '', end_time: '', status: 'Scheduled', notes: '' };
@@ -102,6 +104,7 @@ const emptyInvoice: Invoice = {
   invoice_no: '',
   customer: '',
   job_id: null,
+  quote_id: null,
   amount: '',
   qty: '1',
   unit_price: '',
@@ -118,7 +121,7 @@ const emptyInvoice: Invoice = {
   customer_email: '',
   customer_address: '',
 };
-const emptyPayment: Payment = { invoice_id: null, invoice_no: '', customer: '', payment_date: '', amount: '', payment_method: 'Cash', notes: '' };
+const emptyPayment: Payment = { invoice_id: null, invoice_no: '', customer: '', payment_date: '', amount: '', payment_method: 'Cash', bank_name: '', notes: '' };
 const emptyBank: Bank = { bank_name: '', account_name: '', account_number: '', routing_number: '', opening_balance: '0', current_balance: '0', is_active: true };
 const emptyReceipt: Receipt = { receipt_no: '', customer: '', invoice_no: '', receipt_date: '', amount: '', payment_method: 'Cash', bank_name: '', notes: '' };
 const emptyPurchaseInvoice: PurchaseInvoice = { purchase_invoice_no: '', vendor: '', invoice_date: '', due_date: '', category: 'Materials', description: '', amount: '', status: 'Open', bank_name: '', notes: '' };
@@ -415,6 +418,18 @@ export default function ERPApp() {
     return `Q-${String(maxNo + 1).padStart(4, '0')}`;
   }
 
+  function nextCustomerNo() {
+    const maxNo = customers.reduce((max, c) => {
+      const num = Number(String(c.customer_no || '').replace(/[^0-9]/g, ''));
+      return Number.isFinite(num) && num > max ? num : max;
+    }, 0);
+    return `CUST-${String(maxNo + 1).padStart(6, '0')}`;
+  }
+
+  function defaultTaxRate() {
+    return String(company.tax_rate || '0');
+  }
+
   function nextWorkOrderNo() {
     const maxNo = workOrders.reduce((max, wo) => {
       const num = Number(String(wo.work_order_no || '').replace(/[^0-9]/g, ''));
@@ -532,12 +547,20 @@ export default function ERPApp() {
 
   async function saveCustomer() {
     if (!customer.name.trim()) return alert('Enter customer name');
-    const payload = { name: customer.name.trim(), phone: customer.phone || '', email: customer.email || '', address: customer.address || '' };
+
+    const payload = {
+      ...customer,
+      customer_no: customer.customer_no || nextCustomerNo(),
+    };
+
     const res = editingCustomerId
       ? await supabase.from('customers').update(payload).eq('id', editingCustomerId)
       : await supabase.from('customers').insert([payload]);
+
     if (res.error) return alert(res.error.message);
-    setCustomer(emptyCustomer); setEditingCustomerId(null); await loadData();
+    setCustomer(emptyCustomer);
+    setEditingCustomerId(null);
+    await loadData();
   }
 
   function editCustomer(c: Customer) {
@@ -555,12 +578,13 @@ export default function ERPApp() {
   async function saveQuote() {
     if (!quote.customer.trim() || !quote.service.trim()) return alert('Select customer and enter service');
     const today = new Date().toISOString().slice(0, 10);
-    const calc = calculateLineAmount(quote);
+    const quoteToSave = applyQuoteCalculation({ ...quote, tax_rate: (quote.tax_rate && quote.tax_rate !== '0' ? quote.tax_rate : defaultTaxRate()) });
+    const calc = calculateLineAmount(quoteToSave);
     const payload = {
       quote_no: quote.quote_no || nextQuoteNo(),
-      customer: quote.customer,
-      service: quote.service,
-      quote_date: quote.quote_date || today,
+      customer: quoteToSave.customer,
+      service: quoteToSave.service,
+      quote_date: quoteToSave.quote_date || today,
       qty: calc.qty,
       unit_price: calc.unit_price,
       discount: calc.discount,
@@ -569,8 +593,8 @@ export default function ERPApp() {
       tax_amount: calc.tax_amount,
       total_amount: calc.total_amount,
       amount: calc.total_amount,
-      status: quote.status,
-      notes: quote.notes || '',
+      status: quoteToSave.status,
+      notes: quoteToSave.notes || '',
     };
 
     const res = editingQuoteId
@@ -615,7 +639,7 @@ export default function ERPApp() {
     };
     const res = await supabase.from('jobs').insert([payload]);
     if (res.error) return alert(res.error.message);
-    if (q.id) await supabase.from('quotes').update({ status: 'Approved' }).eq('id', q.id);
+    if (q.id) await supabase.from('quotes').update({ status: 'Converted' }).eq('id', q.id);
     await loadData();
     alert('Quote converted to Job');
   }
@@ -627,10 +651,11 @@ export default function ERPApp() {
       invoice_no: nextInvoiceNo(),
       customer: q.customer,
       job_id: null,
+      quote_id: q.id || null,
       qty: Number(q.qty || 1),
       unit_price: Number(q.unit_price || q.amount || 0),
       discount: Number(q.discount || 0),
-      tax_rate: Number(q.tax_rate || 0),
+      tax_rate: Number(q.tax_rate || company.tax_rate || 0),
       subtotal: Number(q.subtotal || q.amount || 0),
       tax_amount: Number(q.tax_amount || 0),
       total_amount: Number(q.total_amount || q.amount || 0),
@@ -750,6 +775,34 @@ export default function ERPApp() {
     await loadData();
   }
 
+  function fillInvoiceFromQuote(quoteIdValue: string) {
+    if (!quoteIdValue) return setInvoice({ ...invoice, quote_id: null });
+    const selected = quotes.find((q) => String(q.id) === quoteIdValue);
+    if (!selected) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const c = getCustomerByName(selected.customer);
+    setInvoice(applyInvoiceCalculation({
+      ...invoice,
+      quote_id: selected.id || null,
+      job_id: null,
+      customer: selected.customer,
+      amount: String(selected.total_amount || selected.amount || ''),
+      qty: String(selected.qty || '1'),
+      unit_price: String(selected.unit_price || selected.amount || ''),
+      discount: String(selected.discount || '0'),
+      tax_rate: String(selected.tax_rate || defaultTaxRate()),
+      subtotal: String(selected.subtotal || selected.amount || 0),
+      tax_amount: String(selected.tax_amount || 0),
+      total_amount: String(selected.total_amount || selected.amount || 0),
+      invoice_date: invoice.invoice_date || today,
+      due_date: invoice.due_date || today,
+      notes: selected.service || selected.notes || 'Thank you for choosing Aashan & Co LLC.',
+      customer_phone: c?.phone || '',
+      customer_email: c?.email || '',
+      customer_address: c?.address || '',
+    }));
+  }
+
   function fillInvoiceFromJob(jobIdValue: string) {
     if (!jobIdValue) return setInvoice({ ...invoice, job_id: null });
     const selected = jobs.find((j) => String(j.id) === jobIdValue);
@@ -765,7 +818,7 @@ export default function ERPApp() {
       qty: invoice.qty || '1',
       unit_price: invoice.unit_price || String(selected.amount || ''),
       discount: invoice.discount || '0',
-      tax_rate: invoice.tax_rate || '0',
+      tax_rate: (invoice.tax_rate && invoice.tax_rate !== '0' ? invoice.tax_rate : defaultTaxRate()),
       subtotal: invoice.subtotal || String(selected.amount || 0),
       tax_amount: invoice.tax_amount || '0',
       total_amount: invoice.total_amount || String(selected.amount || 0),
@@ -776,18 +829,19 @@ export default function ERPApp() {
       customer_phone: c?.phone || '',
       customer_email: c?.email || '',
       customer_address: c?.address || '',
-    });
+    }));
   }
 
   function fillInvoiceCustomer(customerName: string) {
     const c = getCustomerByName(customerName);
-    setInvoice({
+    setInvoice(applyInvoiceCalculation({
       ...invoice,
       customer: customerName,
+      tax_rate: (invoice.tax_rate && invoice.tax_rate !== '0' ? invoice.tax_rate : defaultTaxRate()),
       customer_phone: c?.phone || '',
       customer_email: c?.email || '',
       customer_address: c?.address || '',
-    });
+    }));
   }
 
   async function saveInvoice() {
@@ -795,11 +849,13 @@ export default function ERPApp() {
     if (!invoice.amount) return alert('Enter invoice amount');
 
     const c = getCustomerByName(invoice.customer);
-    const calc = calculateLineAmount(invoice);
+    const invoiceToSave = applyInvoiceCalculation({ ...invoice, tax_rate: (invoice.tax_rate && invoice.tax_rate !== '0' ? invoice.tax_rate : defaultTaxRate()) });
+    const calc = calculateLineAmount(invoiceToSave);
     const payload = {
       invoice_no: invoice.invoice_no || nextInvoiceNo(),
-      customer: invoice.customer,
-      job_id: invoice.job_id || null,
+      customer: invoiceToSave.customer,
+      job_id: invoiceToSave.job_id || null,
+      quote_id: invoiceToSave.quote_id || null,
       qty: calc.qty,
       unit_price: calc.unit_price,
       discount: calc.discount,
@@ -810,11 +866,11 @@ export default function ERPApp() {
       amount: calc.total_amount,
       invoice_date: invoice.invoice_date || null,
       due_date: invoice.due_date || null,
-      status: invoice.status,
-      notes: invoice.notes || '',
-      customer_phone: invoice.customer_phone || c?.phone || '',
-      customer_email: invoice.customer_email || c?.email || '',
-      customer_address: invoice.customer_address || c?.address || '',
+      status: invoiceToSave.status,
+      notes: invoiceToSave.notes || '',
+      customer_phone: invoiceToSave.customer_phone || c?.phone || '',
+      customer_email: invoiceToSave.customer_email || c?.email || '',
+      customer_address: invoiceToSave.customer_address || c?.address || '',
     };
 
     const res = editingInvoiceId
@@ -825,6 +881,10 @@ export default function ERPApp() {
 
     if (payload.job_id) {
       await supabase.from('jobs').update({ status: payload.status === 'Paid' ? 'Paid' : 'Invoiced' }).eq('id', payload.job_id);
+    }
+
+    if (payload.quote_id) {
+      await supabase.from('quotes').update({ status: 'Converted' }).eq('id', payload.quote_id);
     }
 
     setInvoice(emptyInvoice); setEditingInvoiceId(null); await loadData();
@@ -892,6 +952,7 @@ export default function ERPApp() {
       payment_date: payment.payment_date || null,
       amount: Number(payment.amount || 0),
       payment_method: payment.payment_method,
+      bank_name: payment.bank_name || '',
       notes: payment.notes || '',
     };
 
@@ -915,7 +976,7 @@ export default function ERPApp() {
   }
 
   function editPayment(p: Payment) {
-    setPayment({ ...p, amount: String(p.amount || '') });
+    setPayment({ ...p, amount: String(p.amount || ''), bank_name: p.bank_name || '' });
     setEditingPaymentId(p.id || null);
     setActiveTab('payments');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1696,6 +1757,8 @@ export default function ERPApp() {
 
   const invoicedJobIds = invoices.map((i) => Number(i.job_id)).filter(Boolean);
   const availableInvoiceJobs = jobs.filter((j) => !invoicedJobIds.includes(Number(j.id)) || Number(j.id) === Number(invoice.job_id));
+  const invoicedQuoteIds = invoices.map((i) => Number(i.quote_id)).filter(Boolean);
+  const availableInvoiceQuotes = quotes.filter((q) => !invoicedQuoteIds.includes(Number(q.id)) || Number(q.id) === Number(invoice.quote_id));
   const payableInvoices = invoices.filter((i) => invoiceBalance(i) > 0 || Number(i.id) === Number(payment.invoice_id));
 
   const outstanding = invoices.filter((i) => i.status !== 'Cancelled').reduce((sum, i) => sum + invoiceBalance(i), 0);
@@ -2004,6 +2067,7 @@ export default function ERPApp() {
                 <>
                   <SectionCard title={editingCustomerId ? 'Edit Customer' : 'Add Customer'}>
                     <div style={styles.formGrid2}>
+                      <Input label="Customer No" value={customer.customer_no || ''} onChange={(v: string) => setCustomer({ ...customer, customer_no: v })} />
                       <Input label="Name" value={customer.name} onChange={(v: string) => setCustomer({ ...customer, name: v })} />
                       <Input label="Phone" value={customer.phone} onChange={(v: string) => setCustomer({ ...customer, phone: v })} />
                       <Input label="Email" value={customer.email} onChange={(v: string) => setCustomer({ ...customer, email: v })} />
@@ -2015,8 +2079,8 @@ export default function ERPApp() {
                     </ButtonRow>
                   </SectionCard>
     
-                  <DataTable title="Customer List" headers={['Name', 'Phone', 'Email', 'Address', 'Actions']}>
-                    {filteredCustomers.map((c) => <tr key={c.id}><Td>{c.name}</Td><Td>{c.phone}</Td><Td>{c.email}</Td><Td>{c.address}</Td><Td><button style={styles.smallBtn} onClick={() => editCustomer(c)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteCustomer(c.id)}>Delete</button></Td></tr>)}
+                  <DataTable title="Customer List" headers={['Customer #', 'Name', 'Phone', 'Email', 'Address', 'Actions']}>
+                    {filteredCustomers.map((c) => <tr key={c.id}><Td>{c.customer_no}</Td><Td>{c.name}</Td><Td>{c.phone}</Td><Td>{c.email}</Td><Td>{c.address}</Td><Td><button style={styles.smallBtn} onClick={() => editCustomer(c)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteCustomer(c.id)}>Delete</button></Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2054,7 +2118,7 @@ export default function ERPApp() {
                   <SectionCard title={editingQuoteId ? 'Edit Quote' : 'Create Quote'}>
                     <div style={styles.formGrid2}>
                       <Input label="Quote No" value={quote.quote_no} onChange={(v: string) => setQuote({ ...quote, quote_no: v })} />
-                      <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote({ ...quote, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                      <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote(applyQuoteCalculation({ ...quote, customer: e.target.value, tax_rate: (quote.tax_rate && quote.tax_rate !== '0' ? quote.tax_rate : defaultTaxRate()) }))} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
                       <Input label="Quote Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
                       <Input label="Service / Description" value={quote.service} onChange={(v: string) => setQuote({ ...quote, service: v })} />
                       <Input label="Qty" type="number" value={quote.qty || '1'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, qty: v }))} />
@@ -2064,7 +2128,7 @@ export default function ERPApp() {
                       <Input label="Subtotal" value={Number(quote.subtotal || 0).toFixed(2)} onChange={() => {}} />
                       <Input label="Tax Amount" value={Number(quote.tax_amount || 0).toFixed(2)} onChange={() => {}} />
                       <Input label="Total Amount" value={Number(quote.total_amount || quote.amount || 0).toFixed(2)} onChange={() => {}} />
-                      <Field label="Status"><select value={quote.status} onChange={(e) => setQuote({ ...quote, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Field>
+                      <Field label="Status"><select value={quote.status} onChange={(e) => setQuote({ ...quote, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option><option>Converted</option></select></Field>
                       <Input label="Notes" value={quote.notes} onChange={(v: string) => setQuote({ ...quote, notes: v })} />
                     </div>
                     <ButtonRow>
@@ -2082,7 +2146,7 @@ export default function ERPApp() {
                         <Td>{qt.service}</Td>
                         <Td>${Number(qt.total_amount || qt.amount || 0).toFixed(2)}</Td>
                         <Td><StatusBadge status={qt.status} /></Td>
-                        <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option></select></Td>
+                        <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option><option>Converted</option></select></Td>
                         <Td>
                           <button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button>
                           <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
@@ -2101,7 +2165,7 @@ export default function ERPApp() {
                 <>
                   <SectionCard title={editingJobId ? 'Edit Job / Quote' : 'Add Job / Quote'}>
                     <div style={styles.formGrid2}>
-                      <Field label="Customer"><select value={job.customer} onChange={(e) => setJob({ ...job, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                      <Field label="Customer"><select value={job.customer} onChange={(e) => setJob({ ...job, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
                       <Input label="Service" value={job.service} onChange={(v: string) => setJob({ ...job, service: v })} />
                       <Input label="Date" type="date" value={job.job_date} onChange={(v: string) => setJob({ ...job, job_date: v })} />
                       <Input label="Amount" value={job.amount} onChange={(v: string) => setJob({ ...job, amount: v })} />
@@ -2252,9 +2316,10 @@ export default function ERPApp() {
                 <>
                   <SectionCard title={editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}>
                     <div style={styles.formGrid2}>
+                      <Field label="From Quote"><select value={invoice.quote_id ? String(invoice.quote_id) : ''} onChange={(e) => fillInvoiceFromQuote(e.target.value)} style={styles.input}><option value="">Select Quote</option>{availableInvoiceQuotes.map((q) => <option key={q.id} value={q.id}>{q.quote_no} - {q.customer} - ${Number(q.total_amount || q.amount || 0).toFixed(2)}</option>)}</select></Field>
                       <Field label="From Job"><select value={invoice.job_id ? String(invoice.job_id) : ''} onChange={(e) => fillInvoiceFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{availableInvoiceJobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service} - ${j.amount}</option>)}</select></Field>
                       <Input label="Invoice No" value={invoice.invoice_no} onChange={(v: string) => setInvoice({ ...invoice, invoice_no: v })} />
-                      <Field label="Customer"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+                      <Field label="Customer"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
                       <Input label="Invoice Date" type="date" value={invoice.invoice_date} onChange={(v: string) => setInvoice({ ...invoice, invoice_date: v })} />
                       <Input label="Due Date" type="date" value={invoice.due_date} onChange={(v: string) => setInvoice({ ...invoice, due_date: v })} />
                       <Input label="Qty" type="number" value={invoice.qty || '1'} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, qty: v }))} />
@@ -2291,6 +2356,7 @@ export default function ERPApp() {
                       <Input label="Payment Date" type="date" value={payment.payment_date} onChange={(v: string) => setPayment({ ...payment, payment_date: v })} />
                       <Input label="Amount" value={payment.amount} onChange={(v: string) => setPayment({ ...payment, amount: v })} />
                       <Field label="Payment Method"><select value={payment.payment_method} onChange={(e) => setPayment({ ...payment, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                      <Field label="Bank Account"><select value={payment.bank_name || ''} onChange={(e) => setPayment({ ...payment, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.filter((b) => b.is_active).map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
                       <Input label="Notes" value={payment.notes} onChange={(v: string) => setPayment({ ...payment, notes: v })} />
                     </div>
                     <ButtonRow>
@@ -2299,8 +2365,8 @@ export default function ERPApp() {
                     </ButtonRow>
                   </SectionCard>
     
-                  <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Notes', 'Actions']}>
-                    {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
+                  <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Bank', 'Notes', 'Actions']}>
+                    {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.bank_name || ''}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
                   </DataTable>
                 </>
               )}
