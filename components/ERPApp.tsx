@@ -467,6 +467,30 @@ export default function ERPApp() {
     return calcInvoiceBalance(inv, payments, receipts);
   }
 
+  async function updateBankCurrentBalance(bankName: string, delta: number) {
+    if (!bankName || !delta) return;
+
+    const bank = banks.find((b) => b.bank_name === bankName);
+    if (!bank?.id) return;
+
+    const newBalance = Number(bank.current_balance || 0) + Number(delta || 0);
+
+    await supabase
+      .from('banks')
+      .update({ current_balance: newBalance })
+      .eq('id', bank.id);
+  }
+
+  async function applyBankDelta(oldBankName: string, oldAmount: number, newBankName: string, newAmount: number) {
+    if (oldBankName) {
+      await updateBankCurrentBalance(oldBankName, -Number(oldAmount || 0));
+    }
+
+    if (newBankName) {
+      await updateBankCurrentBalance(newBankName, Number(newAmount || 0));
+    }
+  }
+
   function getCustomerByName(name: string) {
     return customers.find((c) => c.name === name);
   }
@@ -897,6 +921,10 @@ export default function ERPApp() {
     if (!payment.invoice_id) return alert('Select invoice');
     if (!payment.amount) return alert('Enter payment amount');
 
+    const oldPayment = editingPaymentId
+      ? payments.find((p) => Number(p.id) === Number(editingPaymentId))
+      : null;
+
     const payload = {
       invoice_id: payment.invoice_id,
       invoice_no: payment.invoice_no,
@@ -906,6 +934,7 @@ export default function ERPApp() {
       payment_method: payment.payment_method,
       bank_name: payment.bank_name || '',
       notes: payment.notes || '',
+      status: 'Posted',
     };
 
     const res = editingPaymentId
@@ -913,6 +942,13 @@ export default function ERPApp() {
       : await supabase.from('payments').insert([payload]);
 
     if (res.error) return alert(res.error.message);
+
+    await applyBankDelta(
+      oldPayment?.bank_name || '',
+      Number(oldPayment?.amount || 0),
+      payload.bank_name,
+      Number(payload.amount || 0)
+    );
 
     const relatedInvoice = invoices.find((i) => Number(i.id) === Number(payload.invoice_id));
     setPayment(emptyPayment);
@@ -1286,6 +1322,12 @@ export default function ERPApp() {
 
 async function saveReceipt() {
     if (!receipt.customer.trim()) return alert('Enter customer');
+    if (!receipt.amount) return alert('Enter receipt amount');
+
+    const oldReceipt = editingReceiptId
+      ? receipts.find((r) => Number(r.id) === Number(editingReceiptId))
+      : null;
+
     const payload = {
       receipt_no: receipt.receipt_no || nextReceiptNo(),
       customer: receipt.customer,
@@ -1293,13 +1335,23 @@ async function saveReceipt() {
       receipt_date: receipt.receipt_date || null,
       amount: Number(receipt.amount || 0),
       payment_method: receipt.payment_method,
-      bank_name: receipt.bank_name,
+      bank_name: receipt.bank_name || '',
       notes: receipt.notes,
+      status: 'Posted',
     };
+
     const res = editingReceiptId
       ? await supabase.from('receipts').update(payload).eq('id', editingReceiptId)
       : await supabase.from('receipts').insert([payload]);
+
     if (res.error) return alert(res.error.message);
+
+    await applyBankDelta(
+      oldReceipt?.bank_name || '',
+      Number(oldReceipt?.amount || 0),
+      payload.bank_name,
+      Number(payload.amount || 0)
+    );
 
     await refreshInvoiceStatusAfterReceipt(payload.invoice_no);
     setReceipt(emptyReceipt); setEditingReceiptId(null); await loadData();
