@@ -13,11 +13,7 @@ export type PostingProfile = {
   is_active?: boolean;
 };
 
-export function getPostingProfile(
-  profiles: PostingProfile[],
-  transactionType: string,
-  module?: string
-) {
+export function getPostingProfile(profiles: PostingProfile[], transactionType: string, module?: string) {
   return profiles.find((p) =>
     p.is_active !== false &&
     p.transaction_type === transactionType &&
@@ -30,13 +26,8 @@ export function getPostingProfile(
   );
 }
 
-export function buildPostingLines(
-  profile: PostingProfile | undefined,
-  amount: number,
-  description: string
-) {
+export function buildPostingLines(profile: PostingProfile | undefined, amount: number, description: string) {
   if (!profile) return [];
-
   return [
     {
       account_code: profile.debit_account_code || '',

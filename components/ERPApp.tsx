@@ -5,6 +5,7 @@ import UserManagement from "./UserManagement";
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
+import { canDeleteDocument, canEditDocument, invoiceBalance as calcInvoiceBalance, invoicePaidAmount as calcInvoicePaidAmount, invoiceStatusFromBalance } from '../lib/finance/TransactionControl';
 import { getNextCustomerNo, getDefaultTaxRate, calculateLineAmount, applyQuoteCalculation, applyInvoiceCalculation } from "../lib/finance/NumberSequence";
 
 
@@ -44,10 +45,12 @@ type Payment = {
   payment_method: string;
   bank_name?: string;
   notes: string;
+  status?: string;
+  posted_at?: string;
 };
 
 type Bank = { id?: number; bank_name: string; account_name: string; account_number: string; routing_number: string; opening_balance: string; current_balance: string; is_active: boolean };
-type Receipt = { id?: number; receipt_no: string; customer: string; invoice_no: string; receipt_date: string; amount: string; payment_method: string; bank_name: string; notes: string };
+type Receipt = { id?: number; receipt_no: string; customer: string; invoice_no: string; receipt_date: string; amount: string; payment_method: string; bank_name: string; notes: string; status?: string; posted_at?: string };
 type PurchaseInvoice = { id?: number; purchase_invoice_no: string; vendor: string; invoice_date: string; due_date: string; category: string; description: string; amount: string; status: string; bank_name: string; notes: string };
 type JournalEntry = { id?: number; journal_no: string; journal_date: string; description: string; debit_account: string; credit_account: string; amount: string; notes: string };
 
@@ -457,13 +460,11 @@ export default function ERPApp() {
   }
 
   function invoicePaidAmount(invoiceId?: number, invoiceNo?: string) {
-    return payments
-      .filter((p) => Number(p.invoice_id) === Number(invoiceId) || p.invoice_no === invoiceNo)
-      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    return calcInvoicePaidAmount(payments, receipts, invoiceId, invoiceNo);
   }
 
   function invoiceBalance(inv: Invoice) {
-    return Math.max(Number(inv.amount || 0) - invoicePaidAmount(inv.id, inv.invoice_no), 0);
+    return calcInvoiceBalance(inv, payments, receipts);
   }
 
   function getCustomerByName(name: string) {
@@ -561,6 +562,8 @@ export default function ERPApp() {
   }
 
   async function deleteQuote(id?: number) {
+    const existing = quotes.find((q) => Number(q.id) === Number(id));
+    if (existing && !canDeleteDocument(existing.status)) return alert('This quote is locked and cannot be deleted after conversion/posting.');
     if (!id || !confirm('Delete this quote?')) return;
     const { error } = await supabase.from('quotes').delete().eq('id', id);
     if (error) return alert(error.message);
@@ -859,7 +862,9 @@ export default function ERPApp() {
   }
 
   async function deleteInvoice(id?: number) {
-    if (!id || !confirm('Delete this invoice?')) return;
+    const existing = invoices.find((d: any) => Number(d.id) === Number(id));
+    if (existing && !canDeleteDocument(existing.status || 'Posted')) return alert('This invoice is locked and cannot be deleted after posting/payment.');
+    if (!id || !confirm('Delete this document?')) return;
     const { error } = await supabase.from('invoices').delete().eq('id', id);
     if (error) return alert(error.message);
     await loadData();
@@ -1271,7 +1276,15 @@ export default function ERPApp() {
     await loadData();
   }
 
-  async function saveReceipt() {
+    async function refreshInvoiceStatusAfterReceipt(invoiceNo: string) {
+    const inv = invoices.find((i) => String(i.invoice_no || '') === String(invoiceNo || ''));
+    if (!inv || !inv.id) return;
+
+    const newStatus = invoiceStatusFromBalance(inv, payments, receipts);
+    await supabase.from('invoices').update({ status: newStatus }).eq('id', inv.id);
+  }
+
+async function saveReceipt() {
     if (!receipt.customer.trim()) return alert('Enter customer');
     const payload = {
       receipt_no: receipt.receipt_no || nextReceiptNo(),
@@ -1287,6 +1300,8 @@ export default function ERPApp() {
       ? await supabase.from('receipts').update(payload).eq('id', editingReceiptId)
       : await supabase.from('receipts').insert([payload]);
     if (res.error) return alert(res.error.message);
+
+    await refreshInvoiceStatusAfterReceipt(payload.invoice_no);
     setReceipt(emptyReceipt); setEditingReceiptId(null); await loadData();
   }
 
@@ -1298,7 +1313,9 @@ export default function ERPApp() {
   }
 
   async function deleteReceipt(id?: number) {
-    if (!id || !confirm('Delete this receipt?')) return;
+    const existing = receipts.find((d: any) => Number(d.id) === Number(id));
+    if (existing && !canDeleteDocument((existing as any).status || 'Posted')) return alert('This receipt is locked and cannot be deleted after posting.');
+    if (!id || !confirm('Delete this document?')) return;
     const { error } = await supabase.from('receipts').delete().eq('id', id);
     if (error) return alert(error.message);
     await loadData();
@@ -1348,7 +1365,9 @@ export default function ERPApp() {
   }
 
   async function deletePurchaseInvoice(id?: number) {
-    if (!id || !confirm('Delete this purchase invoice?')) return;
+    const existing = purchaseInvoices.find((d: any) => Number(d.id) === Number(id));
+    if (existing && !canDeleteDocument(existing.status || 'Posted')) return alert('This purchase invoice is locked and cannot be deleted after posting/payment.');
+    if (!id || !confirm('Delete this document?')) return;
     const { error } = await supabase.from('purchase_invoices').delete().eq('id', id);
     if (error) return alert(error.message);
     await loadData();
@@ -2100,7 +2119,7 @@ export default function ERPApp() {
                           <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
                           <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find quote {{quote_no}} for $' + '{{amount}}' + '.', { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount })}>Email</button>
                           <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
-                          <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>
+                          {canDeleteDocument(qt.status) && <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>}
                         </Td>
                       </tr>
                     ))}
@@ -2289,7 +2308,7 @@ export default function ERPApp() {
                   </SectionCard>
     
                   <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find invoice {{invoice_no}} for $' + '{{amount}}' + '.', { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.total_amount || i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button></Td></tr>)}
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find invoice {{invoice_no}} for $' + '{{amount}}' + '.', { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.total_amount || i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button>{canDeleteDocument(i.status) && <button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2313,7 +2332,7 @@ export default function ERPApp() {
                   </SectionCard>
     
                   <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Bank', 'Notes', 'Actions']}>
-                    {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.bank_name || ''}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button><button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button></Td></tr>)}
+                    {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.bank_name || ''}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2337,7 +2356,7 @@ export default function ERPApp() {
                     <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
                   </SectionCard>
                   <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
-                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0AThank you for your payment of $' + '{{amount}}' + '. Receipt No: {{receipt_no}}', { customer: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button></Td></tr>)}
+                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0AThank you for your payment of $' + '{{amount}}' + '. Receipt No: {{receipt_no}}', { customer: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
               )}
