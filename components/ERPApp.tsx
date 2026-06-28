@@ -5,6 +5,8 @@ import UserManagement from "./UserManagement";
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
+import { getNextCustomerNo, getDefaultTaxRate, calculateLineAmount, applyQuoteCalculation, applyInvoiceCalculation } from "../lib/finance/NumberSequence";
+
 
 type Customer = { id?: number; customer_no?: string; name: string; phone: string; email: string; address: string };
 type Job = { id?: number; customer: string; service: string; job_date: string; amount: string; status: string };
@@ -419,15 +421,11 @@ export default function ERPApp() {
   }
 
   function nextCustomerNo() {
-    const maxNo = customers.reduce((max, c) => {
-      const num = Number(String(c.customer_no || '').replace(/[^0-9]/g, ''));
-      return Number.isFinite(num) && num > max ? num : max;
-    }, 0);
-    return `CUST-${String(maxNo + 1).padStart(6, '0')}`;
+    return getNextCustomerNo(customers);
   }
 
   function defaultTaxRate() {
-    return String(company.tax_rate || '0');
+    return getDefaultTaxRate(company);
   }
 
   function nextWorkOrderNo() {
@@ -474,58 +472,6 @@ export default function ERPApp() {
 
   function getJobById(jobId?: number | null) {
     return jobs.find((j) => Number(j.id) === Number(jobId));
-  }
-
-  function calculateLineAmount(doc: { qty?: any; unit_price?: any; discount?: any; tax_rate?: any; amount?: any }) {
-    const qty = Number(doc.qty || 0);
-    const unitPrice = Number(doc.unit_price || 0);
-    const discount = Number(doc.discount || 0);
-    const taxRate = Number(doc.tax_rate || 0);
-    const subtotal = qty * unitPrice;
-    const taxableAmount = Math.max(subtotal - discount, 0);
-    const taxAmount = taxableAmount * (taxRate / 100);
-    const totalAmount = taxableAmount + taxAmount;
-
-    return {
-      qty,
-      unit_price: unitPrice,
-      discount,
-      tax_rate: taxRate,
-      subtotal,
-      tax_amount: taxAmount,
-      total_amount: totalAmount,
-      amount: totalAmount,
-    };
-  }
-
-  function applyQuoteCalculation(nextQuote: Quote) {
-    const calc = calculateLineAmount(nextQuote);
-    return {
-      ...nextQuote,
-      qty: String(nextQuote.qty ?? '1'),
-      unit_price: String(nextQuote.unit_price ?? ''),
-      discount: String(nextQuote.discount ?? '0'),
-      tax_rate: String(nextQuote.tax_rate ?? '0'),
-      subtotal: String(calc.subtotal || 0),
-      tax_amount: String(calc.tax_amount || 0),
-      total_amount: String(calc.total_amount || 0),
-      amount: String(calc.total_amount || 0),
-    };
-  }
-
-  function applyInvoiceCalculation(nextInvoice: Invoice) {
-    const calc = calculateLineAmount(nextInvoice);
-    return {
-      ...nextInvoice,
-      qty: String(nextInvoice.qty ?? '1'),
-      unit_price: String(nextInvoice.unit_price ?? ''),
-      discount: String(nextInvoice.discount ?? '0'),
-      tax_rate: String(nextInvoice.tax_rate ?? '0'),
-      subtotal: String(calc.subtotal || 0),
-      tax_amount: String(calc.tax_amount || 0),
-      total_amount: String(calc.total_amount || 0),
-      amount: String(calc.total_amount || 0),
-    };
   }
 
   async function refreshInvoicePaymentStatus(inv: Invoice) {
