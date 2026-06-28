@@ -22,6 +22,7 @@ export function getNextCustomerNo(customers: CustomerLike[]) {
     const num = Number(String(c.customer_no || '').replace(/[^0-9]/g, ''));
     return Number.isFinite(num) && num > max ? num : max;
   }, 0);
+
   return `CUST-${padNumber(maxNo + 1, 6)}`;
 }
 
@@ -53,6 +54,7 @@ export function calculateLineAmount(doc: PricingDocument) {
 
 export function applyQuoteCalculation<T extends PricingDocument>(nextQuote: T): T {
   const calc = calculateLineAmount(nextQuote);
+
   return {
     ...nextQuote,
     qty: String(nextQuote.qty ?? '1'),
@@ -68,6 +70,7 @@ export function applyQuoteCalculation<T extends PricingDocument>(nextQuote: T): 
 
 export function applyInvoiceCalculation<T extends PricingDocument>(nextInvoice: T): T {
   const calc = calculateLineAmount(nextInvoice);
+
   return {
     ...nextInvoice,
     qty: String(nextInvoice.qty ?? '1'),
