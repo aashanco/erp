@@ -85,7 +85,6 @@ export default function PublicDocumentView() {
         .maybeSingle();
 
       if (docError) throw docError;
-
       if (!document) {
         setError('Document not found.');
         setLoading(false);
@@ -242,3 +241,4 @@ const styles: Record<string, any> = {
   grand: { background: '#0f172a', color: 'white', fontWeight: 900 },
   footer: { marginTop: 36, borderTop: '1px solid #cbd5e1', paddingTop: 18, textAlign: 'center', fontWeight: 800 },
 };
+
