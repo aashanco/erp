@@ -694,7 +694,7 @@ export default function ERPApp() {
   async function saveQuote() {
     if (!quote.customer.trim() || !quote.service.trim()) return alert('Select customer and enter service');
     const today = new Date().toISOString().slice(0, 10);
-    const quoteToSave = applyQuoteCalculation({ ...quote, tax_rate: (quote.tax_rate && quote.tax_rate !== '0' ? quote.tax_rate : defaultTaxRate()) });
+    const quoteToSave = applyQuoteCalculation({ ...quote, tax_rate: (quote.tax_rate === '' ? '0' : quote.tax_rate) });
     const calc = calculateLineAmount(quoteToSave);
     const payload = {
       quote_no: quote.quote_no || nextQuoteNo(),
@@ -773,7 +773,7 @@ export default function ERPApp() {
       qty: Number(q.qty || 1),
       unit_price: Number(q.unit_price || q.amount || 0),
       discount: Number(q.discount || 0),
-      tax_rate: Number(q.tax_rate || company.tax_rate || 0),
+      tax_rate: Number(q.tax_rate || 0),
       subtotal: Number(q.subtotal || q.amount || 0),
       tax_amount: Number(q.tax_amount || 0),
       total_amount: Number(q.total_amount || q.amount || 0),
@@ -908,7 +908,7 @@ export default function ERPApp() {
       qty: String(selected.qty || '1'),
       unit_price: String(selected.unit_price || selected.amount || ''),
       discount: String(selected.discount || '0'),
-      tax_rate: String(selected.tax_rate || defaultTaxRate()),
+      tax_rate: String(selected.tax_rate || '0'),
       subtotal: String(selected.subtotal || selected.amount || 0),
       tax_amount: String(selected.tax_amount || 0),
       total_amount: String(selected.total_amount || selected.amount || 0),
@@ -937,7 +937,7 @@ export default function ERPApp() {
       qty: invoice.qty || '1',
       unit_price: invoice.unit_price || String(selected.amount || ''),
       discount: invoice.discount || '0',
-      tax_rate: (invoice.tax_rate && invoice.tax_rate !== '0' ? invoice.tax_rate : defaultTaxRate()),
+      tax_rate: (invoice.tax_rate === '' ? '0' : invoice.tax_rate),
       subtotal: invoice.subtotal || String(selected.amount || 0),
       tax_amount: invoice.tax_amount || '0',
       total_amount: invoice.total_amount || String(selected.amount || 0),
@@ -956,7 +956,7 @@ export default function ERPApp() {
     setInvoice(applyInvoiceCalculation({
       ...invoice,
       customer: customerName,
-      tax_rate: (invoice.tax_rate && invoice.tax_rate !== '0' ? invoice.tax_rate : defaultTaxRate()),
+      tax_rate: (invoice.tax_rate === '' ? '0' : invoice.tax_rate),
       customer_phone: c?.phone || '',
       customer_email: c?.email || '',
       customer_address: c?.address || '',
@@ -968,7 +968,7 @@ export default function ERPApp() {
     if (!invoice.amount) return alert('Enter invoice amount');
 
     const c = getCustomerByName(invoice.customer);
-    const invoiceToSave = applyInvoiceCalculation({ ...invoice, tax_rate: (invoice.tax_rate && invoice.tax_rate !== '0' ? invoice.tax_rate : defaultTaxRate()) });
+    const invoiceToSave = applyInvoiceCalculation({ ...invoice, tax_rate: (invoice.tax_rate === '' ? '0' : invoice.tax_rate) });
     const calc = calculateLineAmount(invoiceToSave);
     const payload = {
       invoice_no: invoice.invoice_no || nextInvoiceNo(),
@@ -2313,7 +2313,7 @@ async function saveReceipt() {
                   <SectionCard title={editingQuoteId ? 'Edit Quote' : 'Create Quote'}>
                     <div style={styles.formGrid2}>
                       <Input label="Quote No" value={quote.quote_no} onChange={(v: string) => setQuote({ ...quote, quote_no: v })} />
-                      <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote(applyQuoteCalculation({ ...quote, customer: e.target.value, tax_rate: (quote.tax_rate && quote.tax_rate !== '0' ? quote.tax_rate : defaultTaxRate()) }))} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
+                      <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote(applyQuoteCalculation({ ...quote, customer: e.target.value, tax_rate: (quote.tax_rate === '' ? '0' : quote.tax_rate) }))} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
                       <Input label="Quote Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
                       <Input label="Service / Description" value={quote.service} onChange={(v: string) => setQuote({ ...quote, service: v })} />
                       <Input label="Qty" type="number" value={quote.qty || '1'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, qty: v }))} />

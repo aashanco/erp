@@ -33,7 +33,7 @@ export function calculateLineAmount(doc: PricingDocument) {
   const qty = Number(doc.qty || 0);
   const unitPrice = Number(doc.unit_price || 0);
   const discount = Number(doc.discount || 0);
-  const taxRate = Number(doc.tax_rate || 0);
+  const taxRate = doc.tax_rate === '' || doc.tax_rate === null || doc.tax_rate === undefined ? 0 : Number(doc.tax_rate || 0);
   const subtotal = qty * unitPrice;
   const taxableAmount = Math.max(subtotal - discount, 0);
   const taxAmount = taxableAmount * (taxRate / 100);
