@@ -1146,6 +1146,7 @@ export default function ERPApp() {
       .replaceAll('\n', '<br />');
 
     const documentNo = data.document_no || data.invoice_no || data.quote_no || data.receipt_no || '';
+    const viewUrl = `${window.location.origin}/view?type=${encodeURIComponent(type.toLowerCase())}&no=${encodeURIComponent(String(documentNo || ''))}`;
     const customerName = data.customer || data.customer_name || '';
     const safeCustomer = String(customerName || 'Customer').replace(/[^a-z0-9-_ ]/gi, '').trim();
     const attachmentName = `${type} - ${documentNo} - ${safeCustomer}.pdf`;
@@ -1157,7 +1158,7 @@ export default function ERPApp() {
       subject,
       body: String(body || '').replaceAll('%0D%0A', '\n'),
       html: htmlBody,
-      data,
+      data: { ...data, viewUrl, view_url: viewUrl },
       attachmentName,
     });
   }
@@ -1194,6 +1195,7 @@ export default function ERPApp() {
         amount: emailDraft.data.amount || '',
         balance: emailDraft.data.balance || '',
         dueDate: emailDraft.data.due_date || '',
+        viewUrl: emailDraft.data.view_url || emailDraft.data.viewUrl || `${window.location.origin}/view?type=${encodeURIComponent(emailDraft.type.toLowerCase())}&no=${encodeURIComponent(String(emailDraft.data.document_no || emailDraft.data.invoice_no || emailDraft.data.quote_no || emailDraft.data.receipt_no || ''))}`,
       }),
     });
 
