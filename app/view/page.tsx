@@ -142,7 +142,7 @@ export default function PublicDocumentView() {
             <img src={company.logo_url || LOGO_FALLBACK} style={styles.logo} alt="Aashan & Co LLC" />
             <div>
               <h1 style={styles.companyName}>{company.company_name || 'Aashan & Co LLC'}</h1>
-              <p style={styles.sub}>Field Service & Accounting</p>
+              <p style={styles.sub}>Aashan & Co LLC</p>
             </div>
           </div>
 

@@ -65,7 +65,7 @@ function htmlShell(rawBody: string, viewUrl: string, documentType: string) {
     <div style="max-width:680px;margin:0 auto;background:white;border-radius:18px;overflow:hidden;">
       <div style="background:linear-gradient(135deg,#0f172a,#2563eb);padding:26px 30px;color:white;">
         <h1 style="margin:0;font-size:26px;">Aashan &amp; Co LLC</h1>
-        <p style="margin:8px 0 0;">Field Service &amp; Accounting</p>
+        <p style="margin:8px 0 0;">Aashan &amp; Co LLC</p>
       </div>
       <div style="padding:30px;font-size:15px;line-height:1.65;">
         ${bodyHtml}

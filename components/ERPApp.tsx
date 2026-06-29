@@ -151,6 +151,24 @@ const emptySequence: NumberSequence = { document_type: '', prefix: '', next_numb
 const emptyAccount: Account = { account_code: '', account_name: '', account_type: 'Revenue', normal_balance: 'Credit', is_active: true };
 const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_email: 'support@aashan.co', reply_to_email: 'support@aashan.co', bcc_email: '' };
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
+
+const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
+  'Quote Email': {
+    template_name: 'Quote Email',
+    subject: 'Quote {{quote_no}} from Aashan & Co LLC',
+    body: 'Thank you for considering Aashan & Co LLC for your project.\n\nPlease find the attached quotation for your review. The quote outlines the proposed scope of work and estimated costs based on the information provided. We kindly ask that you review the details and let us know if you have any questions or require any modifications.\n\nPlease note that this quotation includes the labor and services specified. Any additional materials, transportation, permits, equipment rentals, or other project-related expenses not specifically listed may be charged separately.\n\nIf you would like to proceed with the work, simply reply to this email or contact us directly, and we will be happy to schedule your service.\n\nWe appreciate the opportunity to earn your business and look forward to working with you.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\n\nAashan & Co LLC\n\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co'
+  },
+  'Invoice Email': {
+    template_name: 'Invoice Email',
+    subject: 'Invoice {{invoice_no}} from Aashan & Co LLC',
+    body: 'Thank you for choosing Aashan & Co LLC.\n\nPlease find your invoice attached for the services provided. We kindly request that you review the invoice.\n\nIf you have any questions regarding this invoice or require additional information, please do not hesitate to contact us. We are happy to assist you.\n\nWe appreciate your business and look forward to serving you again in the future.\n\nWe would also greatly appreciate your feedback. Please leave us a review on Facebook:\n\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\nYour review helps us improve our services and assists other customers in making informed decisions.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\n\nAashan & Co LLC\n\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co'
+  },
+  'Payment Receipt Email': {
+    template_name: 'Payment Receipt Email',
+    subject: 'Payment Receipt {{receipt_no}} from Aashan & Co LLC',
+    body: 'Thank you for your payment. We appreciate your business and the opportunity to serve you.\n\nThis email confirms that we have received your payment. Please retain this receipt for your records.\n\nIf you have any questions regarding your payment or require additional assistance, please feel free to contact us.\n\nWe would greatly appreciate your feedback. Please leave us a review on Facebook:\n\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\nYour review helps us improve our services and assists other customers in making informed decisions.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC'
+  }
+};
 const emptyTransactionLine: TransactionLine = { description: '', qty: '1', unit_price: '', discount: '0', tax_rate: '' };
 
 const emptyEmailDraft: EmailDraft = {
@@ -1318,7 +1336,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
   function getEmailTemplate(type: string) {
     const name = emailTemplateName(type);
-    return templates.find((t) => t.template_name === name);
+    return templates.find((t) => t.template_name === name) || DEFAULT_EMAIL_TEMPLATES[name];
   }
 
   function replaceTemplateVariables(text: string, data: Record<string, any>) {
@@ -2212,6 +2230,21 @@ async function saveReceipt() {
   header h1 { font-size: 20px !important; }
 }
 
+
+/* Phase 29.1 - simplified dashboard and friendly mobile screens */
+@media (max-width: 900px) {
+  .app-screen { background: #f6f9fc; }
+  .bc-general-grid { gap: 10px; }
+  .bc-lines-wrap { border-radius: 16px; -webkit-overflow-scrolling: touch; }
+  .bc-lines th { position: sticky; top: 0; z-index: 2; }
+  input, textarea, select, button { font-size: 16px !important; }
+}
+@media (max-width: 600px) {
+  .topBar { gap: 10px !important; }
+  .topBar h2 { font-size: 20px !important; }
+  .topBar p { font-size: 12px !important; }
+}
+
 `}</style>
     
           <div className="app-screen">
@@ -2273,7 +2306,7 @@ async function saveReceipt() {
                   <div style={styles.topBar}>
                     <div>
                       <h2 style={styles.pageTitle}>{pageLabel(activeTab)}</h2>
-                      <p style={styles.pageSub}>Aashan & Co LLC · Field Service & Accounting</p>
+                      <p style={styles.pageSub}>Aashan & Co LLC</p>
                     </div>
                     <input placeholder="🔍 Search customer, invoice, work order..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
                   </div>
@@ -2284,52 +2317,14 @@ async function saveReceipt() {
     
                   {activeTab === 'dashboard' && (
                     <>
-                      <div className="mobile-dashboard-summary" style={styles.mobileDashboardSummary}>
-                        <div>
-                          <span>Today</span>
-                          <b>{todaysWorkOrders} Jobs</b>
-                        </div>
-                        <div>
-                          <span>Outstanding</span>
-                          <b>${outstanding.toFixed(2)}</b>
-                        </div>
-                        <div>
-                          <span>Revenue</span>
-                          <b>${paidRevenue.toFixed(2)}</b>
-                        </div>
-                      </div>
-
-                      <div style={styles.cards}>
-                <Card title="Customers" value={customers.length} />
-                <Card title="Quotes" value={quotes.length} />
-                <Card title="Open Quotes" value={openQuotes} />
-                <Card title="Jobs" value={jobs.length} />
-                <Card title="Work Orders" value={workOrders.length} />
-                <Card title="Today Schedule" value={todaysWorkOrders} />
-                <Card title="Invoices" value={invoices.length} />
-                <Card title="Open Invoices" value={openInvoices} />
-                <Card title="Outstanding" value={`$${outstanding.toFixed(2)}`} />
-                <Card title="Paid Revenue" value={`$${paidRevenue.toFixed(2)}`} />
-                <Card title="In Progress" value={jobsInProgress} />
-                <Card title="Completed Jobs" value={completedJobs} />
-                <Card title="Expenses" value={`$${totalExpenses.toFixed(2)}`} />
-                <Card title="Net Profit" value={`$${netProfit.toFixed(2)}`} />
-                <Card title="Vendors" value={vendors.length} />
-                <Card title="Banks" value={banks.length} />
-                <Card title="Receipts" value={receipts.length} />
-                      </div>
-    
                       <div style={styles.executiveCards}>
                         <Card title="Bank Balance" value={`$${bankBalance.toFixed(2)}`} />
                         <Card title="Accounts Receivable" value={`$${accountsReceivable.toFixed(2)}`} />
                         <Card title="Accounts Payable" value={`$${accountsPayable.toFixed(2)}`} />
-                        <Card title="Revenue MTD" value={`$${revenueMTD.toFixed(2)}`} />
-                        <Card title="Expenses MTD" value={`$${expensesMTD.toFixed(2)}`} />
-                        <Card title="Profit MTD" value={`$${profitMTD.toFixed(2)}`} />
-                        <Card title="Pending Invoices" value={pendingInvoices} />
-                        <Card title="Overdue Invoices" value={overdueInvoices} />
+                        <Card title="Revenue YTD" value={`$${paidRevenue.toFixed(2)}`} />
+                        <Card title="Expenses YTD" value={`$${totalExpenses.toFixed(2)}`} />
                       </div>
-    
+
                       <div style={styles.dashboardGrid}>
                         <SectionCard title="Quick Actions">
                           <div style={styles.actionGrid}>
@@ -2338,58 +2333,6 @@ async function saveReceipt() {
                             <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
                             <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
                             <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
-                            <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
-                          </div>
-                        </SectionCard>
-    
-                        <SectionCard title="Today Schedule">
-                          <p><b>{todaysWorkOrders}</b> work orders scheduled today.</p>
-                          <p><b>{scheduledWorkOrders}</b> work orders are scheduled or in progress.</p>
-                          <button style={styles.smallBtn} onClick={() => openTab('calendar')}>Open Calendar</button>
-                        </SectionCard>
-                      </div>
-    
-                      <div style={styles.dashboardGrid}>
-                        <SectionCard title="Revenue vs Expenses - Last 6 Months">
-                          {monthlySummary.length === 0 && <p style={styles.helpText}>No revenue or expense data yet.</p>}
-                          {monthlySummary.map((m) => (
-                            <div key={m.month} style={styles.chartRow}>
-                              <div style={styles.chartLabel}>{m.month}</div>
-                              <div style={styles.chartTrack}>
-                                <div style={{ ...styles.chartBarRevenue, width: `${Math.max(4, (m.revenue / chartMax) * 100)}%` }}>Revenue ${m.revenue.toFixed(0)}</div>
-                                <div style={{ ...styles.chartBarExpense, width: `${Math.max(4, (m.expense / chartMax) * 100)}%` }}>Expense ${m.expense.toFixed(0)}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </SectionCard>
-    
-                        <SectionCard title="Top Customers by Revenue">
-                          {topCustomers.length === 0 && <p style={styles.helpText}>No paid customer revenue yet.</p>}
-                          {topCustomers.map((c) => (
-                            <div key={c.name} style={styles.topCustomerRow}>
-                              <span>{c.name}</span>
-                              <b>${c.revenue.toFixed(2)}</b>
-                            </div>
-                          ))}
-                        </SectionCard>
-                      </div>
-    
-                      <div style={styles.dashboardGrid}>
-                        <SectionCard title="Operations Summary">
-                          <div style={styles.kpiList}>
-                            <div style={styles.kpiRow}><span>Open Quotes</span><b>{openQuotes}</b></div>
-                            <div style={styles.kpiRow}><span>Open Jobs</span><b>{jobs.filter((j) => ['New', 'Quoted', 'In Progress'].includes(j.status)).length}</b></div>
-                            <div style={styles.kpiRow}><span>Scheduled Jobs</span><b>{scheduledWorkOrders}</b></div>
-                            <div style={styles.kpiRow}><span>Completed Jobs</span><b>{completedJobs}</b></div>
-                          </div>
-                        </SectionCard>
-    
-                        <SectionCard title="Financial Health">
-                          <div style={styles.kpiList}>
-                            <div style={styles.kpiRow}><span>Total Revenue</span><b>${paidRevenue.toFixed(2)}</b></div>
-                            <div style={styles.kpiRow}><span>Total Expenses</span><b>${totalExpenses.toFixed(2)}</b></div>
-                            <div style={styles.kpiRow}><span>Net Profit</span><b>${netProfit.toFixed(2)}</b></div>
-                            <div style={styles.kpiRow}><span>Outstanding AR</span><b>${outstanding.toFixed(2)}</b></div>
                           </div>
                         </SectionCard>
                       </div>
@@ -2466,7 +2409,7 @@ async function saveReceipt() {
                       <tr key={qt.id}>
                         <Td>{qt.quote_no}</Td><Td>{qt.customer}</Td><Td>{qt.quote_date}</Td><Td>{qt.service}</Td><Td>${Number(qt.total_amount || qt.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={qt.status} /></Td>
                         <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option><option>Converted</option></select></Td>
-                        <Td><button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button><button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button><button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button><button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find quote {{quote_no}} for $' + '{{amount}}' + '.', { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount })}>Email</button><button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>{canDeleteDocument(qt.status) && <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>}</Td>
+                        <Td><button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button><button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button><button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button><button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Quote Email'].body, { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount })}>Email</button><button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>{canDeleteDocument(qt.status) && <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>}</Td>
                       </tr>
                     ))}
                   </DataTable>
@@ -2646,7 +2589,7 @@ async function saveReceipt() {
                   </SectionCard>
     
                   <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find invoice {{invoice_no}} for $' + '{{amount}}' + '.', { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.total_amount || i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button>{canDeleteDocument(i.status) && <button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button>}</Td></tr>)}
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Invoice Email'].body, { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.total_amount || i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button>{canDeleteDocument(i.status) && <button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2694,7 +2637,7 @@ async function saveReceipt() {
                     <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
                   </SectionCard>
                   <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
-                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0AThank you for your payment of $' + '{{amount}}' + '. Receipt No: {{receipt_no}}', { customer: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button>}</Td></tr>)}
+                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Payment Receipt Email'].body, { customer: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
               )}
