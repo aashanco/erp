@@ -2132,6 +2132,31 @@ async function saveReceipt() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function pageLabel(tab: typeof activeTab) {
+    const labels: Record<string, string> = {
+      dashboard: 'Dashboard',
+      customers: 'Customers',
+      vendors: 'Vendors',
+      accounting: 'Accounting',
+      quotes: 'Sales Quotes',
+      jobs: 'Jobs',
+      workorders: 'Work Orders',
+      technician: 'Technician App',
+      calendar: 'Calendar',
+      invoices: 'Sales Invoices',
+      payments: 'Payments',
+      receipts: 'Receipts',
+      expenses: 'Expenses',
+      purchases: 'Purchase Invoices',
+      journals: 'Journal Entries',
+      banks: 'Banks',
+      reports: 'Reports',
+      masters: 'Masters',
+      import: 'Import / Export',
+    };
+    return labels[tab] || 'Aashan & Co LLC';
+  }
+
   return (
     <main style={styles.page}>
           <style>{`${printCss}
@@ -2154,6 +2179,39 @@ async function saveReceipt() {
 .bc-totals div:last-child { border-bottom: 0; }
 .bc-grand { font-size: 18px; color: #0f6270; }
 @media (max-width: 760px) { .bc-general-grid, .bc-footer-grid { grid-template-columns: 1fr; } .bc-action-bar { position: sticky; top: 0; background: white; z-index: 20; } .bc-lines { min-width: 760px; } .bc-lines-wrap { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
+
+/* Phase 29 - consistent ERP and mobile navigation polish */
+.app-screen { min-height: 100vh; }
+@media (min-width: 901px) {
+  .bottom-nav, .floating-add, .quick-add-sheet { display: none !important; }
+}
+@media (max-width: 900px) {
+  main { padding-bottom: 82px; }
+  header { padding: 14px 12px !important; }
+  header h1 { font-size: 22px !important; }
+  .app-screen section { padding: 10px !important; }
+  .app-screen section > div { gap: 0 !important; }
+  .topBar { background: white; border: 1px solid #d7dee8; border-radius: 16px; padding: 14px; box-shadow: 0 8px 20px rgba(15,23,42,0.06); }
+  .topBar input { max-width: none !important; margin-bottom: 0 !important; }
+  .mobile-dashboard-summary { display: grid !important; }
+  .mobile-dashboard-summary div { background: white; border: 1px solid #d7dee8; border-radius: 14px; padding: 12px; box-shadow: 0 8px 20px rgba(15,23,42,0.05); }
+  .mobile-dashboard-summary span { display: block; font-size: 12px; color: #64748b; margin-bottom: 5px; }
+  .mobile-dashboard-summary b { font-size: 15px; color: #0f3f56; }
+  .floating-add { display: block !important; }
+  .quick-add-sheet { display: block !important; }
+  .bc-action-bar { position: sticky; top: 64px; background: white; padding: 10px; border: 1px solid #d7dee8; border-radius: 14px; box-shadow: 0 8px 18px rgba(15,23,42,0.08); }
+  .bc-primary, .bc-action { flex: 1 1 45%; text-align: center; }
+  table { font-size: 13px; }
+  th, td { white-space: nowrap; }
+  .email-modal { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 600px) {
+  .bc-lines { min-width: 680px; }
+  .bc-primary, .bc-action { flex: 1 1 100%; }
+  .app-screen section { padding: 8px !important; }
+  header h1 { font-size: 20px !important; }
+}
+
 `}</style>
     
           <div className="app-screen">
@@ -2214,8 +2272,8 @@ async function saveReceipt() {
                 <div style={styles.contentArea}>
                   <div style={styles.topBar}>
                     <div>
-                      <h2 style={styles.pageTitle}>{activeTab[0].toUpperCase() + activeTab.slice(1)}</h2>
-                      <p style={styles.pageSub}>{greetingText()}, {profile?.email?.split('@')[0] || 'Anil'}</p>
+                      <h2 style={styles.pageTitle}>{pageLabel(activeTab)}</h2>
+                      <p style={styles.pageSub}>Aashan & Co LLC · Field Service & Accounting</p>
                     </div>
                     <input placeholder="🔍 Search customer, invoice, work order..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
                   </div>
@@ -3008,7 +3066,7 @@ async function saveReceipt() {
     
     
     
-          {quickAddOpen && (
+          {activeTab === 'dashboard' && quickAddOpen && (
             <div className="quick-add-sheet" style={styles.quickAddSheet}>
               {isTechnician ? (
                 <>
@@ -3035,9 +3093,11 @@ async function saveReceipt() {
             </div>
           )}
     
+          {activeTab === 'dashboard' && (
           <button className="floating-add" style={styles.floatingAdd} onClick={() => setQuickAddOpen(!quickAddOpen)}>
             {quickAddOpen ? '×' : '+'}
           </button>
+          )}
     
           <nav className="bottom-nav" style={styles.bottomNav}>
             <button style={activeTab === 'dashboard' ? styles.bottomNavActive : styles.bottomNavBtn} onClick={() => openTab('dashboard')}>🏠<span>Home</span></button>
@@ -3387,28 +3447,28 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 const styles: Record<string, any> = {
-  page: { fontFamily: 'Arial, sans-serif', background: '#f3f6fa', minHeight: '100vh', color: '#0f172a' },
+  page: { fontFamily: 'Arial, sans-serif', background: '#eef3f8', minHeight: '100vh', color: '#0f172a' },
   loginPage: { fontFamily: 'Arial, sans-serif', background: 'linear-gradient(135deg, #0f172a, #2563eb)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
   loginCard: { background: 'white', borderRadius: 18, padding: 28, width: '100%', maxWidth: 430, boxShadow: '0 25px 60px rgba(0,0,0,0.25)' },
   loginLogo: { background: '#0f172a', color: 'white', padding: '10px 14px', borderRadius: 12, fontWeight: 800, display: 'inline-block', marginBottom: 18 },
   logoutBtn: { background: '#dc2626', color: 'white', border: 0, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontWeight: 700 },
-  header: { background: 'linear-gradient(135deg, #0f172a, #1d4ed8)', color: 'white', padding: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap', position: 'sticky', top: 0, zIndex: 9998, boxShadow: '0 12px 35px rgba(15,23,42,0.18)' },
+  header: { background: 'linear-gradient(135deg, #0f172a, #008b96)', color: 'white', padding: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap', position: 'sticky', top: 0, zIndex: 9998, boxShadow: '0 12px 35px rgba(15,23,42,0.18)' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
   headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
   rolePill: { background: 'rgba(255,255,255,0.14)', padding: '8px 12px', borderRadius: 999, fontWeight: 800, fontSize: 13 },
   headerTitle: { margin: 0, fontSize: 28 },
   headerSub: { margin: '6px 0 0', opacity: 0.9 },
-  phaseBadge: { background: '#1d4ed8', padding: '8px 14px', borderRadius: 999, fontWeight: 700 },
+  phaseBadge: { background: '#008b96', padding: '8px 14px', borderRadius: 999, fontWeight: 700 },
   container: { maxWidth: 1500, margin: '0 auto', padding: 18 },
   erpShell: { display: 'grid', gridTemplateColumns: '260px 1fr', gap: 18, alignItems: 'start' },
-  sidebar: { background: '#0f172a', color: 'white', borderRadius: 18, padding: 16, position: 'sticky', top: 16, minHeight: 'calc(100vh - 130px)' },
+  sidebar: { background: 'linear-gradient(180deg, #0f172a, #123b49)', color: 'white', borderRadius: 18, padding: 16, position: 'sticky', top: 16, minHeight: 'calc(100vh - 130px)' },
   sidebarBrand: { fontSize: 20, fontWeight: 800, padding: '8px 10px 18px', borderBottom: '1px solid rgba(255,255,255,0.14)', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   mobileMenuButton: { display: 'none', background: '#2563eb', color: 'white', border: 0, borderRadius: 10, padding: '9px 13px', cursor: 'pointer', fontWeight: 800 },
   mobileCloseButton: { display: 'none', background: 'transparent', color: 'white', border: 0, fontSize: 28, cursor: 'pointer' },
   sidebarGroup: { marginBottom: 18 },
   sidebarGroupTitle: { fontSize: 12, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, margin: '12px 10px 8px' },
   sideButton: { width: '100%', textAlign: 'left', background: 'transparent', color: '#dbeafe', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 },
-  sideButtonActive: { width: '100%', textAlign: 'left', background: '#2563eb', color: 'white', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 800, marginBottom: 4 },
+  sideButtonActive: { width: '100%', textAlign: 'left', background: '#008b96', color: 'white', border: 0, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontWeight: 800, marginBottom: 4 },
   contentArea: { minWidth: 0 },
   topBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18, flexWrap: 'wrap' },
   pageTitle: { margin: 0, fontSize: 26 },
@@ -3434,13 +3494,13 @@ const styles: Record<string, any> = {
   actionTileDark: { border: 0, background: '#008b96', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
   actionTileGray: { border: 0, background: '#008b96', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
   kpiRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', padding: '9px 0', gap: 12 },
-  floatingAdd: { display: 'none', position: 'fixed', right: 18, bottom: 88, width: 62, height: 62, borderRadius: '50%', border: 0, background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', fontSize: 34, zIndex: 10000, boxShadow: '0 16px 40px rgba(37,99,235,0.42)' },
+  floatingAdd: { display: 'none', position: 'fixed', right: 18, bottom: 88, width: 62, height: 62, borderRadius: '50%', border: 0, background: 'linear-gradient(135deg, #008b96, #0f6270)', color: 'white', fontSize: 34, zIndex: 10000, boxShadow: '0 16px 40px rgba(37,99,235,0.42)' },
   quickAddSheet: { display: 'none', position: 'fixed', right: 18, bottom: 152, background: 'white', borderRadius: 18, padding: 10, zIndex: 10000, boxShadow: '0 20px 50px rgba(15,23,42,0.25)', minWidth: 230 },
   quickAddItem: { width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: '12px 10px', borderRadius: 12, fontWeight: 800, color: '#0f172a' },
   quickActions: { display: 'flex', flexWrap: 'wrap', gap: 10 },
   bottomNav: { display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)', borderTop: '1px solid #e5e7eb', zIndex: 9999, padding: '6px 8px', boxShadow: '0 -10px 30px rgba(15,23,42,0.12)' },
   bottomNavBtn: { flex: 1, border: 0, background: 'transparent', color: '#475569', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  bottomNavActive: { flex: 1, border: 0, background: '#dbeafe', color: '#1d4ed8', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontWeight: 800 },
+  bottomNavActive: { flex: 1, border: 0, background: '#dff7f8', color: '#008b96', padding: '6px 4px', borderRadius: 12, fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontWeight: 800 },
   techJobList: { display: 'grid', gap: 14 },
   techJobCard: { background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 16, padding: 15 },
   techJobHeader: { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' },
@@ -3451,18 +3511,18 @@ const styles: Record<string, any> = {
   successBox: { background: '#dcfce7', color: '#166534', padding: 14, borderRadius: 10, fontWeight: 700 },
   toolbar: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 },
   tab: { background: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #e5e7eb', boxShadow: '0 3px 10px rgba(15,23,42,0.08)', cursor: 'pointer' },
-  tabActive: { background: '#2563eb', color: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #2563eb', boxShadow: '0 3px 10px rgba(37,99,235,0.25)', cursor: 'pointer' },
+  tabActive: { background: '#008b96', color: 'white', padding: '10px 18px', borderRadius: 999, border: '1px solid #2563eb', boxShadow: '0 3px 10px rgba(37,99,235,0.25)', cursor: 'pointer' },
   search: { width: '100%', maxWidth: 520, padding: 12, margin: '0 0 20px', border: '1px solid #cbd5e1', borderRadius: 10, boxSizing: 'border-box', background: 'white' },
   cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 16, marginBottom: 22 },
-  card: { background: 'white', padding: 18, borderRadius: 16, boxShadow: '0 8px 20px rgba(15,23,42,0.08)', minHeight: 92 },
+  card: { background: 'white', padding: 18, borderRadius: 18, border: '1px solid #d7dee8', boxShadow: '0 8px 20px rgba(15,23,42,0.06)', minHeight: 92 },
   cardTitle: { fontWeight: 700, color: '#334155', marginBottom: 10 },
   cardValue: { fontSize: 28, fontWeight: 800 },
-  sectionCard: { background: 'white', padding: 22, borderRadius: 16, boxShadow: '0 8px 20px rgba(15,23,42,0.08)', marginTop: 22 },
-  sectionTitle: { marginTop: 0, marginBottom: 18 },
+  sectionCard: { background: 'white', padding: 22, borderRadius: 18, border: '1px solid #d7dee8', boxShadow: '0 8px 20px rgba(15,23,42,0.06)', marginTop: 22 },
+  sectionTitle: { marginTop: 0, marginBottom: 18, color: '#0f3f56', borderBottom: '2px solid #0f3f56', paddingBottom: 8 },
   formGrid2: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18, alignItems: 'end' },
   field: { display: 'flex', flexDirection: 'column', gap: 7 },
   label: { fontSize: 14, fontWeight: 700, color: '#0f172a' },
-  input: { width: '100%', height: 42, padding: '9px 10px', border: '1px solid #cbd5e1', borderRadius: 8, boxSizing: 'border-box', background: 'white' },
+  input: { width: '100%', height: 42, padding: '9px 10px', border: '1px solid #cbd5e1', borderRadius: 9, boxSizing: 'border-box', background: 'white' },
   buttonRow: { display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' },
   primaryBtn: { background: '#008b96', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
   greenBtn: { background: '#008b96', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
