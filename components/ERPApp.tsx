@@ -2884,9 +2884,9 @@ async function saveReceipt() {
           </nav>
     
           {emailDraft.open && (
-            <div className="email-modal-backdrop">
-              <div className="email-modal">
-                <div className="email-modal-left">
+            <div className="email-modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.68)", zIndex: 100000, display: "flex", alignItems: "stretch", justifyContent: "center", padding: 18, boxSizing: "border-box" }}>
+              <div className="email-modal" style={{ width: "min(1450px, 100%)", maxHeight: "calc(100vh - 36px)", background: "white", borderRadius: 16, overflow: "hidden", display: "grid", gridTemplateColumns: "minmax(430px, 0.9fr) minmax(520px, 1.1fr)", boxShadow: "0 24px 80px rgba(0,0,0,0.35)" }}>
+                <div className="email-modal-left" style={{ padding: 26, overflow: "auto", borderRight: "1px solid #e5e7eb", background: "white" }}>
                   <h2>Send {emailDraft.type}</h2>
 
                   <label className="email-label">To</label>
@@ -2925,16 +2925,16 @@ async function saveReceipt() {
                   </div>
                 </div>
 
-                <div className="email-modal-right">
+                <div className="email-modal-right" style={{ background: "#263238", color: "white", display: "flex", flexDirection: "column", minWidth: 0 }}>
                   <div className="email-preview-header">
                     <b>{emailDraft.type} Preview</b>
                     <span>{emailDraft.attachmentName}</span>
                   </div>
 
                   <div className="email-pdf-preview">
-                    <div className="mini-doc">
+                    <div className="mini-doc" style={{ width: 520, minHeight: 690, background: "white", color: "#0f172a", padding: 34, boxShadow: "0 20px 60px rgba(0,0,0,0.35)", fontFamily: "Arial, sans-serif" }}>
                       <div className="mini-logo-row">
-                        <img src={company.logo_url || LOGO_SRC} />
+                        <img src={company.logo_url || LOGO_SRC} style={{ width: 78, height: 78, objectFit: "contain" }} />
                         <div>
                           <h3>{emailDraft.type}</h3>
                           <p>{company.company_name || 'Aashan & Co LLC'}</p>
@@ -3656,5 +3656,203 @@ const printCss = `
     display: flex !important;
   }
 }
+
+
+.email-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.68);
+  z-index: 100000;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.email-modal {
+  width: min(1450px, 100%);
+  max-height: calc(100vh - 36px);
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(430px, 0.9fr) minmax(520px, 1.1fr);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+  font-family: Arial, sans-serif;
+}
+
+.email-modal-left {
+  padding: 26px;
+  overflow: auto;
+  border-right: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.email-modal-left h2 {
+  margin: 0 0 18px;
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.email-label {
+  display: block;
+  font-weight: 800;
+  color: #334155;
+  margin: 12px 0 6px;
+  font-size: 14px;
+}
+
+.email-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+}
+
+.email-textarea {
+  width: 100%;
+  min-height: 360px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.email-attachment {
+  margin-top: 12px;
+  background: #f8fafc;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 11px 13px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: #1e40af;
+}
+
+.email-attachment span {
+  background: #2563eb;
+  color: white;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.email-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.email-send-btn {
+  background: #2563eb;
+  color: white;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 24px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.email-cancel-btn {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px 24px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.email-modal-right {
+  background: #263238;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.email-preview-header {
+  height: 52px;
+  background: #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+.email-preview-header span {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.email-pdf-preview {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.mini-doc {
+  width: 520px;
+  min-height: 690px;
+  background: white;
+  color: #0f172a;
+  padding: 34px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  font-family: Arial, sans-serif;
+}
+
+.mini-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.mini-logo-row img {
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+}
+
+.mini-logo-row h3 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.mini-logo-row p {
+  margin: 4px 0 0;
+}
+
+.mini-line {
+  border-top: 3px solid #0f172a;
+  margin: 18px 0;
+}
+
+.mini-message {
+  margin-top: 22px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 18px;
+  line-height: 1.55;
+  color: #334155;
+}
+
+@media (max-width: 900px) {
+  .email-modal {
+    grid-template-columns: 1fr;
+  }
+
+  .email-modal-right {
+    display: none;
+  }
+}
+
 `;
 
