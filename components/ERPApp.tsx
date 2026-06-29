@@ -1334,7 +1334,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   function editExpense(e: Expense) {
     setExpense({ ...e, amount: String(e.amount || '') });
     setEditingExpenseId(e.id || null);
-    setActiveTab('expenses');
+    setActiveTab(activeTab === 'payments' ? 'payments' : 'expenses');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -2184,10 +2184,10 @@ async function saveReceipt() {
       technician: 'Technician App',
       calendar: 'Calendar',
       invoices: 'Sales Invoices',
-      payments: 'Payments',
-      receipts: 'Receipts',
+      payments: 'Vendor Payments',
+      receipts: 'Customer Receipts',
       expenses: 'Expenses',
-      purchases: 'Purchase Invoices',
+      purchases: 'Purchase Invoices (Bills)',
       journals: 'Journal Entries',
       banks: 'Banks',
       reports: 'Reports',
@@ -2290,31 +2290,42 @@ async function saveReceipt() {
                 <aside className={mobileMenuOpen ? "sidebar-open" : ""} style={styles.sidebar}>
                   <div style={styles.sidebarBrand}><span>Aashan & Co LLC</span><button className="mobile-close-button" style={styles.mobileCloseButton} onClick={() => setMobileMenuOpen(false)}>×</button></div>
     
-                  <SidebarGroup title="Business">
+                  <SidebarGroup title="Dashboard">
                     <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => openTab('dashboard')} />
-                    <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => openTab('customers')} />
-                    <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => openTab('vendors')} />
                   </SidebarGroup>
-    
-                  <SidebarGroup title="Operations">
+
+                  <SidebarGroup title="Customers">
+                    <SideButton label="Customers" active={activeTab === 'customers'} onClick={() => openTab('customers')} />
+                  </SidebarGroup>
+
+                  <SidebarGroup title="Sales">
                     <SideButton label="Quotes" active={activeTab === 'quotes'} onClick={() => openTab('quotes')} />
+                    <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => openTab('invoices')} />
+                    <SideButton label="Customer Receipts" active={activeTab === 'receipts'} onClick={() => openTab('receipts')} />
+                  </SidebarGroup>
+
+                  <SidebarGroup title="Operations">
                     <SideButton label="Jobs" active={activeTab === 'jobs'} onClick={() => openTab('jobs')} />
                     <SideButton label="Work Orders" active={activeTab === 'workorders'} onClick={() => openTab('workorders')} />
                     <SideButton label="Technician App" active={activeTab === 'technician'} onClick={() => openTab('technician')} />
                     <SideButton label="Calendar" active={activeTab === 'calendar'} onClick={() => openTab('calendar')} />
                   </SidebarGroup>
-    
-                  <SidebarGroup title="Finance">
-                    <SideButton label="Invoices" active={activeTab === 'invoices'} onClick={() => openTab('invoices')} />
-                    <SideButton label="Payments" active={activeTab === 'payments'} onClick={() => openTab('payments')} />
-                    <SideButton label="Receipts" active={activeTab === 'receipts'} onClick={() => openTab('receipts')} />
+
+                  <SidebarGroup title="Vendors">
+                    <SideButton label="Vendors" active={activeTab === 'vendors'} onClick={() => openTab('vendors')} />
+                  </SidebarGroup>
+
+                  <SidebarGroup title="Purchasing">
+                    <SideButton label="Purchase Invoices (Bills)" active={activeTab === 'purchases'} onClick={() => openTab('purchases')} />
+                    <SideButton label="Vendor Payments" active={activeTab === 'payments'} onClick={() => openTab('payments')} />
                     <SideButton label="Expenses" active={activeTab === 'expenses'} onClick={() => openTab('expenses')} />
-                    <SideButton label="Purchase Invoices" active={activeTab === 'purchases'} onClick={() => openTab('purchases')} />
-                    <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => openTab('journals')} />
+                  </SidebarGroup>
+
+                  <SidebarGroup title="Accounting">
                     <SideButton label="Banks" active={activeTab === 'banks'} onClick={() => openTab('banks')} />
+                    <SideButton label="Journal Entries" active={activeTab === 'journals'} onClick={() => openTab('journals')} />
                     <SideButton label="Accounting" active={activeTab === "accounting"} onClick={() => openTab("accounting")}/>
                     <SideButton label="Reports" active={activeTab === 'reports'} onClick={() => openTab('reports')} />
-                    
                   </SidebarGroup>
     
                   {canAdmin && (
@@ -2619,36 +2630,43 @@ async function saveReceipt() {
     
               {(activeTab === 'payments') && (
                 <>
-                  <SectionCard title={editingPaymentId ? 'Edit Payment' : 'Record Payment'}>
+                  <SectionCard title={editingExpenseId ? 'Edit Vendor Payment' : 'Record Vendor Payment'}>
+                    <p style={styles.helpText}>Use Vendor Payments for money paid to vendors or subcontractors. Existing vendor payment data saved in Expenses will show here.</p>
                     <div style={styles.formGrid2}>
-                      <Field label="Invoice"><select value={payment.invoice_id ? String(payment.invoice_id) : ''} onChange={(e) => fillPaymentFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{payableInvoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer} - Balance ${invoiceBalance(i).toFixed(2)}</option>)}</select></Field>
-                      <Input label="Customer" value={payment.customer} onChange={(v: string) => setPayment({ ...payment, customer: v })} />
-                      <Input label="Payment Date" type="date" value={payment.payment_date} onChange={(v: string) => setPayment({ ...payment, payment_date: v })} />
-                      <Input label="Amount" value={payment.amount} onChange={(v: string) => setPayment({ ...payment, amount: v })} />
-                      <Field label="Payment Method"><select value={payment.payment_method} onChange={(e) => setPayment({ ...payment, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
-                      <Field label="Bank Account"><select value={payment.bank_name || ''} onChange={(e) => setPayment({ ...payment, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.filter((b) => b.is_active).map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
-                      <Input label="Notes" value={payment.notes} onChange={(v: string) => setPayment({ ...payment, notes: v })} />
+                      <Input label="Payment No" value={expense.expense_no} onChange={(v: string) => setExpense({ ...expense, expense_no: v })} />
+                      <Input label="Payment Date" type="date" value={expense.expense_date} onChange={(v: string) => setExpense({ ...expense, expense_date: v })} />
+                      <Field label="Payee / Vendor">
+                        <select value={expense.vendor} onChange={(e) => setExpense({ ...expense, vendor: e.target.value })} style={styles.input}>
+                          <option value="">Select Vendor</option>
+                          {vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Category"><select value={expense.category} onChange={(e) => setExpense({ ...expense, category: e.target.value })} style={styles.input}><option>Materials</option><option>Tools</option><option>Fuel</option><option>Labor</option><option>Subcontractor</option><option>Insurance</option><option>Marketing</option><option>Office Expense</option><option>Vehicle Expense</option><option>Other</option></select></Field>
+                      <Input label="Description" value={expense.description} onChange={(v: string) => setExpense({ ...expense, description: v })} />
+                      <Input label="Amount" value={expense.amount} onChange={(v: string) => setExpense({ ...expense, amount: v })} />
+                      <Field label="Paid From / Method"><select value={expense.payment_method} onChange={(e) => setExpense({ ...expense, payment_method: e.target.value })} style={styles.input}><option>Cash</option><option>Check</option><option>Zelle</option><option>Credit Card</option><option>Bank Transfer</option><option>Other</option></select></Field>
+                      <Field label="Status"><select value={expense.status} onChange={(e) => setExpense({ ...expense, status: e.target.value })} style={styles.input}><option>Draft</option><option>Submitted</option><option>Approved</option><option>Paid</option></select></Field>
                     </div>
                     <ButtonRow>
-                      <button onClick={savePayment} style={styles.primaryBtn}>{editingPaymentId ? 'Update Payment' : 'Save Payment'}</button>
-                      {editingPaymentId && <button onClick={() => { setPayment(emptyPayment); setEditingPaymentId(null); }} style={styles.grayBtn}>Cancel</button>}
+                      <button onClick={saveExpense} style={styles.primaryBtn}>{editingExpenseId ? 'Update Vendor Payment' : 'Save Vendor Payment'}</button>
+                      {editingExpenseId && <button onClick={() => { setExpense(emptyExpense); setEditingExpenseId(null); }} style={styles.grayBtn}>Cancel</button>}
                     </ButtonRow>
                   </SectionCard>
-    
-                  <DataTable title="Payments" headers={['Invoice #', 'Customer', 'Date', 'Amount', 'Method', 'Bank', 'Notes', 'Actions']}>
-                    {filteredPayments.map((p) => <tr key={p.id}><Td>{p.invoice_no}</Td><Td>{p.customer}</Td><Td>{p.payment_date}</Td><Td>${Number(p.amount || 0).toFixed(2)}</Td><Td>{p.payment_method}</Td><Td>{p.bank_name || ''}</Td><Td>{p.notes}</Td><Td><button style={styles.smallBtn} onClick={() => editPayment(p)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deletePayment(p.id)}>Delete</button>}</Td></tr>)}
+
+                  <DataTable title="Vendor Payments" headers={['Payment #', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status', 'Actions']}>
+                    {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>{e.description}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td>{e.payment_method}</Td><Td><StatusBadge status={e.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editExpense(e)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteExpense(e.id)}>Delete</button></Td></tr>)}
                   </DataTable>
                 </>
               )}
-    
-    
-    
+
+
+
               {(activeTab === 'receipts') && (
                 <>
-                  <SectionCard title={editingReceiptId ? 'Edit Receipt' : 'Create Receipt'}>
+                  <SectionCard title={editingReceiptId ? 'Edit Customer Receipt' : 'Create Customer Receipt'}>
                     <div style={styles.formGrid2}>
                       <Field label="From Invoice"><select onChange={(e) => fillReceiptFromInvoice(e.target.value)} style={styles.input}><option value="">Select Invoice</option>{invoices.map((i) => <option key={i.id} value={i.id}>{i.invoice_no} - {i.customer}</option>)}</select></Field>
-                      <Input label="Receipt No" value={receipt.receipt_no} onChange={(v: string) => setReceipt({ ...receipt, receipt_no: v })} />
+                      <Input label="Customer Receipt No" value={receipt.receipt_no} onChange={(v: string) => setReceipt({ ...receipt, receipt_no: v })} />
                       <Input label="Customer" value={receipt.customer} onChange={(v: string) => setReceipt({ ...receipt, customer: v })} />
                       <Input label="Invoice No" value={receipt.invoice_no} onChange={(v: string) => setReceipt({ ...receipt, invoice_no: v })} />
                       <Input label="Receipt Date" type="date" value={receipt.receipt_date} onChange={(v: string) => setReceipt({ ...receipt, receipt_date: v })} />
@@ -2657,9 +2675,9 @@ async function saveReceipt() {
                       <Field label="Bank"><select value={receipt.bank_name} onChange={(e) => setReceipt({ ...receipt, bank_name: e.target.value })} style={styles.input}><option value="">Select Bank</option>{banks.map((b) => <option key={b.id} value={b.bank_name}>{b.bank_name}</option>)}</select></Field>
                       <Input label="Notes" value={receipt.notes} onChange={(v: string) => setReceipt({ ...receipt, notes: v })} />
                     </div>
-                    <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
+                    <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Customer Receipt' : 'Save Customer Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
                   </SectionCard>
-                  <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
+                  <DataTable title="Customer Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
                     {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Payment Receipt Email'].body, { customer: r.customer, customer_name: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no, service: `Payment received for invoice ${r.invoice_no}`, document_date: r.receipt_date })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
@@ -2694,7 +2712,7 @@ async function saveReceipt() {
     
               {(activeTab === 'purchases') && (
                 <>
-                  <SectionCard title={editingPurchaseInvoiceId ? 'Edit Purchase Invoice' : 'Create Purchase Invoice'}>
+                  <SectionCard title={editingPurchaseInvoiceId ? 'Edit Purchase Invoice (Bill)' : 'Create Purchase Invoice (Bill)'}>
                     <div style={styles.formGrid2}>
                       <Input label="Purchase Invoice No" value={purchaseInvoice.purchase_invoice_no} onChange={(v: string) => setPurchaseInvoice({ ...purchaseInvoice, purchase_invoice_no: v })} />
                       <Field label="Vendor"><select value={purchaseInvoice.vendor} onChange={(e) => setPurchaseInvoice({ ...purchaseInvoice, vendor: e.target.value })} style={styles.input}><option value="">Select Vendor</option>{vendors.map((v) => <option key={v.id} value={v.vendor_name}>{v.vendor_name}</option>)}</select></Field>
@@ -2736,7 +2754,7 @@ async function saveReceipt() {
     
               {(activeTab === 'expenses') && (
                 <>
-                  <SectionCard title={editingExpenseId ? 'Edit Expense' : 'Add Expense'}>
+                  <SectionCard title={editingExpenseId ? 'Edit Expense' : 'Add Cash / Bank Expense'}>
                     <div style={styles.formGrid2}>
                       <Input label="Expense No" value={expense.expense_no} onChange={(v: string) => setExpense({ ...expense, expense_no: v })} />
                       <Input label="Date" type="date" value={expense.expense_date} onChange={(v: string) => setExpense({ ...expense, expense_date: v })} />
@@ -2758,7 +2776,7 @@ async function saveReceipt() {
                     </ButtonRow>
                   </SectionCard>
     
-                  <DataTable title="Expenses" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status', 'Actions']}>
+                  <DataTable title="Cash / Bank Expenses" headers={['Expense #', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status', 'Actions']}>
                     {filteredExpenses.map((e) => <tr key={e.id}><Td>{e.expense_no}</Td><Td>{e.expense_date}</Td><Td>{e.vendor}</Td><Td>{e.category}</Td><Td>{e.description}</Td><Td>${Number(e.amount || 0).toFixed(2)}</Td><Td>{e.payment_method}</Td><Td><StatusBadge status={e.status} /></Td><Td><button style={styles.smallBtn} onClick={() => editExpense(e)}>Edit</button><button style={styles.dangerBtn} onClick={() => deleteExpense(e.id)}>Delete</button></Td></tr>)}
                   </DataTable>
                 </>
@@ -2805,10 +2823,10 @@ async function saveReceipt() {
                       <Field label="Import Chart of Accounts Excel">
                         <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'accounts')} style={styles.input} />
                       </Field>
-                      <Field label="Import Existing Payments">
-                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'payments')} style={styles.input} />
+                      <Field label="Import Vendor Payments">
+                        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'expenses')} style={styles.input} />
                       </Field>
-                      <Field label="Import Receipts">
+                      <Field label="Import Customer Receipts">
                         <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => previewImportFile(e, 'receipts')} style={styles.input} />
                       </Field>
                       <Field label="Import Customer Invoices">
@@ -2826,7 +2844,7 @@ async function saveReceipt() {
                       <button style={styles.greenBtn} onClick={() => downloadTemplate('vendors')}>Vendor Template</button>
                       <button style={styles.greenBtn} onClick={() => downloadTemplate('expenses')}>Expense Template</button>
                       <button style={styles.greenBtn} onClick={() => downloadTemplate('accounts')}>COA Template</button>
-                      <button style={styles.greenBtn} onClick={() => downloadTemplate('payments')}>Payment Template</button>
+                      <button style={styles.greenBtn} onClick={() => downloadTemplate('expenses')}>Vendor Payment Template</button>
                       <button style={styles.greenBtn} onClick={() => downloadTemplate('receipts')}>Receipt Template</button>
                       <button style={styles.greenBtn} onClick={() => downloadTemplate('invoices')}>Customer Invoice Template</button>
                       <button style={styles.greenBtn} onClick={() => downloadTemplate('purchase_invoices')}>Purchase Invoice Template</button>
@@ -2875,7 +2893,7 @@ async function saveReceipt() {
                       <button style={styles.primaryBtn} onClick={() => exportCsv('vendors.csv', [['Vendor No', 'Vendor Name', 'Contact', 'Phone', 'Email', 'Address', 'Tax ID', 'Status'], ...vendors.map(v => [v.vendor_no, v.vendor_name, v.contact_person, v.phone, v.email, v.address, v.tax_id, v.status])])}>Export Vendors</button>
                       <button style={styles.primaryBtn} onClick={() => exportCsv('quotes.csv', [['Quote Number', 'Customer', 'Date', 'Service', 'Amount', 'Status'], ...quotes.map(q => [q.quote_no, q.customer, q.quote_date, q.service, q.amount, q.status])])}>Export Quotes</button>
                       <button style={styles.primaryBtn} onClick={() => exportCsv('invoices.csv', [['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Status'], ...invoices.map(i => [i.invoice_no, i.customer, i.invoice_date, i.due_date, i.amount, i.status])])}>Export Invoices</button>
-                      <button style={styles.primaryBtn} onClick={() => exportCsv('payments.csv', [['Invoice Number', 'Customer', 'Payment Date', 'Amount', 'Method', 'Notes'], ...payments.map(p => [p.invoice_no, p.customer, p.payment_date, p.amount, p.payment_method, p.notes])])}>Export Payments</button>
+                      <button style={styles.primaryBtn} onClick={() => exportCsv('vendor_payments.csv', [['Payment Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Vendor Payments</button>
                       <button style={styles.primaryBtn} onClick={() => exportCsv('expenses.csv', [['Expense Number', 'Date', 'Vendor', 'Category', 'Description', 'Amount', 'Method', 'Status'], ...expenses.map(e => [e.expense_no, e.expense_date, e.vendor, e.category, e.description, e.amount, e.payment_method, e.status])])}>Export Expenses</button>
                     </div>
                   </SectionCard>
@@ -3052,8 +3070,8 @@ async function saveReceipt() {
                   <button style={styles.quickAddItem} onClick={() => openTab('quotes')}>📄 New Quote</button>
                   <button style={styles.quickAddItem} onClick={() => openTab('workorders')}>🛠️ New Work Order</button>
                   <button style={styles.quickAddItem} onClick={() => openTab('invoices')}>🧾 New Invoice</button>
-                  <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 New Receipt</button>
-                  <button style={styles.quickAddItem} onClick={() => openTab('expenses')}>💳 New Expense</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('receipts')}>💵 Customer Receipt</button>
+                  <button style={styles.quickAddItem} onClick={() => openTab('expenses')}>💳 Expense / Vendor Payment</button>
                 </>
               )}
             </div>
