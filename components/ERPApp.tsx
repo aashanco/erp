@@ -2161,8 +2161,7 @@ async function saveReceipt() {
               <div style={styles.headerLeft}>
                 <button className="mobile-menu-button" style={styles.mobileMenuButton} onClick={() => setMobileMenuOpen(true)}>☰</button>
                 <div>
-                  <h1 style={styles.headerTitle}>Aashan ERP</h1>
-                  <p style={styles.headerSub}>Field Service & Accounting</p>
+                  <h1 style={styles.headerTitle}>Aashan & Co LLC</h1>
                 </div>
               </div>
               <div style={styles.headerRight}>
@@ -2175,7 +2174,7 @@ async function saveReceipt() {
               <div style={styles.erpShell}>
     {mobileMenuOpen && <div className="mobile-backdrop" onClick={() => setMobileMenuOpen(false)} />}
                 <aside className={mobileMenuOpen ? "sidebar-open" : ""} style={styles.sidebar}>
-                  <div style={styles.sidebarBrand}><span>Aashan ERP</span><button className="mobile-close-button" style={styles.mobileCloseButton} onClick={() => setMobileMenuOpen(false)}>×</button></div>
+                  <div style={styles.sidebarBrand}><span>Aashan & Co LLC</span><button className="mobile-close-button" style={styles.mobileCloseButton} onClick={() => setMobileMenuOpen(false)}>×</button></div>
     
                   <SidebarGroup title="Business">
                     <SideButton label="Dashboard" active={activeTab === 'dashboard'} onClick={() => openTab('dashboard')} />
@@ -2221,30 +2220,7 @@ async function saveReceipt() {
                     <input placeholder="🔍 Search customer, invoice, work order..." value={search} onChange={(e) => setSearch(e.target.value)} style={styles.search} />
                   </div>
     
-                  <div className="mobile-action-tiles" style={styles.mobileActionTiles}>
-                    {isTechnician ? (
-                      <>
-                        <button style={styles.actionTileGreen} onClick={() => openTab('technician')}><span>📅</span><b>My Jobs</b></button>
-                        <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Orders</b></button>
-                        <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
-                      </>
-                    ) : isCustomer ? (
-                      <>
-                        <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quotes</b></button>
-                        <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoices</b></button>
-                        <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipts</b></button>
-                      </>
-                    ) : (
-                      <>
-                        <button style={styles.actionTile} onClick={() => openTab('customers')}><span>👤</span><b>Customer</b></button>
-                        <button style={styles.actionTile} onClick={() => openTab('quotes')}><span>📄</span><b>Quote</b></button>
-                        <button style={styles.actionTileGreen} onClick={() => openTab('workorders')}><span>🛠️</span><b>Work Order</b></button>
-                        <button style={styles.actionTile} onClick={() => openTab('invoices')}><span>🧾</span><b>Invoice</b></button>
-                        <button style={styles.actionTileDark} onClick={() => openTab('receipts')}><span>💵</span><b>Receipt</b></button>
-                        <button style={styles.actionTileGray} onClick={() => openTab('import')}><span>📥</span><b>Import</b></button>
-                      </>
-                    )}
-                  </div>
+                  {/* Quick action tiles are kept only on the Dashboard page under Quick Actions. */}
     
                   {loading && <p>Loading...</p>}
     
@@ -3453,10 +3429,10 @@ const styles: Record<string, any> = {
   mobileHomeBanner: { display: 'none', background: 'linear-gradient(135deg, #eff6ff, #ffffff)', border: '1px solid #dbeafe', borderRadius: 18, padding: 16, marginBottom: 14, boxShadow: '0 10px 25px rgba(37,99,235,0.08)', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   mobileDashboardSummary: { display: 'none', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 },
   actionGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 },
-  actionTile: { border: 0, background: '#2563eb', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
-  actionTileGreen: { border: 0, background: '#059669', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
-  actionTileDark: { border: 0, background: '#0f172a', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
-  actionTileGray: { border: 0, background: '#64748b', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTile: { border: 0, background: '#008b96', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileGreen: { border: 0, background: '#008b96', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileDark: { border: 0, background: '#008b96', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
+  actionTileGray: { border: 0, background: '#008b96', color: 'white', borderRadius: 16, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontWeight: 800 },
   kpiRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', padding: '9px 0', gap: 12 },
   floatingAdd: { display: 'none', position: 'fixed', right: 18, bottom: 88, width: 62, height: 62, borderRadius: '50%', border: 0, background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: 'white', fontSize: 34, zIndex: 10000, boxShadow: '0 16px 40px rgba(37,99,235,0.42)' },
   quickAddSheet: { display: 'none', position: 'fixed', right: 18, bottom: 152, background: 'white', borderRadius: 18, padding: 10, zIndex: 10000, boxShadow: '0 20px 50px rgba(15,23,42,0.25)', minWidth: 230 },
@@ -3488,12 +3464,12 @@ const styles: Record<string, any> = {
   label: { fontSize: 14, fontWeight: 700, color: '#0f172a' },
   input: { width: '100%', height: 42, padding: '9px 10px', border: '1px solid #cbd5e1', borderRadius: 8, boxSizing: 'border-box', background: 'white' },
   buttonRow: { display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' },
-  primaryBtn: { background: '#2563eb', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
-  greenBtn: { background: '#059669', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
+  primaryBtn: { background: '#008b96', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
+  greenBtn: { background: '#008b96', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
   grayBtn: { background: '#64748b', color: 'white', padding: '10px 16px', border: 0, borderRadius: 8, cursor: 'pointer', fontWeight: 700 },
-  smallBtn: { background: '#2563eb', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
-  greenSmallBtn: { background: '#059669', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
-  printBtn: { background: '#111827', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  smallBtn: { background: '#008b96', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  greenSmallBtn: { background: '#008b96', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
+  printBtn: { background: '#008b96', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, marginRight: 6, cursor: 'pointer' },
   dangerBtn: { background: '#dc2626', color: 'white', padding: '7px 10px', border: 0, borderRadius: 7, cursor: 'pointer' },
   smallSelect: { padding: 7, border: '1px solid #cbd5e1', borderRadius: 7 },
   badge: { padding: '5px 9px', borderRadius: 999, fontWeight: 700, fontSize: 12 },
