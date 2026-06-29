@@ -515,6 +515,127 @@ export default function ERPApp() {
     }
   }
 
+  function findLedgerCode(nameContains: string, fallbackCode: string, fallbackName: string) {
+    const found = accounts.find((a) =>
+      String(a.account_name || '').toLowerCase().includes(nameContains.toLowerCase())
+    );
+
+    return {
+      account_code: found?.account_code || fallbackCode,
+      account_name: found?.account_name || fallbackName,
+    };
+  }
+
+  async function postAccountingEntry(
+    sourceType: string,
+    sourceId: number | null | undefined,
+    sourceNo: string,
+    transactionDate: string | null | undefined,
+    description: string,
+    lines: { account_code: string; account_name: string; debit: number; credit: number; description: string }[]
+  ) {
+    if (!sourceNo || !lines.length) return;
+
+    const totalDebit = lines.reduce((sum, l) => sum + Number(l.debit || 0), 0);
+    const totalCredit = lines.reduce((sum, l) => sum + Number(l.credit || 0), 0);
+
+    if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) {
+      alert(`Accounting entry is not balanced for ${sourceNo}. Debit ${totalDebit.toFixed(2)} / Credit ${totalCredit.toFixed(2)}`);
+      return;
+    }
+
+    await supabase
+      .from('gl_transaction_headers')
+      .delete()
+      .eq('source_type', sourceType)
+      .eq('source_no', sourceNo);
+
+    const transactionNo = `GL-${sourceType.replace(/[^A-Z0-9]/gi, '').toUpperCase()}-${sourceNo}`;
+    const { data: header, error: headerError } = await supabase
+      .from('gl_transaction_headers')
+      .insert([{
+        transaction_no: transactionNo,
+        transaction_date: transactionDate || new Date().toISOString().slice(0, 10),
+        source_type: sourceType,
+        source_id: sourceId || null,
+        source_no: sourceNo,
+        description,
+        status: 'Posted',
+        total_debit: totalDebit,
+        total_credit: totalCredit,
+      }])
+      .select('id')
+      .single();
+
+    if (headerError) {
+      alert(headerError.message);
+      return;
+    }
+
+    const detailRows = lines.map((line, index) => ({
+      header_id: header.id,
+      line_no: index + 1,
+      account_code: line.account_code,
+      account_name: line.account_name,
+      debit: Number(line.debit || 0),
+      credit: Number(line.credit || 0),
+      description: line.description || description,
+    }));
+
+    const { error: lineError } = await supabase
+      .from('gl_transaction_lines')
+      .insert(detailRows);
+
+    if (lineError) alert(lineError.message);
+  }
+
+  async function postInvoiceAccounting(inv: any, sourceId?: number | null) {
+    const ar = findLedgerCode('receivable', '1000', 'Accounts Receivable');
+    const revenue = findLedgerCode('revenue', '4010', 'Repair & Maintenance Revenue');
+    const tax = findLedgerCode('tax payable', '2100', 'Tax Payable');
+
+    const subtotal = Number(inv.subtotal || inv.amount || 0) - Number(inv.discount || 0);
+    const taxAmount = Number(inv.tax_amount || 0);
+    const total = Number(inv.total_amount || inv.amount || 0);
+
+    const lines = [
+      { ...ar, debit: total, credit: 0, description: `Invoice ${inv.invoice_no} - ${inv.customer}` },
+      { ...revenue, debit: 0, credit: subtotal, description: `Revenue ${inv.invoice_no}` },
+    ];
+
+    if (taxAmount > 0) {
+      lines.push({ ...tax, debit: 0, credit: taxAmount, description: `Sales tax ${inv.invoice_no}` });
+    }
+
+    await postAccountingEntry('Invoice', sourceId, inv.invoice_no, inv.invoice_date, `Invoice ${inv.invoice_no} - ${inv.customer}`, lines);
+  }
+
+  async function postReceiptAccounting(rcpt: any, sourceId?: number | null) {
+    const bank = rcpt.bank_name
+      ? findLedgerCode('bank', '1010', rcpt.bank_name)
+      : findLedgerCode('cash', '1020', 'Cash on Hand');
+    const ar = findLedgerCode('receivable', '1000', 'Accounts Receivable');
+    const amount = Number(rcpt.amount || 0);
+
+    await postAccountingEntry('Receipt', sourceId, rcpt.receipt_no, rcpt.receipt_date, `Receipt ${rcpt.receipt_no} - ${rcpt.customer}`, [
+      { ...bank, debit: amount, credit: 0, description: `Receipt ${rcpt.receipt_no}` },
+      { ...ar, debit: 0, credit: amount, description: `Receipt applied to invoice ${rcpt.invoice_no}` },
+    ]);
+  }
+
+  async function postCustomerPaymentAccounting(pay: any, sourceId?: number | null) {
+    const bank = pay.bank_name
+      ? findLedgerCode('bank', '1010', pay.bank_name)
+      : findLedgerCode('cash', '1020', 'Cash on Hand');
+    const ar = findLedgerCode('receivable', '1000', 'Accounts Receivable');
+    const amount = Number(pay.amount || 0);
+
+    await postAccountingEntry('Customer Payment', sourceId, pay.invoice_no, pay.payment_date, `Customer payment ${pay.invoice_no} - ${pay.customer}`, [
+      { ...bank, debit: amount, credit: 0, description: `Payment received ${pay.invoice_no}` },
+      { ...ar, debit: 0, credit: amount, description: `Payment applied to invoice ${pay.invoice_no}` },
+    ]);
+  }
+
   function getCustomerByName(name: string) {
     return customers.find((c) => c.name === name);
   }
@@ -872,10 +993,12 @@ export default function ERPApp() {
     };
 
     const res = editingInvoiceId
-      ? await supabase.from('invoices').update(payload).eq('id', editingInvoiceId)
-      : await supabase.from('invoices').insert([payload]);
+      ? await supabase.from('invoices').update(payload).eq('id', editingInvoiceId).select('id').single()
+      : await supabase.from('invoices').insert([payload]).select('id').single();
 
     if (res.error) return alert(res.error.message);
+
+    await postInvoiceAccounting(payload, res.data?.id || editingInvoiceId);
 
     if (payload.job_id) {
       await supabase.from('jobs').update({ status: payload.status === 'Paid' ? 'Paid' : 'Invoiced' }).eq('id', payload.job_id);
@@ -962,10 +1085,12 @@ export default function ERPApp() {
     };
 
     const res = editingPaymentId
-      ? await supabase.from('payments').update(payload).eq('id', editingPaymentId)
-      : await supabase.from('payments').insert([payload]);
+      ? await supabase.from('payments').update(payload).eq('id', editingPaymentId).select('id').single()
+      : await supabase.from('payments').insert([payload]).select('id').single();
 
     if (res.error) return alert(res.error.message);
+
+    await postCustomerPaymentAccounting(payload, res.data?.id || editingPaymentId);
 
     await applyBankDelta(
       oldPayment?.bank_name || '',
@@ -1391,10 +1516,12 @@ async function saveReceipt() {
     };
 
     const res = editingReceiptId
-      ? await supabase.from('receipts').update(payload).eq('id', editingReceiptId)
-      : await supabase.from('receipts').insert([payload]);
+      ? await supabase.from('receipts').update(payload).eq('id', editingReceiptId).select('id').single()
+      : await supabase.from('receipts').insert([payload]).select('id').single();
 
     if (res.error) return alert(res.error.message);
+
+    await postReceiptAccounting(payload, res.data?.id || editingReceiptId);
 
     await applyBankDelta(
       oldReceipt?.bank_name || '',
