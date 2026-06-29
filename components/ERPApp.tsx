@@ -98,6 +98,17 @@ type NumberSequence = { id?: number; document_type: string; prefix: string; next
 type Account = { id?: number; account_code: string; account_name: string; account_type: string; normal_balance: string; is_active: boolean };
 type EmailSettings = { id?: number; from_name: string; from_email: string; reply_to_email: string; bcc_email: string };
 type EmailTemplate = { id?: number; template_name: string; subject: string; body: string };
+type EmailDraft = {
+  open: boolean;
+  type: string;
+  to: string;
+  subject: string;
+  body: string;
+  html: string;
+  data: Record<string, any>;
+  attachmentName: string;
+};
+
 
 const LOGO_SRC = '/aashan-logo.png';
 
@@ -138,6 +149,17 @@ const emptySequence: NumberSequence = { document_type: '', prefix: '', next_numb
 const emptyAccount: Account = { account_code: '', account_name: '', account_type: 'Revenue', normal_balance: 'Credit', is_active: true };
 const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_email: 'support@aashan.co', reply_to_email: 'support@aashan.co', bcc_email: '' };
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
+const emptyEmailDraft: EmailDraft = {
+  open: false,
+  type: '',
+  to: '',
+  subject: '',
+  body: '',
+  html: '',
+  data: {},
+  attachmentName: '',
+};
+
 type PrintTemplate = {
   id?: number;
   document_type: string;
@@ -207,6 +229,8 @@ export default function ERPApp() {
   const [emailSettings, setEmailSettings] = useState<EmailSettings>(emptyEmailSettings);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [template, setTemplate] = useState<EmailTemplate>(emptyTemplate);
+  const [emailDraft, setEmailDraft] = useState<EmailDraft>(emptyEmailDraft);
+  const [emailSending, setEmailSending] = useState(false);
   const [printTemplates, setPrintTemplates] = useState<PrintTemplate[]>([]);
   const [printTemplate, setPrintTemplate] = useState<PrintTemplate>(emptyPrintTemplate);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
@@ -1113,11 +1137,6 @@ export default function ERPApp() {
   async function emailDocument(type: string, to: string, fallbackSubject: string, fallbackBody: string, data: Record<string, any> = {}) {
     if (!to) return alert('Customer email is missing.');
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (!token) return alert('Please login again before sending email.');
-
     const masterTemplate = getEmailTemplate(type);
     const subject = replaceTemplateVariables(masterTemplate?.subject || fallbackSubject, data);
     const body = replaceTemplateVariables(masterTemplate?.body || fallbackBody, data);
@@ -1126,6 +1145,33 @@ export default function ERPApp() {
       .replaceAll('%0D%0A', '<br />')
       .replaceAll('\n', '<br />');
 
+    const documentNo = data.document_no || data.invoice_no || data.quote_no || data.receipt_no || '';
+    const customerName = data.customer || data.customer_name || '';
+    const safeCustomer = String(customerName || 'Customer').replace(/[^a-z0-9-_ ]/gi, '').trim();
+    const attachmentName = `${type} - ${documentNo} - ${safeCustomer}.pdf`;
+
+    setEmailDraft({
+      open: true,
+      type,
+      to,
+      subject,
+      body: String(body || '').replaceAll('%0D%0A', '\n'),
+      html: htmlBody,
+      data,
+      attachmentName,
+    });
+  }
+
+  async function sendEmailDraft() {
+    if (!emailDraft.to) return alert('Recipient email is missing.');
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    if (!token) return alert('Please login again before sending email.');
+
+    setEmailSending(true);
+
     const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
@@ -1133,31 +1179,33 @@ export default function ERPApp() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        to,
-        subject,
-        html: htmlBody,
-        text: String(body || '').replaceAll('%0D%0A', '\n'),
-        documentType: type,
-        templateName: emailTemplateName(type),
-        customer: data.customer || data.customer_name || '',
-        customerName: data.customer || data.customer_name || '',
-        documentNo: data.document_no || data.invoice_no || data.quote_no || data.receipt_no || '',
-        invoiceNo: data.invoice_no || '',
-        quoteNo: data.quote_no || '',
-        receiptNo: data.receipt_no || '',
-        amount: data.amount || '',
-        balance: data.balance || '',
-        dueDate: data.due_date || '',
+        to: emailDraft.to,
+        subject: emailDraft.subject,
+        html: emailDraft.html || String(emailDraft.body || '').replaceAll('\n', '<br />'),
+        text: emailDraft.body,
+        documentType: emailDraft.type,
+        templateName: emailTemplateName(emailDraft.type),
+        customer: emailDraft.data.customer || emailDraft.data.customer_name || '',
+        customerName: emailDraft.data.customer || emailDraft.data.customer_name || '',
+        documentNo: emailDraft.data.document_no || emailDraft.data.invoice_no || emailDraft.data.quote_no || emailDraft.data.receipt_no || '',
+        invoiceNo: emailDraft.data.invoice_no || '',
+        quoteNo: emailDraft.data.quote_no || '',
+        receiptNo: emailDraft.data.receipt_no || '',
+        amount: emailDraft.data.amount || '',
+        balance: emailDraft.data.balance || '',
+        dueDate: emailDraft.data.due_date || '',
       }),
     });
 
     const result = await response.json().catch(() => ({}));
+    setEmailSending(false);
 
     if (!response.ok) {
       return alert(result.error || 'Email failed to send.');
     }
 
-    alert(result.message || `${type} email sent to ${to}`);
+    alert(result.message || `${emailDraft.type} email sent to ${emailDraft.to}`);
+    setEmailDraft(emptyEmailDraft);
   }
 
   function openInvoicePrint(inv: Invoice) {
@@ -2835,6 +2883,77 @@ async function saveReceipt() {
             <button style={styles.bottomNavBtn} onClick={() => setMobileMenuOpen(true)}>☰<span>More</span></button>
           </nav>
     
+          {emailDraft.open && (
+            <div className="email-modal-backdrop">
+              <div className="email-modal">
+                <div className="email-modal-left">
+                  <h2>Send {emailDraft.type}</h2>
+
+                  <label className="email-label">To</label>
+                  <input
+                    className="email-input"
+                    value={emailDraft.to}
+                    onChange={(e) => setEmailDraft({ ...emailDraft, to: e.target.value })}
+                  />
+
+                  <label className="email-label">Subject</label>
+                  <input
+                    className="email-input"
+                    value={emailDraft.subject}
+                    onChange={(e) => setEmailDraft({ ...emailDraft, subject: e.target.value })}
+                  />
+
+                  <label className="email-label">Message</label>
+                  <textarea
+                    className="email-textarea"
+                    value={emailDraft.body}
+                    onChange={(e) => setEmailDraft({ ...emailDraft, body: e.target.value, html: e.target.value.replaceAll('\n', '<br />') })}
+                  />
+
+                  <div className="email-attachment">
+                    <span>✓</span>
+                    <b>{emailDraft.attachmentName}</b>
+                  </div>
+
+                  <div className="email-actions">
+                    <button className="email-send-btn" disabled={emailSending} onClick={sendEmailDraft}>
+                      {emailSending ? 'Sending...' : 'Send'}
+                    </button>
+                    <button className="email-cancel-btn" disabled={emailSending} onClick={() => setEmailDraft(emptyEmailDraft)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+
+                <div className="email-modal-right">
+                  <div className="email-preview-header">
+                    <b>{emailDraft.type} Preview</b>
+                    <span>{emailDraft.attachmentName}</span>
+                  </div>
+
+                  <div className="email-pdf-preview">
+                    <div className="mini-doc">
+                      <div className="mini-logo-row">
+                        <img src={company.logo_url || LOGO_SRC} />
+                        <div>
+                          <h3>{emailDraft.type}</h3>
+                          <p>{company.company_name || 'Aashan & Co LLC'}</p>
+                        </div>
+                      </div>
+                      <div className="mini-line" />
+                      <p><b>Customer:</b> {emailDraft.data.customer || emailDraft.data.customer_name}</p>
+                      <p><b>Document No:</b> {emailDraft.data.document_no || emailDraft.data.invoice_no || emailDraft.data.quote_no || emailDraft.data.receipt_no}</p>
+                      <p><b>Amount:</b> ${Number(emailDraft.data.amount || 0).toFixed(2)}</p>
+                      {emailDraft.data.balance !== undefined && <p><b>Balance:</b> ${Number(emailDraft.data.balance || 0).toFixed(2)}</p>}
+                      {emailDraft.data.due_date && <p><b>Due Date:</b> {emailDraft.data.due_date}</p>}
+                      <div className="mini-message" dangerouslySetInnerHTML={{ __html: emailDraft.html }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {printQuote && (
             <div className="invoice-print">
               <div className="quote-page">
