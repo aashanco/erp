@@ -98,6 +98,8 @@ type NumberSequence = { id?: number; document_type: string; prefix: string; next
 type Account = { id?: number; account_code: string; account_name: string; account_type: string; normal_balance: string; is_active: boolean };
 type EmailSettings = { id?: number; from_name: string; from_email: string; reply_to_email: string; bcc_email: string };
 type EmailTemplate = { id?: number; template_name: string; subject: string; body: string };
+type TransactionLine = { description: string; qty: string; unit_price: string; discount: string; tax_rate: string };
+
 type EmailDraft = {
   open: boolean;
   type: string;
@@ -149,6 +151,8 @@ const emptySequence: NumberSequence = { document_type: '', prefix: '', next_numb
 const emptyAccount: Account = { account_code: '', account_name: '', account_type: 'Revenue', normal_balance: 'Credit', is_active: true };
 const emptyEmailSettings: EmailSettings = { from_name: 'Aashan & Co LLC', from_email: 'support@aashan.co', reply_to_email: 'support@aashan.co', bcc_email: '' };
 const emptyTemplate: EmailTemplate = { template_name: '', subject: '', body: '' };
+const emptyTransactionLine: TransactionLine = { description: '', qty: '1', unit_price: '', discount: '0', tax_rate: '' };
+
 const emptyEmailDraft: EmailDraft = {
   open: false,
   type: '',
@@ -214,6 +218,8 @@ export default function ERPApp() {
   const [quote, setQuote] = useState<Quote>(emptyQuote);
   const [workOrder, setWorkOrder] = useState<WorkOrder>(emptyWorkOrder);
   const [invoice, setInvoice] = useState<Invoice>(emptyInvoice);
+  const [quoteLines, setQuoteLines] = useState<TransactionLine[]>([{ ...emptyTransactionLine }]);
+  const [invoiceLines, setInvoiceLines] = useState<TransactionLine[]>([{ ...emptyTransactionLine }]);
   const [payment, setPayment] = useState<Payment>(emptyPayment);
   const [bank, setBank] = useState<Bank>(emptyBank);
   const [receipt, setReceipt] = useState<Receipt>(emptyReceipt);
@@ -691,26 +697,94 @@ export default function ERPApp() {
   }
 
 
+
+  function lineCalc(line: TransactionLine) {
+    const qty = Number(line.qty || 0);
+    const unit = Number(line.unit_price || 0);
+    const discount = Number(line.discount || 0);
+    const taxable = Math.max((qty * unit) - discount, 0);
+    const taxRate = line.tax_rate === '' ? 0 : Number(line.tax_rate || 0);
+    const tax = taxable * taxRate / 100;
+    return { subtotal: taxable, tax, total: taxable + tax };
+  }
+
+  function documentTotals(lines: TransactionLine[]) {
+    return lines.reduce((acc, line) => {
+      const calc = lineCalc(line);
+      acc.subtotal += calc.subtotal;
+      acc.tax += calc.tax;
+      acc.total += calc.total;
+      return acc;
+    }, { subtotal: 0, tax: 0, total: 0 });
+  }
+
+  function cleanLines(lines: TransactionLine[]) {
+    return lines.filter((line) => line.description.trim() || Number(line.qty || 0) || Number(line.unit_price || 0));
+  }
+
+  function visibleNotes(value?: string) {
+    return String(value || '').split('LINES_JSON:')[0].trim();
+  }
+
+  function updateQuoteLine(index: number, field: keyof TransactionLine, value: string) {
+    setQuoteLines((prev) => prev.map((line, i) => i === index ? { ...line, [field]: value } : line));
+  }
+
+  function updateInvoiceLine(index: number, field: keyof TransactionLine, value: string) {
+    setInvoiceLines((prev) => prev.map((line, i) => i === index ? { ...line, [field]: value } : line));
+  }
+
+  function addQuoteLine() {
+    setQuoteLines((prev) => [...prev, { ...emptyTransactionLine }]);
+  }
+
+  function addInvoiceLine() {
+    setInvoiceLines((prev) => [...prev, { ...emptyTransactionLine }]);
+  }
+
+  function deleteQuoteLine(index: number) {
+    setQuoteLines((prev) => prev.length === 1 ? [{ ...emptyTransactionLine }] : prev.filter((_, i) => i !== index));
+  }
+
+  function deleteInvoiceLine(index: number) {
+    setInvoiceLines((prev) => prev.length === 1 ? [{ ...emptyTransactionLine }] : prev.filter((_, i) => i !== index));
+  }
+
+  function resetQuoteForm() {
+    setQuote(emptyQuote);
+    setQuoteLines([{ ...emptyTransactionLine }]);
+    setEditingQuoteId(null);
+  }
+
+  function resetInvoiceForm() {
+    setInvoice(emptyInvoice);
+    setInvoiceLines([{ ...emptyTransactionLine }]);
+    setEditingInvoiceId(null);
+  }
+
   async function saveQuote() {
-    if (!quote.customer.trim() || !quote.service.trim()) return alert('Select customer and enter service');
+    const lines = cleanLines(quoteLines);
+    if (!quote.customer.trim() || lines.length === 0) return alert('Select customer and enter at least one line');
     const today = new Date().toISOString().slice(0, 10);
-    const quoteToSave = applyQuoteCalculation({ ...quote, tax_rate: (quote.tax_rate === '' ? '0' : quote.tax_rate) });
-    const calc = calculateLineAmount(quoteToSave);
+    const totals = documentTotals(lines);
+    const first = lines[0] || emptyTransactionLine;
     const payload = {
       quote_no: quote.quote_no || nextQuoteNo(),
-      customer: quoteToSave.customer,
-      service: quoteToSave.service,
-      quote_date: quoteToSave.quote_date || today,
-      qty: calc.qty,
-      unit_price: calc.unit_price,
-      discount: calc.discount,
-      tax_rate: calc.tax_rate,
-      subtotal: calc.subtotal,
-      tax_amount: calc.tax_amount,
-      total_amount: calc.total_amount,
-      amount: calc.total_amount,
-      status: quoteToSave.status,
-      notes: quoteToSave.notes || '',
+      customer: quote.customer,
+      service: lines.map((line) => line.description).filter(Boolean).join('; '),
+      quote_date: quote.quote_date || today,
+      qty: Number(first.qty || 0),
+      unit_price: Number(first.unit_price || 0),
+      discount: lines.reduce((sum, line) => sum + Number(line.discount || 0), 0),
+      tax_rate: first.tax_rate === '' ? 0 : Number(first.tax_rate || 0),
+      subtotal: Number(totals.subtotal.toFixed(2)),
+      tax_amount: Number(totals.tax.toFixed(2)),
+      total_amount: Number(totals.total.toFixed(2)),
+      amount: Number(totals.total.toFixed(2)),
+      status: quote.status,
+      notes: `${quote.notes || ''}
+
+LINES_JSON:${JSON.stringify(lines)}`.trim(),
     };
 
     const res = editingQuoteId
@@ -718,13 +792,14 @@ export default function ERPApp() {
       : await supabase.from('quotes').insert([payload]);
 
     if (res.error) return alert(res.error.message);
-    setQuote(emptyQuote);
-    setEditingQuoteId(null);
+    resetQuoteForm();
     await loadData();
   }
 
   function editQuote(q: Quote) {
-    setQuote({ ...q, amount: String(q.amount || ''), qty: String(q.qty || '1'), unit_price: String(q.unit_price || q.amount || ''), discount: String(q.discount || '0'), tax_rate: String(q.tax_rate || '0'), subtotal: String(q.subtotal || 0), tax_amount: String(q.tax_amount || 0), total_amount: String(q.total_amount || q.amount || 0) });
+    const savedLines = String(q.notes || '').includes('LINES_JSON:') ? (() => { try { return JSON.parse(String(q.notes || '').split('LINES_JSON:')[1]) as TransactionLine[]; } catch { return null; } })() : null;
+    setQuote({ ...q, amount: String(q.amount || ''), qty: String(q.qty || '1'), unit_price: String(q.unit_price || q.amount || ''), discount: String(q.discount || '0'), tax_rate: q.tax_rate === null || q.tax_rate === undefined ? '' : String(q.tax_rate), subtotal: String(q.subtotal || 0), tax_amount: String(q.tax_amount || 0), total_amount: String(q.total_amount || q.amount || 0), notes: String(q.notes || '').split('LINES_JSON:')[0].trim() });
+    setQuoteLines(savedLines && savedLines.length ? savedLines : [{ description: q.service || '', qty: String(q.qty || '1'), unit_price: String(q.unit_price || q.amount || ''), discount: String(q.discount || '0'), tax_rate: q.tax_rate === null || q.tax_rate === undefined ? '' : String(q.tax_rate) }]);
     setEditingQuoteId(q.id || null);
     setActiveTab('quotes');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -919,6 +994,7 @@ export default function ERPApp() {
       customer_email: c?.email || '',
       customer_address: c?.address || '',
     }));
+    setInvoiceLines([{ description: selected.service || selected.notes || '', qty: String(selected.qty || '1'), unit_price: String(selected.unit_price || selected.amount || ''), discount: String(selected.discount || '0'), tax_rate: selected.tax_rate === null || selected.tax_rate === undefined ? '' : String(selected.tax_rate) }]);
   }
 
   function fillInvoiceFromJob(jobIdValue: string) {
@@ -949,6 +1025,7 @@ export default function ERPApp() {
       customer_email: c?.email || '',
       customer_address: c?.address || '',
     }));
+    setInvoiceLines([{ description: selected.service || '', qty: invoice.qty || '1', unit_price: invoice.unit_price || String(selected.amount || ''), discount: invoice.discount || '0', tax_rate: invoice.tax_rate === undefined ? '' : String(invoice.tax_rate || '') }]);
   }
 
   function fillInvoiceCustomer(customerName: string) {
@@ -964,32 +1041,35 @@ export default function ERPApp() {
   }
 
   async function saveInvoice() {
+    const lines = cleanLines(invoiceLines);
     if (!invoice.customer.trim()) return alert('Select customer');
-    if (!invoice.amount) return alert('Enter invoice amount');
+    if (lines.length === 0) return alert('Enter at least one invoice line');
 
     const c = getCustomerByName(invoice.customer);
-    const invoiceToSave = applyInvoiceCalculation({ ...invoice, tax_rate: (invoice.tax_rate === '' ? '0' : invoice.tax_rate) });
-    const calc = calculateLineAmount(invoiceToSave);
+    const totals = documentTotals(lines);
+    const first = lines[0] || emptyTransactionLine;
     const payload = {
       invoice_no: invoice.invoice_no || nextInvoiceNo(),
-      customer: invoiceToSave.customer,
-      job_id: invoiceToSave.job_id || null,
-      quote_id: invoiceToSave.quote_id || null,
-      qty: calc.qty,
-      unit_price: calc.unit_price,
-      discount: calc.discount,
-      tax_rate: calc.tax_rate,
-      subtotal: calc.subtotal,
-      tax_amount: calc.tax_amount,
-      total_amount: calc.total_amount,
-      amount: calc.total_amount,
+      customer: invoice.customer,
+      job_id: invoice.job_id || null,
+      quote_id: invoice.quote_id || null,
+      qty: Number(first.qty || 0),
+      unit_price: Number(first.unit_price || 0),
+      discount: lines.reduce((sum, line) => sum + Number(line.discount || 0), 0),
+      tax_rate: first.tax_rate === '' ? 0 : Number(first.tax_rate || 0),
+      subtotal: Number(totals.subtotal.toFixed(2)),
+      tax_amount: Number(totals.tax.toFixed(2)),
+      total_amount: Number(totals.total.toFixed(2)),
+      amount: Number(totals.total.toFixed(2)),
       invoice_date: invoice.invoice_date || null,
       due_date: invoice.due_date || null,
-      status: invoiceToSave.status,
-      notes: invoiceToSave.notes || '',
-      customer_phone: invoiceToSave.customer_phone || c?.phone || '',
-      customer_email: invoiceToSave.customer_email || c?.email || '',
-      customer_address: invoiceToSave.customer_address || c?.address || '',
+      status: invoice.status,
+      notes: `${invoice.notes || ''}
+
+LINES_JSON:${JSON.stringify(lines)}`.trim(),
+      customer_phone: invoice.customer_phone || c?.phone || '',
+      customer_email: invoice.customer_email || c?.email || '',
+      customer_address: invoice.customer_address || c?.address || '',
     };
 
     const res = editingInvoiceId
@@ -1008,25 +1088,29 @@ export default function ERPApp() {
       await supabase.from('quotes').update({ status: 'Converted' }).eq('id', payload.quote_id);
     }
 
-    setInvoice(emptyInvoice); setEditingInvoiceId(null); await loadData();
+    resetInvoiceForm();
+    await loadData();
   }
 
   function editInvoice(inv: Invoice) {
     const c = getCustomerByName(inv.customer);
+    const savedLines = String(inv.notes || '').includes('LINES_JSON:') ? (() => { try { return JSON.parse(String(inv.notes || '').split('LINES_JSON:')[1]) as TransactionLine[]; } catch { return null; } })() : null;
     setInvoice({
       ...inv,
       amount: String(inv.amount || ''),
       qty: String(inv.qty || '1'),
       unit_price: String(inv.unit_price || inv.amount || ''),
       discount: String(inv.discount || '0'),
-      tax_rate: String(inv.tax_rate || '0'),
+      tax_rate: inv.tax_rate === null || inv.tax_rate === undefined ? '' : String(inv.tax_rate),
       subtotal: String(inv.subtotal || 0),
       tax_amount: String(inv.tax_amount || 0),
       total_amount: String(inv.total_amount || inv.amount || 0),
+      notes: String(inv.notes || '').split('LINES_JSON:')[0].trim(),
       customer_phone: inv.customer_phone || c?.phone || '',
       customer_email: inv.customer_email || c?.email || '',
       customer_address: inv.customer_address || c?.address || '',
     });
+    setInvoiceLines(savedLines && savedLines.length ? savedLines : [{ description: inv.notes || '', qty: String(inv.qty || '1'), unit_price: String(inv.unit_price || inv.amount || ''), discount: String(inv.discount || '0'), tax_rate: inv.tax_rate === null || inv.tax_rate === undefined ? '' : String(inv.tax_rate) }]);
     setEditingInvoiceId(inv.id || null);
     setActiveTab('invoices');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1338,13 +1422,13 @@ export default function ERPApp() {
   function openInvoicePrint(inv: Invoice) {
     setPrintQuote(null);
     setPrintReceipt(null);
-    setPrintInvoice(inv);
+    setPrintInvoice({ ...inv, notes: visibleNotes(inv.notes) });
   }
 
   function openQuotePrint(qt: Quote) {
     setPrintInvoice(null);
     setPrintReceipt(null);
-    setPrintQuote(qt);
+    setPrintQuote({ ...qt, notes: visibleNotes(qt.notes) });
   }
 
   function openReceiptPrint(r: Receipt) {
@@ -2050,7 +2134,27 @@ async function saveReceipt() {
 
   return (
     <main style={styles.page}>
-          <style>{printCss}</style>
+          <style>{`${printCss}
+
+.bc-action-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; border-bottom: 1px solid #d7dee8; padding-bottom: 12px; }
+.bc-primary { background: #008b96; color: white; border: 0; border-radius: 9px; padding: 10px 18px; font-weight: 800; cursor: pointer; }
+.bc-action { background: #f8fafc; color: #0f6270; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px 14px; font-weight: 800; cursor: pointer; }
+.bc-general-grid { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 14px 38px; margin-bottom: 24px; }
+.bc-lines-title { font-size: 17px; font-weight: 900; color: #0f3f56; border-bottom: 2px solid #0f3f56; padding-bottom: 8px; margin: 6px 0 10px; }
+.bc-lines-wrap { width: 100%; overflow-x: auto; border: 1px solid #d7dee8; border-radius: 12px; }
+.bc-lines { width: 100%; min-width: 900px; border-collapse: collapse; background: white; }
+.bc-lines th { text-align: left; font-size: 12px; color: #475569; background: #f8fafc; padding: 10px; border-bottom: 1px solid #d7dee8; }
+.bc-lines td { padding: 7px; border-bottom: 1px solid #e5e7eb; }
+.bc-lines input { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 6px; padding: 9px; font-size: 14px; }
+.bc-amount { text-align: right; font-weight: 900; white-space: nowrap; color: #0f172a; }
+.bc-delete { border: 0; background: #fee2e2; color: #991b1b; border-radius: 7px; padding: 8px 10px; cursor: pointer; font-weight: 800; }
+.bc-footer-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(260px, 360px); gap: 24px; align-items: start; margin-top: 18px; }
+.bc-totals { background: #f8fafc; border: 1px solid #d7dee8; border-radius: 12px; padding: 14px; }
+.bc-totals div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #cbd5e1; }
+.bc-totals div:last-child { border-bottom: 0; }
+.bc-grand { font-size: 18px; color: #0f6270; }
+@media (max-width: 760px) { .bc-general-grid, .bc-footer-grid { grid-template-columns: 1fr; } .bc-action-bar { position: sticky; top: 0; background: white; z-index: 20; } .bc-lines { min-width: 760px; } .bc-lines-wrap { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
+`}</style>
     
           <div className="app-screen">
             <header style={styles.header}>
@@ -2310,46 +2414,25 @@ async function saveReceipt() {
     
               {(activeTab === 'quotes') && (
                 <>
-                  <SectionCard title={editingQuoteId ? 'Edit Quote' : 'Create Quote'}>
-                    <div style={styles.formGrid2}>
+                  <SectionCard title={editingQuoteId ? 'Edit Sales Quote' : 'Sales Quote'}>
+                    <div className="bc-action-bar"><button onClick={saveQuote} className="bc-primary">✓ Save</button><button onClick={addQuoteLine} className="bc-action">＋ New Line</button>{editingQuoteId && <button onClick={resetQuoteForm} className="bc-action">Cancel</button>}</div>
+                    <div className="bc-general-grid">
+                      <Field label="Customer Name"><select value={quote.customer} onChange={(e) => setQuote({ ...quote, customer: e.target.value })} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
                       <Input label="Quote No" value={quote.quote_no} onChange={(v: string) => setQuote({ ...quote, quote_no: v })} />
-                      <Field label="Customer"><select value={quote.customer} onChange={(e) => setQuote(applyQuoteCalculation({ ...quote, customer: e.target.value, tax_rate: (quote.tax_rate === '' ? '0' : quote.tax_rate) }))} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
-                      <Input label="Quote Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
-                      <Input label="Service / Description" value={quote.service} onChange={(v: string) => setQuote({ ...quote, service: v })} />
-                      <Input label="Qty" type="number" value={quote.qty || '1'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, qty: v }))} />
-                      <Input label="Unit Price" type="number" value={quote.unit_price || ''} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, unit_price: v }))} />
-                      <Input label="Discount" type="number" value={quote.discount || '0'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, discount: v }))} />
-                      <Input label="Tax %" type="number" value={quote.tax_rate || '0'} onChange={(v: string) => setQuote(applyQuoteCalculation({ ...quote, tax_rate: v }))} />
-                      <Input label="Subtotal" value={Number(quote.subtotal || 0).toFixed(2)} onChange={() => {}} />
-                      <Input label="Tax Amount" value={Number(quote.tax_amount || 0).toFixed(2)} onChange={() => {}} />
-                      <Input label="Total Amount" value={Number(quote.total_amount || quote.amount || 0).toFixed(2)} onChange={() => {}} />
+                      <Input label="Document Date" type="date" value={quote.quote_date} onChange={(v: string) => setQuote({ ...quote, quote_date: v })} />
                       <Field label="Status"><select value={quote.status} onChange={(e) => setQuote({ ...quote, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option><option>Converted</option></select></Field>
-                      <Input label="Notes" value={quote.notes} onChange={(v: string) => setQuote({ ...quote, notes: v })} />
                     </div>
-                    <ButtonRow>
-                      <button onClick={saveQuote} style={styles.primaryBtn}>{editingQuoteId ? 'Update Quote' : 'Save Quote'}</button>
-                      {editingQuoteId && <button onClick={() => { setQuote(emptyQuote); setEditingQuoteId(null); }} style={styles.grayBtn}>Cancel</button>}
-                    </ButtonRow>
+                    <div className="bc-lines-title">Lines</div>
+                    <div className="bc-lines-wrap"><table className="bc-lines"><thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Tax %</th><th>Line Amount</th><th></th></tr></thead><tbody>{quoteLines.map((line, index) => { const c = lineCalc(line); return <tr key={index}><td><input value={line.description} onChange={(e) => updateQuoteLine(index, 'description', e.target.value)} placeholder="Service / item description" /></td><td><input type="number" value={line.qty} onChange={(e) => updateQuoteLine(index, 'qty', e.target.value)} /></td><td><input type="number" value={line.unit_price} onChange={(e) => updateQuoteLine(index, 'unit_price', e.target.value)} /></td><td><input type="number" value={line.discount} onChange={(e) => updateQuoteLine(index, 'discount', e.target.value)} /></td><td><input type="number" value={line.tax_rate} onChange={(e) => updateQuoteLine(index, 'tax_rate', e.target.value)} placeholder="Blank = no tax" /></td><td className="bc-amount">${c.total.toFixed(2)}</td><td><button onClick={() => deleteQuoteLine(index)} className="bc-delete">Delete</button></td></tr>; })}</tbody></table></div>
+                    <div className="bc-footer-grid"><Input label="Notes" value={quote.notes} onChange={(v: string) => setQuote({ ...quote, notes: v })} /><div className="bc-totals"><div><span>Subtotal</span><b>${documentTotals(quoteLines).subtotal.toFixed(2)}</b></div><div><span>Tax</span><b>${documentTotals(quoteLines).tax.toFixed(2)}</b></div><div className="bc-grand"><span>Total</span><b>${documentTotals(quoteLines).total.toFixed(2)}</b></div></div></div>
                   </SectionCard>
     
                   <DataTable title="Quotes" headers={['Quote #', 'Customer', 'Date', 'Service', 'Amount', 'Status', 'Quick Status', 'Actions']}>
                     {filteredQuotes.map((qt) => (
                       <tr key={qt.id}>
-                        <Td>{qt.quote_no}</Td>
-                        <Td>{qt.customer}</Td>
-                        <Td>{qt.quote_date}</Td>
-                        <Td>{qt.service}</Td>
-                        <Td>${Number(qt.total_amount || qt.amount || 0).toFixed(2)}</Td>
-                        <Td><StatusBadge status={qt.status} /></Td>
+                        <Td>{qt.quote_no}</Td><Td>{qt.customer}</Td><Td>{qt.quote_date}</Td><Td>{qt.service}</Td><Td>${Number(qt.total_amount || qt.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={qt.status} /></Td>
                         <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option><option>Converted</option></select></Td>
-                        <Td>
-                          <button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button>
-                          <button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button>
-                          <button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button>
-                          <button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find quote {{quote_no}} for $' + '{{amount}}' + '.', { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount })}>Email</button>
-                          <button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>
-                          {canDeleteDocument(qt.status) && <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>}
-                        </Td>
+                        <Td><button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button><button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button><button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button><button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, 'Hi {{customer}},%0D%0A%0D%0APlease find quote {{quote_no}} for $' + '{{amount}}' + '.', { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount })}>Email</button><button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>{canDeleteDocument(qt.status) && <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>}</Td>
                       </tr>
                     ))}
                   </DataTable>
@@ -2509,31 +2592,23 @@ async function saveReceipt() {
     
               {(activeTab === 'invoices') && (
                 <>
-                  <SectionCard title={editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}>
-                    <div style={styles.formGrid2}>
+                  <SectionCard title={editingInvoiceId ? 'Edit Sales Invoice' : 'Sales Invoice'}>
+                    <div className="bc-action-bar"><button onClick={saveInvoice} className="bc-primary">✓ Save</button><button onClick={addInvoiceLine} className="bc-action">＋ New Line</button>{editingInvoiceId && <button onClick={resetInvoiceForm} className="bc-action">Cancel</button>}</div>
+                    <div className="bc-general-grid">
                       <Field label="From Quote"><select value={invoice.quote_id ? String(invoice.quote_id) : ''} onChange={(e) => fillInvoiceFromQuote(e.target.value)} style={styles.input}><option value="">Select Quote</option>{availableInvoiceQuotes.map((q) => <option key={q.id} value={q.id}>{q.quote_no} - {q.customer} - ${Number(q.total_amount || q.amount || 0).toFixed(2)}</option>)}</select></Field>
                       <Field label="From Job"><select value={invoice.job_id ? String(invoice.job_id) : ''} onChange={(e) => fillInvoiceFromJob(e.target.value)} style={styles.input}><option value="">Select Job</option>{availableInvoiceJobs.map((j) => <option key={j.id} value={j.id}>{j.customer} - {j.service} - ${j.amount}</option>)}</select></Field>
                       <Input label="Invoice No" value={invoice.invoice_no} onChange={(v: string) => setInvoice({ ...invoice, invoice_no: v })} />
-                      <Field label="Customer"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
+                      <Field label="Customer Name"><select value={invoice.customer} onChange={(e) => fillInvoiceCustomer(e.target.value)} style={styles.input}><option value="">Select Customer</option>{customers.map((c) => <option key={c.id} value={c.name}>{c.customer_no ? `${c.customer_no} - ${c.name}` : c.name}</option>)}</select></Field>
                       <Input label="Invoice Date" type="date" value={invoice.invoice_date} onChange={(v: string) => setInvoice({ ...invoice, invoice_date: v })} />
                       <Input label="Due Date" type="date" value={invoice.due_date} onChange={(v: string) => setInvoice({ ...invoice, due_date: v })} />
-                      <Input label="Qty" type="number" value={invoice.qty || '1'} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, qty: v }))} />
-                      <Input label="Unit Price" type="number" value={invoice.unit_price || ''} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, unit_price: v }))} />
-                      <Input label="Discount" type="number" value={invoice.discount || '0'} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, discount: v }))} />
-                      <Input label="Tax %" type="number" value={invoice.tax_rate || '0'} onChange={(v: string) => setInvoice(applyInvoiceCalculation({ ...invoice, tax_rate: v }))} />
-                      <Input label="Subtotal" value={Number(invoice.subtotal || 0).toFixed(2)} onChange={() => {}} />
-                      <Input label="Tax Amount" value={Number(invoice.tax_amount || 0).toFixed(2)} onChange={() => {}} />
-                      <Input label="Total Amount" value={Number(invoice.total_amount || invoice.amount || 0).toFixed(2)} onChange={() => {}} />
                       <Input label="Customer Phone" value={invoice.customer_phone || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_phone: v })} />
                       <Input label="Customer Email" value={invoice.customer_email || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_email: v })} />
                       <Input label="Customer Address" value={invoice.customer_address || ''} onChange={(v: string) => setInvoice({ ...invoice, customer_address: v })} />
                       <Field label="Status"><select value={invoice.status} onChange={(e) => setInvoice({ ...invoice, status: e.target.value })} style={styles.input}><option>Draft</option><option>Sent</option><option>Partially Paid</option><option>Paid</option><option>Cancelled</option></select></Field>
-                      <Input label="Notes" value={invoice.notes || ''} onChange={(v: string) => setInvoice({ ...invoice, notes: v })} />
                     </div>
-                    <ButtonRow>
-                      <button onClick={saveInvoice} style={styles.primaryBtn}>{editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</button>
-                      {editingInvoiceId && <button onClick={() => { setInvoice(emptyInvoice); setEditingInvoiceId(null); }} style={styles.grayBtn}>Cancel</button>}
-                    </ButtonRow>
+                    <div className="bc-lines-title">Lines</div>
+                    <div className="bc-lines-wrap"><table className="bc-lines"><thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Tax %</th><th>Line Amount</th><th></th></tr></thead><tbody>{invoiceLines.map((line, index) => { const c = lineCalc(line); return <tr key={index}><td><input value={line.description} onChange={(e) => updateInvoiceLine(index, 'description', e.target.value)} placeholder="Service / item description" /></td><td><input type="number" value={line.qty} onChange={(e) => updateInvoiceLine(index, 'qty', e.target.value)} /></td><td><input type="number" value={line.unit_price} onChange={(e) => updateInvoiceLine(index, 'unit_price', e.target.value)} /></td><td><input type="number" value={line.discount} onChange={(e) => updateInvoiceLine(index, 'discount', e.target.value)} /></td><td><input type="number" value={line.tax_rate} onChange={(e) => updateInvoiceLine(index, 'tax_rate', e.target.value)} placeholder="Blank = no tax" /></td><td className="bc-amount">${c.total.toFixed(2)}</td><td><button onClick={() => deleteInvoiceLine(index)} className="bc-delete">Delete</button></td></tr>; })}</tbody></table></div>
+                    <div className="bc-footer-grid"><Input label="Notes" value={invoice.notes || ''} onChange={(v: string) => setInvoice({ ...invoice, notes: v })} /><div className="bc-totals"><div><span>Subtotal</span><b>${documentTotals(invoiceLines).subtotal.toFixed(2)}</b></div><div><span>Tax</span><b>${documentTotals(invoiceLines).tax.toFixed(2)}</b></div><div className="bc-grand"><span>Total</span><b>${documentTotals(invoiceLines).total.toFixed(2)}</b></div></div></div>
                   </SectionCard>
     
                   <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
