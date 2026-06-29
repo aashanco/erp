@@ -113,6 +113,7 @@ type EmailDraft = {
 
 
 const LOGO_SRC = '/aashan-logo.png';
+const FORCE_ADMIN_EMAILS = ['thomasmathew77@gmail.com', 'support@aashan.co'];
 
 const emptyCustomer: Customer = { customer_no: '', name: '', phone: '', email: '', address: '' };
 const emptyJob: Job = { customer: '', service: '', job_date: '', amount: '', status: 'New' };
@@ -156,17 +157,17 @@ const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
   'Quote Email': {
     template_name: 'Quote Email',
     subject: 'Quote {{quote_no}} from Aashan & Co LLC',
-    body: 'Thank you for considering Aashan & Co LLC for your project.\n\nPlease find the attached quotation for your review. The quote outlines the proposed scope of work and estimated costs based on the information provided. We kindly ask that you review the details and let us know if you have any questions or require any modifications.\n\nPlease note that this quotation includes the labor and services specified. Any additional materials, transportation, permits, equipment rentals, or other project-related expenses not specifically listed may be charged separately.\n\nIf you would like to proceed with the work, simply reply to this email or contact us directly, and we will be happy to schedule your service.\n\nWe appreciate the opportunity to earn your business and look forward to working with you.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\n\nAashan & Co LLC\n\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co'
+    body: 'Hi {{customer_name}},\n\nThank you for considering Aashan & Co LLC for your project.\n\nPlease find the attached quotation for your review. The quote outlines the proposed scope of work and estimated costs based on the information provided. We kindly ask that you review the details and let us know if you have any questions or require any modifications.\n\nPlease note that this quotation includes the labor and services specified. Any additional materials, transportation, permits, equipment rentals, or other project-related expenses not specifically listed may be charged separately.\n\nIf you would like to proceed with the work, simply reply to this email or contact us directly, and we will be happy to schedule your service.\n\nWe appreciate the opportunity to earn your business and look forward to working with you.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\n\nAashan & Co LLC\n\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co'
   },
   'Invoice Email': {
     template_name: 'Invoice Email',
     subject: 'Invoice {{invoice_no}} from Aashan & Co LLC',
-    body: 'Thank you for choosing Aashan & Co LLC.\n\nPlease find your invoice attached for the services provided. We kindly request that you review the invoice.\n\nIf you have any questions regarding this invoice or require additional information, please do not hesitate to contact us. We are happy to assist you.\n\nWe appreciate your business and look forward to serving you again in the future.\n\nWe would also greatly appreciate your feedback. Please leave us a review on Facebook:\n\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\nYour review helps us improve our services and assists other customers in making informed decisions.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\n\nAashan & Co LLC\n\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co'
+    body: 'Hi {{customer_name}},\n\nThank you for choosing Aashan & Co LLC.\n\nPlease find your invoice attached for the services provided. We kindly request that you review the invoice.\n\nIf you have any questions regarding this invoice or require additional information, please do not hesitate to contact us. We are happy to assist you.\n\nWe appreciate your business and look forward to serving you again in the future.\n\nWe would also greatly appreciate your feedback. Please leave us a review on Facebook:\n\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\nYour review helps us improve our services and assists other customers in making informed decisions.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\n\nAashan & Co LLC\n\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co'
   },
   'Payment Receipt Email': {
     template_name: 'Payment Receipt Email',
     subject: 'Payment Receipt {{receipt_no}} from Aashan & Co LLC',
-    body: 'Thank you for your payment. We appreciate your business and the opportunity to serve you.\n\nThis email confirms that we have received your payment. Please retain this receipt for your records.\n\nIf you have any questions regarding your payment or require additional assistance, please feel free to contact us.\n\nWe would greatly appreciate your feedback. Please leave us a review on Facebook:\n\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\nYour review helps us improve our services and assists other customers in making informed decisions.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC'
+    body: 'Hi {{customer_name}},\n\nThank you for your payment. We appreciate your business and the opportunity to serve you.\n\nThis email confirms that we have received your payment. Please retain this receipt for your records.\n\nIf you have any questions regarding your payment or require additional assistance, please feel free to contact us.\n\nWe would greatly appreciate your feedback. Please leave us a review on Facebook:\n\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\nYour review helps us improve our services and assists other customers in making informed decisions.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\nAashan & Co LLC'
   }
 };
 const emptyTransactionLine: TransactionLine = { description: '', qty: '1', unit_price: '', discount: '0', tax_rate: '' };
@@ -308,8 +309,15 @@ export default function ERPApp() {
       .eq('id', user.id)
       .single();
 
+    const userEmail = String(user.email || '').toLowerCase();
+    const shouldForceAdmin = FORCE_ADMIN_EMAILS.includes(userEmail);
+
     if (data) {
-      setProfile(data as UserProfile);
+      const fixedProfile = { ...data, role: shouldForceAdmin ? 'Admin' : data.role } as UserProfile;
+      setProfile(fixedProfile);
+      if (shouldForceAdmin && data.role !== 'Admin') {
+        await supabase.from('user_profiles').update({ role: 'Admin', active: true }).eq('id', user.id);
+      }
       return;
     }
 
@@ -317,7 +325,7 @@ export default function ERPApp() {
       id: user.id,
       email: user.email || '',
       full_name: user.email || '',
-      role: firstUser ? 'Admin' : 'Staff',
+      role: shouldForceAdmin || firstUser ? 'Admin' : 'Staff',
       active: true,
     };
 
@@ -446,6 +454,19 @@ export default function ERPApp() {
 
   useEffect(() => {
     if (session) loadData();
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const refreshOnReturn = () => {
+      if (document.visibilityState === 'visible') loadData();
+    };
+    window.addEventListener('focus', loadData);
+    document.addEventListener('visibilitychange', refreshOnReturn);
+    return () => {
+      window.removeEventListener('focus', loadData);
+      document.removeEventListener('visibilitychange', refreshOnReturn);
+    };
   }, [session]);
 
   useEffect(() => {
@@ -1350,6 +1371,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       company_address: company.address || 'Dallas, Texas',
       facebook_review: 'https://www.facebook.com/profile.php?id=61584788072935&sk=reviews',
       ...data,
+      customer_name: data.customer_name || data.customer || 'Customer',
     };
 
     Object.keys(merged).forEach((key) => {
@@ -1385,7 +1407,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       subject,
       body: String(body || '').replaceAll('%0D%0A', '\n'),
       html: htmlBody,
-      data: { ...data, viewUrl, view_url: viewUrl },
+      data: { ...data, customer_name: data.customer_name || data.customer || customerName || 'Customer', viewUrl, view_url: viewUrl },
       attachmentName,
     });
   }
@@ -2256,6 +2278,7 @@ async function saveReceipt() {
                 </div>
               </div>
               <div style={styles.headerRight}>
+                <button style={styles.syncBtn} onClick={loadData}>Sync</button>
                 <span style={styles.rolePill}>{profile?.role || 'User'}</span>
                 <div style={styles.phaseBadge}>🔔 0</div>
               </div>
@@ -2409,7 +2432,7 @@ async function saveReceipt() {
                       <tr key={qt.id}>
                         <Td>{qt.quote_no}</Td><Td>{qt.customer}</Td><Td>{qt.quote_date}</Td><Td>{qt.service}</Td><Td>${Number(qt.total_amount || qt.amount || 0).toFixed(2)}</Td><Td><StatusBadge status={qt.status} /></Td>
                         <Td><select value={qt.status} onChange={(e) => quickQuoteStatus(qt.id, e.target.value)} style={styles.smallSelect}><option>Draft</option><option>Sent</option><option>Approved</option><option>Rejected</option><option>Converted</option></select></Td>
-                        <Td><button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button><button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button><button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button><button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Quote Email'].body, { customer: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount })}>Email</button><button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>{canDeleteDocument(qt.status) && <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>}</Td>
+                        <Td><button style={styles.printBtn} onClick={() => openQuotePrint(qt)}>Print</button><button style={styles.smallBtn} onClick={() => editQuote(qt)}>Edit</button><button style={styles.greenSmallBtn || styles.smallBtn} onClick={() => convertQuoteToJob(qt)}>To Job</button><button style={styles.smallBtn} onClick={() => emailDocument('Quote', getCustomerByName(qt.customer)?.email || '', `Quote ${qt.quote_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Quote Email'].body, { customer: qt.customer, customer_name: qt.customer, quote_no: qt.quote_no, document_no: qt.quote_no, amount: qt.total_amount || qt.amount, service: qt.service, document_date: qt.quote_date })}>Email</button><button style={styles.printBtn} onClick={() => convertQuoteToInvoice(qt)}>To Invoice</button>{canDeleteDocument(qt.status) && <button style={styles.dangerBtn} onClick={() => deleteQuote(qt.id)}>Delete</button>}</Td>
                       </tr>
                     ))}
                   </DataTable>
@@ -2589,7 +2612,7 @@ async function saveReceipt() {
                   </SectionCard>
     
                   <DataTable title="Invoices" headers={['Invoice #', 'Customer', 'Invoice Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Actions']}>
-                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Invoice Email'].body, { customer: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.total_amount || i.amount, balance: invoiceBalance(i), due_date: i.due_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button>{canDeleteDocument(i.status) && <button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button>}</Td></tr>)}
+                    {filteredInvoices.map((i) => <tr key={i.id}><Td>{i.invoice_no}</Td><Td>{i.customer}</Td><Td>{i.invoice_date}</Td><Td>{i.due_date}</Td><Td>${Number(i.total_amount || i.amount || 0).toFixed(2)}</Td><Td>${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}</Td><Td>${invoiceBalance(i).toFixed(2)}</Td><Td><StatusBadge status={i.status} /></Td><Td><button style={styles.printBtn} onClick={() => openInvoicePrint(i)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Invoice', i.customer_email || getCustomerByName(i.customer)?.email || '', `Invoice ${i.invoice_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Invoice Email'].body, { customer: i.customer, customer_name: i.customer, invoice_no: i.invoice_no, document_no: i.invoice_no, amount: i.total_amount || i.amount, balance: invoiceBalance(i), due_date: i.due_date, service: i.notes || 'Services provided', document_date: i.invoice_date })}>Email</button><button style={styles.smallBtn} onClick={() => editInvoice(i)}>Edit</button>{canDeleteDocument(i.status) && <button style={styles.dangerBtn} onClick={() => deleteInvoice(i.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -2637,7 +2660,7 @@ async function saveReceipt() {
                     <ButtonRow><button onClick={saveReceipt} style={styles.primaryBtn}>{editingReceiptId ? 'Update Receipt' : 'Save Receipt'}</button>{editingReceiptId && <button onClick={() => { setReceipt(emptyReceipt); setEditingReceiptId(null); }} style={styles.grayBtn}>Cancel</button>}</ButtonRow>
                   </SectionCard>
                   <DataTable title="Receipts" headers={['Receipt #', 'Customer', 'Invoice #', 'Date', 'Amount', 'Method', 'Bank', 'Actions']}>
-                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Payment Receipt Email'].body, { customer: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button>}</Td></tr>)}
+                    {receipts.map((r) => <tr key={r.id}><Td>{r.receipt_no}</Td><Td>{r.customer}</Td><Td>{r.invoice_no}</Td><Td>{r.receipt_date}</Td><Td>${Number(r.amount || 0).toFixed(2)}</Td><Td>{r.payment_method}</Td><Td>{r.bank_name}</Td><Td><button style={styles.printBtn} onClick={() => openReceiptPrint(r)}>Print</button><button style={styles.smallBtn} onClick={() => emailDocument('Receipt', getCustomerByName(r.customer)?.email || '', `Receipt ${r.receipt_no} from Aashan & Co LLC`, DEFAULT_EMAIL_TEMPLATES['Payment Receipt Email'].body, { customer: r.customer, customer_name: r.customer, receipt_no: r.receipt_no, document_no: r.receipt_no, amount: r.amount, invoice_no: r.invoice_no, service: `Payment received for invoice ${r.invoice_no}`, document_date: r.receipt_date })}>Email</button><button style={styles.smallBtn} onClick={() => editReceipt(r)}>Edit</button>{canDeleteDocument('Posted') && <button style={styles.dangerBtn} onClick={() => deleteReceipt(r.id)}>Delete</button>}</Td></tr>)}
                   </DataTable>
                 </>
               )}
@@ -3129,7 +3152,23 @@ async function saveReceipt() {
                       <p><b>Amount:</b> ${Number(emailDraft.data.amount || 0).toFixed(2)}</p>
                       {emailDraft.data.balance !== undefined && <p><b>Balance:</b> ${Number(emailDraft.data.balance || 0).toFixed(2)}</p>}
                       {emailDraft.data.due_date && <p><b>Due Date:</b> {emailDraft.data.due_date}</p>}
-                      <div className="mini-message" dangerouslySetInnerHTML={{ __html: emailDraft.html }} />
+                      <div className="mini-line" />
+                      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 18, fontSize: 13 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: 'left', borderBottom: '1px solid #cbd5e1', padding: '8px 4px' }}>Description</th>
+                            <th style={{ textAlign: 'right', borderBottom: '1px solid #cbd5e1', padding: '8px 4px' }}>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td style={{ borderBottom: '1px solid #e5e7eb', padding: '10px 4px' }}>{emailDraft.data.service || emailDraft.data.description || `${emailDraft.type} ${emailDraft.data.document_no || ''}`}</td>
+                            <td style={{ borderBottom: '1px solid #e5e7eb', padding: '10px 4px', textAlign: 'right' }}>${Number(emailDraft.data.amount || 0).toFixed(2)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div style={{ marginTop: 18, borderTop: '2px solid #0f172a', paddingTop: 12, textAlign: 'right', fontWeight: 900 }}>Total: ${Number(emailDraft.data.amount || 0).toFixed(2)}</div>
+                      <p style={{ marginTop: 24, fontSize: 12, color: '#64748b' }}>This is the attached document preview. The email message is shown on the left.</p>
                     </div>
                   </div>
                 </div>
@@ -3399,6 +3438,7 @@ const styles: Record<string, any> = {
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
   headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
   rolePill: { background: 'rgba(255,255,255,0.14)', padding: '8px 12px', borderRadius: 999, fontWeight: 800, fontSize: 13 },
+  syncBtn: { background: 'rgba(255,255,255,0.12)', color: 'white', border: '1px solid rgba(255,255,255,0.22)', borderRadius: 999, padding: '8px 12px', fontWeight: 900, cursor: 'pointer' },
   headerTitle: { margin: 0, fontSize: 28 },
   headerSub: { margin: '6px 0 0', opacity: 0.9 },
   phaseBadge: { background: '#008b96', padding: '8px 14px', borderRadius: 999, fontWeight: 700 },
