@@ -1434,6 +1434,60 @@ export default function ERPApp() {
       .trim();
   }
 
+
+  function parseDocumentLinesFromNotes(notes?: string): TransactionLine[] {
+    const raw = String(notes || "");
+    if (!raw.includes("LINES_JSON:")) return [];
+    try {
+      const jsonText = raw.split("LINES_JSON:")[1]?.trim() || "[]";
+      const parsed = JSON.parse(jsonText);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((line: any) => ({
+        description: String(line.description || ""),
+        qty: String(line.qty ?? "1"),
+        unit_price: String(line.unit_price ?? "0"),
+        discount: String(line.discount ?? "0"),
+        tax_rate:
+          line.tax_rate === null || line.tax_rate === undefined
+            ? ""
+            : String(line.tax_rate),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  function getDocumentLines(data: Record<string, any>): TransactionLine[] {
+    const directLines = Array.isArray(data.lines) ? data.lines : [];
+    if (directLines.length) return directLines as TransactionLine[];
+
+    const noteLines = parseDocumentLinesFromNotes(data.notes || data.service);
+    if (noteLines.length) return noteLines;
+
+    return [
+      {
+        description:
+          visibleNotes(data.service || data.description || data.notes) ||
+          `${data.document_type || data.type || "Service"} ${data.document_no || ""}`,
+        qty: String(data.qty || "1"),
+        unit_price: String(data.unit_price || data.amount || "0"),
+        discount: String(data.discount || "0"),
+        tax_rate:
+          data.tax_rate === null || data.tax_rate === undefined
+            ? ""
+            : String(data.tax_rate || ""),
+      },
+    ];
+  }
+
+  function cleanDocumentDescription(value?: string) {
+    return visibleNotes(value).replace(/LINES_JSON:[\s\S]*$/g, "").trim();
+  }
+
+  function money(value: any) {
+    return `$${Number(value || 0).toFixed(2)}`;
+  }
+
   function updateQuoteLine(
     index: number,
     field: keyof TransactionLine,
@@ -2293,6 +2347,8 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       .replaceAll("%0D%0A", "<br />")
       .replaceAll("\n", "<br />");
 
+    const documentLines = getDocumentLines(data);
+    const documentTotalsValue = documentTotals(documentLines);
     const documentNo =
       data.document_no ||
       data.invoice_no ||
@@ -2315,6 +2371,13 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       html: htmlBody,
       data: {
         ...data,
+        lines: documentLines,
+        subtotal: data.subtotal ?? documentTotalsValue.subtotal,
+        tax_amount: data.tax_amount ?? documentTotalsValue.tax,
+        total_amount: data.total_amount ?? data.amount ?? documentTotalsValue.total,
+        amount: data.amount ?? documentTotalsValue.total,
+        service: cleanDocumentDescription(data.service || data.description || data.notes),
+        notes: cleanDocumentDescription(data.notes),
         customer_name:
           data.customer_name || data.customer || customerName || "Customer",
         viewUrl,
@@ -2362,9 +2425,16 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         invoiceNo: emailDraft.data.invoice_no || "",
         quoteNo: emailDraft.data.quote_no || "",
         receiptNo: emailDraft.data.receipt_no || "",
-        amount: emailDraft.data.amount || "",
+        amount: emailDraft.data.total_amount || emailDraft.data.amount || "",
         balance: emailDraft.data.balance || "",
         dueDate: emailDraft.data.due_date || "",
+        lines: emailDraft.data.lines || [],
+        subtotal: emailDraft.data.subtotal || "",
+        taxAmount: emailDraft.data.tax_amount || "",
+        totalAmount: emailDraft.data.total_amount || emailDraft.data.amount || "",
+        customerAddress: emailDraft.data.customer_address || "",
+        customerPhone: emailDraft.data.customer_phone || "",
+        customerEmail: emailDraft.data.customer_email || "",
         viewUrl:
           emailDraft.data.view_url ||
           emailDraft.data.viewUrl ||
@@ -4564,7 +4634,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                   quote_no: qt.quote_no,
                                   document_no: qt.quote_no,
                                   amount: qt.total_amount || qt.amount,
-                                  service: qt.service,
+                                  subtotal: qt.subtotal,
+                                  tax_amount: qt.tax_amount,
+                                  total_amount: qt.total_amount || qt.amount,
+                                  discount: qt.discount,
+                                  tax_rate: qt.tax_rate,
+                                  service: cleanDocumentDescription(qt.service || qt.notes),
+                                  notes: qt.notes,
+                                  lines: getDocumentLines({ ...qt, service: qt.service }),
                                   document_date: qt.quote_date,
                                 },
                               )
@@ -5468,9 +5545,19 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                   invoice_no: i.invoice_no,
                                   document_no: i.invoice_no,
                                   amount: i.total_amount || i.amount,
+                                  subtotal: i.subtotal,
+                                  tax_amount: i.tax_amount,
+                                  total_amount: i.total_amount || i.amount,
+                                  discount: i.discount,
+                                  tax_rate: i.tax_rate,
                                   balance: invoiceBalance(i),
                                   due_date: i.due_date,
-                                  service: i.notes || "Services provided",
+                                  customer_address: i.customer_address || getCustomerByName(i.customer)?.address || "",
+                                  customer_phone: i.customer_phone || getCustomerByName(i.customer)?.phone || "",
+                                  customer_email: i.customer_email || getCustomerByName(i.customer)?.email || "",
+                                  service: cleanDocumentDescription(i.notes || "Services provided"),
+                                  notes: i.notes,
+                                  lines: getDocumentLines({ ...i, service: i.notes }),
                                   document_date: i.invoice_date,
                                 },
                               )
@@ -5866,8 +5953,10 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                   receipt_no: r.receipt_no,
                                   document_no: r.receipt_no,
                                   amount: r.amount,
+                                  total_amount: r.amount,
                                   invoice_no: r.invoice_no,
                                   service: `Payment received for invoice ${r.invoice_no}`,
+                                  lines: [{ description: `Payment received for invoice ${r.invoice_no}`, qty: "1", unit_price: String(r.amount || 0), discount: "0", tax_rate: "" }],
                                   document_date: r.receipt_date,
                                 },
                               )
@@ -8021,113 +8110,119 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                     fontFamily: "Arial, sans-serif",
                   }}
                 >
-                  <div className="mini-logo-row">
-                    <img
-                      src={company.logo_url || LOGO_SRC}
-                      style={{ width: 78, height: 78, objectFit: "contain" }}
-                    />
-                    <div>
-                      <h3>{emailDraft.type}</h3>
-                      <p>{company.company_name || "Aashan & Co LLC"}</p>
-                    </div>
-                  </div>
-                  <div className="mini-line" />
-                  <p>
-                    <b>Customer:</b>{" "}
-                    {emailDraft.data.customer || emailDraft.data.customer_name}
-                  </p>
-                  <p>
-                    <b>Document No:</b>{" "}
-                    {emailDraft.data.document_no ||
+                  {(() => {
+                    const previewLines = getDocumentLines(emailDraft.data);
+                    const previewTotals = documentTotals(previewLines);
+                    const grossSubtotal = previewLines.reduce(
+                      (sum, line) => sum + Number(line.qty || 0) * Number(line.unit_price || 0),
+                      0,
+                    );
+                    const discount = previewLines.reduce(
+                      (sum, line) => sum + Number(line.discount || 0),
+                      0,
+                    );
+                    const subtotal = grossSubtotal || Number(emailDraft.data.subtotal ?? previewTotals.subtotal);
+                    const tax = Number(emailDraft.data.tax_amount ?? previewTotals.tax);
+                    const total = Number(
+                      emailDraft.data.total_amount ?? emailDraft.data.amount ?? previewTotals.total,
+                    );
+                    const balance = Number(emailDraft.data.balance ?? total);
+                    const documentNo =
+                      emailDraft.data.document_no ||
                       emailDraft.data.invoice_no ||
                       emailDraft.data.quote_no ||
-                      emailDraft.data.receipt_no}
-                  </p>
-                  <p>
-                    <b>Amount:</b> $
-                    {Number(emailDraft.data.amount || 0).toFixed(2)}
-                  </p>
-                  {emailDraft.data.balance !== undefined && (
-                    <p>
-                      <b>Balance:</b> $
-                      {Number(emailDraft.data.balance || 0).toFixed(2)}
-                    </p>
-                  )}
-                  {emailDraft.data.due_date && (
-                    <p>
-                      <b>Due Date:</b> {emailDraft.data.due_date}
-                    </p>
-                  )}
-                  <div className="mini-line" />
-                  <table
-                    style={{
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      marginTop: 18,
-                      fontSize: 13,
-                    }}
-                  >
-                    <thead>
-                      <tr>
-                        <th
-                          style={{
-                            textAlign: "left",
-                            borderBottom: "1px solid #cbd5e1",
-                            padding: "8px 4px",
-                          }}
-                        >
-                          Description
-                        </th>
-                        <th
-                          style={{
-                            textAlign: "right",
-                            borderBottom: "1px solid #cbd5e1",
-                            padding: "8px 4px",
-                          }}
-                        >
-                          Amount
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #e5e7eb",
-                            padding: "10px 4px",
-                          }}
-                        >
-                          {emailDraft.data.service ||
-                            emailDraft.data.description ||
-                            `${emailDraft.type} ${emailDraft.data.document_no || ""}`}
-                        </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #e5e7eb",
-                            padding: "10px 4px",
-                            textAlign: "right",
-                          }}
-                        >
-                          ${Number(emailDraft.data.amount || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div
-                    style={{
-                      marginTop: 18,
-                      borderTop: "2px solid #0f172a",
-                      paddingTop: 12,
-                      textAlign: "right",
-                      fontWeight: 900,
-                    }}
-                  >
-                    Total: ${Number(emailDraft.data.amount || 0).toFixed(2)}
-                  </div>
-                  <p style={{ marginTop: 24, fontSize: 12, color: "#64748b" }}>
-                    This is the attached document preview. The email message is
-                    shown on the left.
-                  </p>
+                      emailDraft.data.receipt_no ||
+                      "";
+                    return (
+                      <>
+                        <div className="mini-doc-header">
+                          <div className="mini-doc-brand">
+                            <img
+                              src={company.logo_url || LOGO_SRC}
+                              className="mini-doc-logo"
+                              alt="Aashan & Co LLC"
+                            />
+                            <div>
+                              <h3>{emailDraft.type}</h3>
+                              <p>{company.company_name || "Aashan & Co LLC"}</p>
+                              <small>{company.phone || "(832) 210-4248"} · {company.email || "support@aashan.co"}</small>
+                            </div>
+                          </div>
+                          <div className="mini-doc-meta">
+                            <b>{documentNo}</b>
+                            {emailDraft.data.document_date && <span>Date: {emailDraft.data.document_date}</span>}
+                            {emailDraft.data.due_date && <span>Due: {emailDraft.data.due_date}</span>}
+                          </div>
+                        </div>
+
+                        <div className="mini-line" />
+
+                        <div className="mini-bill-grid">
+                          <div>
+                            <b>Bill To</b>
+                            <p>{emailDraft.data.customer || emailDraft.data.customer_name}</p>
+                            {emailDraft.data.customer_address && <small>{emailDraft.data.customer_address}</small>}
+                            {emailDraft.data.customer_email && <small>{emailDraft.data.customer_email}</small>}
+                            {emailDraft.data.customer_phone && <small>{emailDraft.data.customer_phone}</small>}
+                          </div>
+                          <div>
+                            <b>Summary</b>
+                            <p>Amount: {money(total)}</p>
+                            {emailDraft.data.balance !== undefined && <p>Balance: {money(balance)}</p>}
+                          </div>
+                        </div>
+
+                        <table className="mini-doc-table">
+                          <thead>
+                            <tr>
+                              <th>Description</th>
+                              <th>Qty</th>
+                              <th>Price</th>
+                              <th>Disc.</th>
+                              <th>Tax</th>
+                              <th>Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewLines.map((line, index) => {
+                              const calc = lineCalc(line);
+                              return (
+                                <tr key={index}>
+                                  <td>{cleanDocumentDescription(line.description)}</td>
+                                  <td>{line.qty || "1"}</td>
+                                  <td>{money(line.unit_price)}</td>
+                                  <td>{money(line.discount)}</td>
+                                  <td>{line.tax_rate === "" ? "No tax" : `${line.tax_rate || 0}%`}</td>
+                                  <td>{money(calc.total)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+
+                        <div className="mini-totals">
+                          <p><span>Subtotal</span><b>{money(subtotal)}</b></p>
+                          {discount > 0 && <p><span>Discount</span><b>-{money(discount)}</b></p>}
+                          <p><span>Tax</span><b>{money(tax)}</b></p>
+                          <p className="mini-grand-total"><span>Total</span><b>{money(total)}</b></p>
+                          {emailDraft.data.balance !== undefined && (
+                            <p><span>Balance Due</span><b>{money(balance)}</b></p>
+                          )}
+                        </div>
+
+                        {cleanDocumentDescription(emailDraft.data.notes) && (
+                          <div className="mini-notes">
+                            <b>Notes</b>
+                            <p>{cleanDocumentDescription(emailDraft.data.notes)}</p>
+                          </div>
+                        )}
+
+                        <p className="mini-footer">
+                          Thank you for choosing Aashan & Co LLC. This preview represents the PDF attachment; the email body is shown on the left.
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -9915,13 +10010,190 @@ const printCss = `
   color: #334155;
 }
 
+
+.mini-doc-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.mini-doc-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mini-doc-logo {
+  width: 74px;
+  height: 74px;
+  object-fit: contain;
+}
+
+.mini-doc-brand h3 {
+  margin: 0;
+  font-size: 30px;
+  color: #0f172a;
+}
+
+.mini-doc-brand p {
+  margin: 3px 0;
+  font-size: 15px;
+}
+
+.mini-doc-brand small,
+.mini-bill-grid small {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mini-doc-meta {
+  text-align: right;
+  font-size: 12px;
+  color: #334155;
+}
+
+.mini-doc-meta b,
+.mini-doc-meta span {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.mini-bill-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.mini-bill-grid b {
+  display: block;
+  margin-bottom: 6px;
+  color: #0f172a;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.mini-bill-grid p {
+  margin: 2px 0;
+}
+
+.mini-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+  font-size: 11.5px;
+}
+
+.mini-doc-table th {
+  text-align: left;
+  background: #f8fafc;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 8px 5px;
+  color: #334155;
+}
+
+.mini-doc-table th:not(:first-child),
+.mini-doc-table td:not(:first-child) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.mini-doc-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 9px 5px;
+  vertical-align: top;
+}
+
+.mini-totals {
+  width: 235px;
+  margin: 18px 0 0 auto;
+  border-top: 2px solid #0f172a;
+  padding-top: 10px;
+  font-size: 13px;
+}
+
+.mini-totals p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 6px 0;
+}
+
+.mini-grand-total {
+  border-top: 1px solid #cbd5e1;
+  padding-top: 8px;
+  font-size: 16px;
+}
+
+.mini-notes {
+  margin-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.mini-notes p {
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+
+.mini-footer {
+  margin-top: 24px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
 @media (max-width: 900px) {
   .email-modal {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    max-height: calc(100vh - 18px) !important;
+    border-radius: 12px !important;
+  }
+
+  .email-modal-left {
+    padding: 18px !important;
   }
 
   .email-modal-right {
-    display: none;
+    display: flex !important;
+    max-height: 45vh;
+  }
+
+  .email-pdf-preview {
+    padding: 12px;
+  }
+
+  .mini-doc {
+    width: 100% !important;
+    min-height: auto !important;
+    padding: 18px !important;
+    box-shadow: none !important;
+  }
+
+  .mini-doc-header,
+  .mini-bill-grid {
+    grid-template-columns: 1fr;
+    display: grid;
+    text-align: left;
+  }
+
+  .mini-doc-meta {
+    text-align: left;
+  }
+
+  .mini-doc-table {
+    font-size: 10px;
+  }
+
+  .mini-totals {
+    width: 100%;
   }
 }
 
