@@ -8,9 +8,6 @@ import * as XLSX from "xlsx";
 import {
   canDeleteDocument,
   canEditDocument,
-  invoiceBalance as calcInvoiceBalance,
-  invoicePaidAmount as calcInvoicePaidAmount,
-  invoiceStatusFromBalance,
 } from "../lib/finance/TransactionControl";
 import {
   getNextCustomerNo,
@@ -1014,12 +1011,62 @@ export default function ERPApp() {
     return `INV-${String(maxNo + 1).padStart(4, "0")}`;
   }
 
-  function invoicePaidAmount(invoiceId?: number, invoiceNo?: string) {
-    return calcInvoicePaidAmount(payments, receipts, invoiceId, invoiceNo);
+  function invoiceTotal(inv: any) {
+    return Number(inv?.total_amount ?? inv?.amount ?? 0) || 0;
   }
 
-  function invoiceBalance(inv: Invoice) {
-    return calcInvoiceBalance(inv, payments, receipts);
+  function normalizeDocNo(value?: string | null) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function invoicePaidAmount(
+    invoiceId?: number,
+    invoiceNo?: string,
+    receiptRowsOverride?: Receipt[],
+    paymentRowsOverride?: Payment[],
+  ) {
+    const normalizedInvoiceNo = normalizeDocNo(invoiceNo);
+    const receiptRows = receiptRowsOverride || receipts;
+    const paymentRows = paymentRowsOverride || payments;
+
+    const receiptPaid = receiptRows.reduce((sum, r: any) => {
+      const byNo = normalizedInvoiceNo && normalizeDocNo(r.invoice_no) === normalizedInvoiceNo;
+      const byId = invoiceId && Number(r.invoice_id || 0) === Number(invoiceId);
+      return byNo || byId ? sum + Number(r.amount || 0) : sum;
+    }, 0);
+
+    // Backward compatibility: older builds used the payments table for customer receipts.
+    // New Phase 30 navigation uses receipts as Customer Receipts and vendor_payments for Vendor Payments.
+    const oldCustomerPaymentPaid = paymentRows.reduce((sum, p: any) => {
+      const byNo = normalizedInvoiceNo && normalizeDocNo(p.invoice_no) === normalizedInvoiceNo;
+      const byId = invoiceId && Number(p.invoice_id || 0) === Number(invoiceId);
+      return byNo || byId ? sum + Number(p.amount || 0) : sum;
+    }, 0);
+
+    return receiptPaid + oldCustomerPaymentPaid;
+  }
+
+  function invoiceBalance(
+    inv: Invoice,
+    receiptRowsOverride?: Receipt[],
+    paymentRowsOverride?: Payment[],
+  ) {
+    return Number((invoiceTotal(inv) - invoicePaidAmount(inv.id, inv.invoice_no, receiptRowsOverride, paymentRowsOverride)).toFixed(2));
+  }
+
+  function invoiceStatusFromRows(
+    inv: Invoice,
+    receiptRowsOverride?: Receipt[],
+    paymentRowsOverride?: Payment[],
+  ) {
+    if (inv.status === "Draft" || inv.status === "Cancelled") return inv.status;
+    const total = invoiceTotal(inv);
+    const paid = invoicePaidAmount(inv.id, inv.invoice_no, receiptRowsOverride, paymentRowsOverride);
+    const balance = Number((total - paid).toFixed(2));
+    if (paid <= 0) return "Open";
+    if (balance < -0.009) return "Overpaid";
+    if (Math.abs(balance) <= 0.009) return "Paid";
+    return "Partially Paid";
   }
 
   async function updateBankCurrentBalance(bankName: string, delta: number) {
@@ -2495,15 +2542,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     if (!inv || !inv.id) return;
 
     const rowsForCalculation = receiptRowsOverride || receipts;
-    const newStatus = invoiceStatusFromBalance(
-      inv,
-      payments,
-      rowsForCalculation,
-    );
+    const newStatus = invoiceStatusFromRows(inv, rowsForCalculation, payments);
     await supabase
       .from("invoices")
       .update({ status: newStatus })
       .eq("id", inv.id);
+
+    setInvoices((prev) =>
+      prev.map((row) =>
+        Number(row.id) === Number(inv.id) ? { ...row, status: newStatus } : row,
+      ),
+    );
   }
 
   async function saveReceipt() {
