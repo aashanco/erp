@@ -1,0 +1,35 @@
+Aashan ERP v1.0 Final Build - Install Steps
+
+1) Run database repair SQL in Supabase SQL Editor:
+   supabase/aashan_erp_v1_final_database_repair.sql
+
+2) In the project root folder, run:
+   npm install
+   npm run build
+
+3) If build is successful, deploy:
+   git add .
+   git commit -m "Aashan ERP v1.0 final stabilization"
+   git push origin main
+
+4) Cloudflare environment variables for direct email sending:
+   RESEND_API_KEY = your Resend API key
+   EMAIL_FROM = Aashan & Co LLC <support@aashan.co>
+   EMAIL_REPLY_TO = support@aashan.co
+   EMAIL_BCC = optional email address
+
+5) If email service is not configured, ERP will open the prepared message in your email app as a fallback.
+
+What was fixed:
+- Dashboard reads existing invoices/receipts/purchase/expense data correctly.
+- Customer receipt/payment status recalculation is handled by database trigger and frontend logic.
+- Paid, partially paid, overpaid, and open invoice statuses are recalculated from receipts/payments.
+- GL entries are balanced for invoices, receipts, purchase invoices, and journal entries.
+- Trial Balance, P&L, and Balance Sheet views are rebuilt from GL transaction lines.
+- Quote/Invoice/Receipt document preview now renders line items instead of raw LINES_JSON.
+- Email popup has professional preview and email app fallback if Resend is not configured.
+- Mobile UI keeps bottom navigation, responsive email popup, and friendly document preview.
+- RLS policies are standardized for the current single-company ERP.
+
+Important:
+This build is for the current single-company Aashan & Co LLC ERP. Before making this multi-company or customer-facing, RLS should be changed from open allow-all to company/user scoped policies.

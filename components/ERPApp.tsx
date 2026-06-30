@@ -863,18 +863,33 @@ export default function ERPApp() {
       })),
     );
     setWorkOrders(workOrderData || []);
+    const loadedReceipts = (receiptData || []).map((r: any) => ({
+      ...r,
+      amount: String(r.amount || ""),
+    })) as Receipt[];
+    const loadedPayments = (paymentData || []).map((p: any) => ({
+      ...p,
+      amount: String(p.amount || ""),
+    })) as Payment[];
+
     setInvoices(
-      (invoiceData || []).map((i: any) => ({
-        ...i,
-        amount: String(i.amount || ""),
-      })),
+      (invoiceData || []).map((i: any) => {
+        const normalizedInvoice = {
+          ...i,
+          amount: String(i.amount || ""),
+          total_amount: String(i.total_amount ?? i.amount ?? ""),
+        } as Invoice;
+        return {
+          ...normalizedInvoice,
+          status: invoiceStatusFromRows(
+            normalizedInvoice,
+            loadedReceipts,
+            loadedPayments,
+          ),
+        };
+      }),
     );
-    setPayments(
-      (paymentData || []).map((p: any) => ({
-        ...p,
-        amount: String(p.amount || ""),
-      })),
-    );
+    setPayments(loadedPayments);
     setBanks(
       (bankData || []).map((b: any) => ({
         ...b,
@@ -882,12 +897,7 @@ export default function ERPApp() {
         current_balance: String(b.current_balance || 0),
       })),
     );
-    setReceipts(
-      (receiptData || []).map((r: any) => ({
-        ...r,
-        amount: String(r.amount || ""),
-      })),
-    );
+    setReceipts(loadedReceipts);
     setPurchaseInvoices(
       (purchaseInvoiceData || []).map((pi: any) => ({
         ...pi,
@@ -1125,6 +1135,33 @@ export default function ERPApp() {
     }
   }
 
+
+  function expenseAffectsBank(row: Partial<Expense>) {
+    const status = String(row.status || '').trim();
+    return !status || ['Paid', 'Posted', 'Approved'].includes(status);
+  }
+
+  function expenseBankName(row: Partial<Expense>) {
+    return String(row.payment_method || '').trim();
+  }
+
+  async function applyBankOutDelta(
+    oldBankName: string,
+    oldAmount: number,
+    newBankName: string,
+    newAmount: number,
+  ) {
+    // Vendor payments / expenses are money OUT.
+    // Reverse the old deduction, then apply the new deduction.
+    if (oldBankName) {
+      await updateBankCurrentBalance(oldBankName, Number(oldAmount || 0));
+    }
+
+    if (newBankName) {
+      await updateBankCurrentBalance(newBankName, -Number(newAmount || 0));
+    }
+  }
+
   function findLedgerCode(
     nameContains: string,
     fallbackCode: string,
@@ -1300,6 +1337,56 @@ export default function ERPApp() {
     );
   }
 
+
+  async function postPurchaseInvoiceAccounting(pi: any, sourceId?: number | null) {
+    const expenseAccount = findLedgerCode(
+      String(pi.category || "expense"),
+      "5000",
+      pi.category || "Job Materials and Subcontractor Expense",
+    );
+    const ap = findLedgerCode("payable", "2000", "Accounts Payable");
+    const amount = Number(pi.amount || 0);
+
+    await postAccountingEntry(
+      "Purchase Invoice",
+      sourceId,
+      pi.purchase_invoice_no,
+      pi.invoice_date,
+      `Purchase Invoice ${pi.purchase_invoice_no} - ${pi.vendor}`,
+      [
+        {
+          ...expenseAccount,
+          debit: amount,
+          credit: 0,
+          description: pi.description || `Purchase from ${pi.vendor}`,
+        },
+        {
+          ...ap,
+          debit: 0,
+          credit: amount,
+          description: `Payable ${pi.purchase_invoice_no}`,
+        },
+      ],
+    );
+  }
+
+  async function postJournalEntryAccounting(je: any, sourceId?: number | null) {
+    const debitAccount = accounts.find((a) => a.account_name === je.debit_account || a.account_code === je.debit_account) || { account_code: "", account_name: je.debit_account };
+    const creditAccount = accounts.find((a) => a.account_name === je.credit_account || a.account_code === je.credit_account) || { account_code: "", account_name: je.credit_account };
+    const amount = Number(je.amount || 0);
+    await postAccountingEntry(
+      "Journal Entry",
+      sourceId,
+      je.journal_no,
+      je.journal_date,
+      je.description || `Journal Entry ${je.journal_no}`,
+      [
+        { ...debitAccount, debit: amount, credit: 0, description: je.description || je.notes || "Journal debit" },
+        { ...creditAccount, debit: 0, credit: amount, description: je.description || je.notes || "Journal credit" },
+      ],
+    );
+  }
+
   async function postCustomerPaymentAccounting(
     pay: any,
     sourceId?: number | null,
@@ -1343,13 +1430,7 @@ export default function ERPApp() {
 
   async function refreshInvoicePaymentStatus(inv: Invoice) {
     if (!inv.id) return;
-    const balance = invoiceBalance(inv);
-    const paid = invoicePaidAmount(inv.id, inv.invoice_no);
-    let status = inv.status;
-
-    if (paid <= 0) status = inv.status === "Draft" ? "Draft" : "Sent";
-    else if (balance <= 0) status = "Paid";
-    else status = "Partially Paid";
+    const status = invoiceStatusFromRows(inv, receipts, payments);
 
     await supabase.from("invoices").update({ status }).eq("id", inv.id);
 
@@ -1975,7 +2056,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       amount: Number(totals.total.toFixed(2)),
       invoice_date: invoice.invoice_date || null,
       due_date: invoice.due_date || null,
-      status: invoice.status,
+      status: invoice.status || "Open",
       notes: `${invoice.notes || ""}
 
 LINES_JSON:${JSON.stringify(lines)}`.trim(),
@@ -2244,6 +2325,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
   async function saveExpense() {
     if (!expense.description.trim()) return alert("Enter expense description");
+
+    const oldExpense = editingExpenseId
+      ? expenses.find((e) => Number(e.id) === Number(editingExpenseId))
+      : null;
+
     const payload = {
       expense_no: expense.expense_no || nextExpenseNo(),
       expense_date: expense.expense_date || null,
@@ -2263,6 +2349,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       : await supabase.from("expenses").insert([payload]);
 
     if (res.error) return alert(res.error.message);
+
+    await applyBankOutDelta(
+      oldExpense && expenseAffectsBank(oldExpense) ? expenseBankName(oldExpense) : "",
+      oldExpense && expenseAffectsBank(oldExpense) ? Number(oldExpense.amount || 0) : 0,
+      expenseAffectsBank(payload as any) ? expenseBankName(payload as any) : "",
+      expenseAffectsBank(payload as any) ? Number(payload.amount || 0) : 0,
+    );
+
     setExpense(emptyExpense);
     setEditingExpenseId(null);
     await loadData();
@@ -2276,9 +2370,18 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   }
 
   async function deleteExpense(id?: number) {
+    const existing = expenses.find((e) => Number(e.id) === Number(id));
     if (!id || !confirm("Delete this expense?")) return;
     const { error } = await supabase.from("expenses").delete().eq("id", id);
     if (error) return alert(error.message);
+
+    if (existing && expenseAffectsBank(existing)) {
+      await updateBankCurrentBalance(
+        expenseBankName(existing),
+        Number(existing.amount || 0),
+      );
+    }
+
     await loadData();
   }
 
@@ -2446,7 +2549,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     setEmailSending(false);
 
     if (!response.ok) {
-      return alert(result.error || "Email failed to send.");
+      const message = result.error || "Email failed to send.";
+      if (message.includes("RESEND_API_KEY") || response.status === 404) {
+        const mailto = `mailto:${encodeURIComponent(emailDraft.to)}?subject=${encodeURIComponent(emailDraft.subject)}&body=${encodeURIComponent(emailDraft.body + "\n\nView document: " + (emailDraft.data.viewUrl || emailDraft.data.view_url || ""))}`;
+        window.location.href = mailto;
+        setEmailSending(false);
+        return alert("Email service is not configured. I opened your email app with the prepared message. Add RESEND_API_KEY in Cloudflare to send directly from ERP.");
+      }
+      return alert(message);
     }
 
     alert(
@@ -2776,8 +2886,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
           .from("purchase_invoices")
           .update(payload)
           .eq("id", editingPurchaseInvoiceId)
-      : await supabase.from("purchase_invoices").insert([payload]);
+          .select("id")
+          .single()
+      : await supabase.from("purchase_invoices").insert([payload]).select("id").single();
     if (res.error) return alert(res.error.message);
+    await postPurchaseInvoiceAccounting(payload, res.data?.id || editingPurchaseInvoiceId);
     setPurchaseInvoice(emptyPurchaseInvoice);
     setEditingPurchaseInvoiceId(null);
     await loadData();
@@ -2824,8 +2937,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
           .from("journal_entries")
           .update(payload)
           .eq("id", editingJournalEntryId)
-      : await supabase.from("journal_entries").insert([payload]);
+          .select("id")
+          .single()
+      : await supabase.from("journal_entries").insert([payload]).select("id").single();
     if (res.error) return alert(res.error.message);
+    await postJournalEntryAccounting(payload, res.data?.id || editingJournalEntryId);
     setJournalEntry(emptyJournalEntry);
     setEditingJournalEntryId(null);
     await loadData();
@@ -3598,10 +3714,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   const outstanding = invoices
     .filter((i) => i.status !== "Cancelled")
     .reduce((sum, i) => sum + invoiceBalance(i), 0);
-  const paidRevenue = payments.reduce(
-    (sum, p) => sum + Number(p.amount || 0),
-    0,
-  );
+  const currentYear = new Date().getFullYear();
+  const paidRevenue = invoices
+    .filter(
+      (i) =>
+        i.status !== "Cancelled" &&
+        String(i.invoice_date || "").startsWith(String(currentYear)),
+    )
+    .reduce((sum, i) => sum + invoiceTotal(i), 0);
   const openInvoices = invoices.filter(
     (i) => invoiceBalance(i) > 0 && i.status !== "Cancelled",
   ).length;
@@ -3619,10 +3739,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   const completedJobs = jobs.filter((j) =>
     ["Completed", "Invoiced", "Paid"].includes(j.status),
   ).length;
-  const totalExpenses = expenses.reduce(
-    (sum, e) => sum + Number(e.amount || 0),
-    0,
-  );
+  const totalExpenses = [
+    ...expenses.filter((e) =>
+      String(e.expense_date || "").startsWith(String(currentYear)),
+    ),
+  ].reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const netProfit = paidRevenue - totalExpenses;
   const approvedExpenses = expenses
     .filter((e) => ["Approved", "Paid"].includes(e.status))
@@ -3635,7 +3756,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
   const accountsReceivable = outstanding;
   const accountsPayable = purchaseInvoices
-    .filter((pi) => pi.status !== "Paid" && pi.status !== "Cancelled")
+    .filter((pi) => !["Paid", "Paid in full", "Cancelled"].includes(String(pi.status || "")))
     .reduce((sum, pi) => sum + Number(pi.amount || 0), 0);
 
   const bankBalance = banks.reduce(
@@ -3644,9 +3765,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   );
 
   const currentMonth = new Date().toISOString().slice(0, 7);
-  const revenueMTD = payments
-    .filter((p) => String(p.payment_date || "").slice(0, 7) === currentMonth)
-    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const revenueMTD = invoices
+    .filter((i) => String(i.invoice_date || "").slice(0, 7) === currentMonth && i.status !== "Cancelled")
+    .reduce((sum, i) => sum + invoiceTotal(i), 0);
 
   const expensesMTD = expenses
     .filter((e) => String(e.expense_date || "").slice(0, 7) === currentMonth)
@@ -3708,6 +3829,47 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     .filter((c) => c.revenue > 0)
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
+
+  const totalInvoiceAmount = invoices
+    .filter((i) => i.status !== "Cancelled")
+    .reduce((sum, i) => sum + invoiceTotal(i), 0);
+  const totalReceiptAmount = receipts.reduce(
+    (sum, r) => sum + Number(r.amount || 0),
+    0,
+  );
+  const totalPurchaseInvoiceAmount = purchaseInvoices.reduce(
+    (sum, pi) => sum + Number(pi.amount || 0),
+    0,
+  );
+  const totalVendorPaymentAmount = expenses
+    .filter((e) => ["Approved", "Paid", "Posted", ""].includes(String(e.status || "")))
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const totalDiscounts = invoices.reduce(
+    (sum, i) => sum + Number(i.discount || 0),
+    0,
+  );
+  const taxPayable = invoices
+    .filter((i) => i.status !== "Cancelled")
+    .reduce((sum, i) => sum + Number(i.tax_amount || 0), 0);
+  const balanceSheetAssets = accountsReceivable + bankBalance;
+  const balanceSheetLiabilities = accountsPayable + taxPayable;
+  const balanceSheetEquity = balanceSheetAssets - balanceSheetLiabilities;
+  const dashboardExpenseRows = Object.values(
+    expenses.reduce((acc: Record<string, { label: string; amount: number }>, e) => {
+      const label = String(e.category || "Other").trim() || "Other";
+      acc[label] = acc[label] || { label, amount: 0 };
+      acc[label].amount += Number(e.amount || 0);
+      return acc;
+    }, {}),
+  ).sort((a: any, b: any) => b.amount - a.amount);
+  if (totalDiscounts > 0) {
+    dashboardExpenseRows.push({ label: "Sales Discount", amount: totalDiscounts });
+  }
+  const dashboardIncomeRows = [
+    { label: "Repair & Maintenance Revenue", amount: paidRevenue },
+    { label: "Sales", amount: 0 },
+    { label: "Interest received", amount: 0 },
+  ];
 
   function greetingText() {
     const hour = new Date().getHours();
@@ -4060,69 +4222,93 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
               {activeTab === "dashboard" && (
                 <>
-                  <div style={styles.executiveCards}>
-                    <Card
-                      title="Bank Balance"
-                      value={`$${bankBalance.toFixed(2)}`}
-                    />
-                    <Card
-                      title="Accounts Receivable"
-                      value={`$${accountsReceivable.toFixed(2)}`}
-                    />
-                    <Card
-                      title="Accounts Payable"
-                      value={`$${accountsPayable.toFixed(2)}`}
-                    />
-                    <Card
-                      title="Revenue YTD"
-                      value={`$${paidRevenue.toFixed(2)}`}
-                    />
-                    <Card
-                      title="Expenses YTD"
-                      value={`$${totalExpenses.toFixed(2)}`}
-                    />
+                  <div style={styles.financeDashboard}>
+                    <div style={styles.financePanel}>
+                      <div style={styles.financePanelHeader}>
+                        <span style={styles.financeIconBlue}>⚖️</span>
+                        <div>
+                          <h2 style={styles.financePanelTitle}>Balance Sheet</h2>
+                          <p style={styles.financePanelSub}>Assets, liabilities, and equity</p>
+                        </div>
+                      </div>
+
+                      <FinancialBlock
+                        title="Assets"
+                        amount={balanceSheetAssets}
+                        tone="#059669"
+                        rows={[
+                          { label: "Accounts receivable", amount: accountsReceivable, bold: true },
+                          { label: "Accounts receivable", amount: accountsReceivable, indent: true },
+                          { label: "Cash & Bank", amount: bankBalance, bold: true },
+                          { label: "Bank", amount: banks.filter((b) => String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true },
+                          { label: "Cash on hand", amount: banks.filter((b) => !String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true },
+                        ]}
+                      />
+
+                      <FinancialBlock
+                        title="Liabilities"
+                        amount={balanceSheetLiabilities}
+                        tone="#dc2626"
+                        rows={[
+                          { label: "Accounts payable", amount: accountsPayable, bold: true },
+                          { label: "Accounts Payable", amount: accountsPayable, indent: true },
+                          { label: "Tax Payable", amount: taxPayable, bold: true },
+                          { label: "Tax payable", amount: taxPayable, indent: true },
+                        ]}
+                      />
+
+                      <FinancialBlock
+                        title="Equity"
+                        amount={balanceSheetEquity}
+                        tone="#7c3aed"
+                        rows={[
+                          { label: "Owner equity / opening balance", amount: balanceSheetEquity - netProfit },
+                          { label: "Retained earnings", amount: netProfit },
+                        ]}
+                      />
+                    </div>
+
+                    <div style={styles.financePanel}>
+                      <div style={styles.financePanelHeader}>
+                        <span style={styles.financeIconGreen}>📈</span>
+                        <div>
+                          <h2 style={styles.financePanelTitle}>Profit and Loss Statement</h2>
+                          <p style={styles.financePanelSub}>Revenue, expenses, and net profit</p>
+                        </div>
+                      </div>
+
+                      <FinancialBlock
+                        title="Income"
+                        amount={paidRevenue}
+                        tone="#059669"
+                        rows={dashboardIncomeRows}
+                      />
+
+                      <FinancialBlock
+                        title="Less Expenses"
+                        amount={totalExpenses + totalDiscounts}
+                        tone="#dc2626"
+                        rows={dashboardExpenseRows.length ? dashboardExpenseRows : [{ label: "No expenses recorded", amount: 0 }]}
+                      />
+
+                      <div style={styles.netProfitCard}>
+                        <div>
+                          <b>Net profit (loss)</b>
+                          <p style={styles.financePanelSub}>Income less expenses</p>
+                        </div>
+                        <strong style={{ ...styles.netProfitAmount, color: netProfit >= 0 ? "#059669" : "#dc2626" }}>
+                          {money(netProfit)}
+                        </strong>
+                      </div>
+                    </div>
                   </div>
 
-                  <div style={styles.dashboardGrid}>
-                    <SectionCard title="Quick Actions">
-                      <div style={styles.actionGrid}>
-                        <button
-                          style={styles.actionTile}
-                          onClick={() => openTab("customers")}
-                        >
-                          <span>👤</span>
-                          <b>Customer</b>
-                        </button>
-                        <button
-                          style={styles.actionTile}
-                          onClick={() => openTab("quotes")}
-                        >
-                          <span>📄</span>
-                          <b>Quote</b>
-                        </button>
-                        <button
-                          style={styles.actionTileGreen}
-                          onClick={() => openTab("workorders")}
-                        >
-                          <span>🛠️</span>
-                          <b>Work Order</b>
-                        </button>
-                        <button
-                          style={styles.actionTile}
-                          onClick={() => openTab("invoices")}
-                        >
-                          <span>🧾</span>
-                          <b>Invoice</b>
-                        </button>
-                        <button
-                          style={styles.actionTileDark}
-                          onClick={() => openTab("receipts")}
-                        >
-                          <span>💵</span>
-                          <b>Receipt</b>
-                        </button>
-                      </div>
-                    </SectionCard>
+                  <div style={styles.dashboardSummaryStrip}>
+                    <MiniMetric title="Total Invoices" value={money(totalInvoiceAmount)} note={`${invoices.length} Invoices`} icon="🧾" />
+                    <MiniMetric title="Total Receipts" value={money(totalReceiptAmount)} note={`${receipts.length} Receipts`} icon="💵" />
+                    <MiniMetric title="Total Bills" value={money(totalPurchaseInvoiceAmount)} note={`${purchaseInvoices.length} Bills`} icon="📄" />
+                    <MiniMetric title="Total Payments" value={money(totalVendorPaymentAmount)} note={`${expenses.length} Payments`} icon="💳" />
+                    <MiniMetric title="Bank Balance" value={money(bankBalance)} note={`${banks.length} Accounts`} icon="🏦" />
                   </div>
                 </>
               )}
@@ -8758,6 +8944,56 @@ function SectionCard({ title, children }: any) {
     </div>
   );
 }
+function formatDashboardMoney(value: any) {
+  const amount = Number(value || 0);
+  if (Math.abs(amount) < 0.005) return "$ -";
+  if (amount < 0) return `$(${Math.abs(amount).toFixed(2)})`;
+  return `$ ${amount.toFixed(2)}`;
+}
+
+function FinancialBlock({ title, amount, tone, rows }: any) {
+  return (
+    <div style={styles.financialBlock}>
+      <div style={styles.financialBlockHeader}>
+        <h3 style={styles.financialBlockTitle}>{title}</h3>
+        <strong style={{ ...styles.financialBlockAmount, color: tone }}>
+          {formatDashboardMoney(amount)}
+        </strong>
+      </div>
+      <div style={styles.financialRows}>
+        {rows.map((row: any, idx: number) => (
+          <div
+            key={`${title}-${row.label}-${idx}`}
+            style={{
+              ...styles.financialRow,
+              paddingLeft: row.indent ? 26 : 0,
+              fontWeight: row.bold ? 800 : 500,
+            }}
+          >
+            <span>{row.label}</span>
+            <span style={Number(row.amount || 0) ? styles.financialRowAmount : styles.financialRowZero}>
+              {formatDashboardMoney(row.amount)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MiniMetric({ title, value, note, icon }: any) {
+  return (
+    <div style={styles.miniMetric}>
+      <span style={styles.miniMetricIcon}>{icon}</span>
+      <div>
+        <div style={styles.miniMetricTitle}>{title}</div>
+        <div style={styles.miniMetricValue}>{value}</div>
+        <div style={styles.miniMetricNote}>{note}</div>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children }: any) {
   return (
     <div style={styles.field}>
@@ -9062,6 +9298,126 @@ const styles: Record<string, any> = {
     marginTop: 18,
     marginBottom: 18,
   },
+  financeDashboard: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gap: 18,
+    alignItems: "start",
+  },
+  financePanel: {
+    background: "rgba(255,255,255,0.96)",
+    border: "1px solid #e2e8f0",
+    borderRadius: 18,
+    boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+    padding: 16,
+    display: "grid",
+    gap: 14,
+  },
+  financePanelHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "4px 2px 8px",
+  },
+  financePanelTitle: {
+    margin: 0,
+    color: "#0f172a",
+    fontSize: 16,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  financePanelSub: {
+    margin: "4px 0 0",
+    color: "#64748b",
+    fontSize: 13,
+  },
+  financeIconBlue: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    display: "grid",
+    placeItems: "center",
+    background: "#dbeafe",
+    color: "#2563eb",
+    fontSize: 20,
+  },
+  financeIconGreen: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    display: "grid",
+    placeItems: "center",
+    background: "#dcfce7",
+    color: "#059669",
+    fontSize: 20,
+  },
+  financialBlock: {
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    overflow: "hidden",
+    background: "#ffffff",
+  },
+  financialBlockHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 16,
+    background: "#fffef7",
+    borderBottom: "1px solid #e2e8f0",
+    padding: "16px 18px",
+  },
+  financialBlockTitle: { margin: 0, fontSize: 19, color: "#0f172a" },
+  financialBlockAmount: { fontSize: 20, whiteSpace: "nowrap" },
+  financialRows: { padding: "16px 18px", display: "grid", gap: 12 },
+  financialRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    color: "#0f172a",
+    lineHeight: 1.25,
+  },
+  financialRowAmount: { color: "#2563eb", fontWeight: 800, whiteSpace: "nowrap" },
+  financialRowZero: { color: "#94a3b8", fontWeight: 700, whiteSpace: "nowrap" },
+  netProfitCard: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+    padding: "18px 20px",
+    borderRadius: 16,
+    border: "1px solid #fde68a",
+    background: "#fffbeb",
+    boxShadow: "0 8px 20px rgba(15,23,42,0.04)",
+  },
+  netProfitAmount: { fontSize: 25, whiteSpace: "nowrap" },
+  dashboardSummaryStrip: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
+    gap: 16,
+    marginTop: 18,
+  },
+  miniMetric: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: 16,
+    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
+  },
+  miniMetricIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    display: "grid",
+    placeItems: "center",
+    background: "#eef2ff",
+    fontSize: 22,
+  },
+  miniMetricTitle: { color: "#475569", fontWeight: 800, fontSize: 13 },
+  miniMetricValue: { color: "#0f172a", fontWeight: 900, fontSize: 18, marginTop: 4 },
+  miniMetricNote: { color: "#2563eb", fontWeight: 700, fontSize: 12, marginTop: 3 },
   chartRow: {
     display: "grid",
     gridTemplateColumns: "80px 1fr",
