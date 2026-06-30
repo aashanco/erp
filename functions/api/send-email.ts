@@ -44,6 +44,17 @@ function makeViewUrl(requestUrl: string, body: any) {
   return `${origin}/view?type=${encodeURIComponent(type)}&no=${encodeURIComponent(no)}`;
 }
 
+function dataUrlToResendAttachment(item: any) {
+  const dataUrl = String(item.dataUrl || item.data_url || item.content || '');
+  const filename = String(item.filename || item.file_name || 'attachment.jpg');
+  const match = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
+  if (!match) return null;
+  return {
+    filename,
+    content: match[2],
+  };
+}
+
 function htmlShell(rawBody: string, viewUrl: string, documentType: string) {
   const bodyHtml = String(rawBody || '').includes('<br')
     ? String(rawBody || '')
@@ -114,6 +125,13 @@ export async function onRequestPost(context: any) {
 
     const bcc = String(env.EMAIL_BCC || '').split(',').map((e) => e.trim()).filter(Boolean);
     if (bcc.length) resendBody.bcc = bcc;
+
+    const uploadedAttachments = Array.isArray(body.attachments)
+      ? body.attachments.map(dataUrlToResendAttachment).filter(Boolean)
+      : [];
+    if (uploadedAttachments.length) {
+      resendBody.attachments = uploadedAttachments;
+    }
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',

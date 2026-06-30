@@ -242,6 +242,18 @@ type EmailDraft = {
   html: string;
   data: Record<string, any>;
   attachmentName: string;
+  attachments?: DocumentAttachment[];
+};
+
+type DocumentAttachment = {
+  id?: number;
+  document_type: string;
+  document_no: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes?: number;
+  data_url: string;
+  created_at?: string;
 };
 
 const LOGO_SRC = "/aashan-logo.png";
@@ -451,6 +463,7 @@ const emptyEmailDraft: EmailDraft = {
   html: "",
   data: {},
   attachmentName: "",
+  attachments: [],
 };
 
 type PrintTemplate = {
@@ -558,6 +571,8 @@ export default function ERPApp() {
   const [template, setTemplate] = useState<EmailTemplate>(emptyTemplate);
   const [emailDraft, setEmailDraft] = useState<EmailDraft>(emptyEmailDraft);
   const [emailSending, setEmailSending] = useState(false);
+  const [documentAttachments, setDocumentAttachments] = useState<DocumentAttachment[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<DocumentAttachment[]>([]);
   const [printTemplates, setPrintTemplates] = useState<PrintTemplate[]>([]);
   const [printTemplate, setPrintTemplate] =
     useState<PrintTemplate>(emptyPrintTemplate);
@@ -837,6 +852,10 @@ export default function ERPApp() {
       .from("user_profiles")
       .select("*")
       .order("email", { ascending: true });
+    const { data: attachmentData, error: attachmentError } = await supabase
+      .from("document_attachments")
+      .select("*")
+      .order("created_at", { ascending: false });
 
     if (customerError) alert(customerError.message);
     if (jobError) alert(jobError.message);
@@ -850,6 +869,7 @@ export default function ERPApp() {
     if (journalEntryError) console.warn(journalEntryError.message);
     if (vendorError) alert(vendorError.message);
     if (expenseError) alert(expenseError.message);
+    if (attachmentError) console.warn(attachmentError.message);
 
     setCustomers(customerData || []);
     setJobs(
@@ -938,6 +958,7 @@ export default function ERPApp() {
     setTemplates(templateData || []);
     setPrintTemplates(printTemplateData || []);
     setUserProfiles(profileData || []);
+    setDocumentAttachments(attachmentData || []);
     setLoading(false);
   }
 
@@ -1627,6 +1648,118 @@ export default function ERPApp() {
     setEditingInvoiceId(null);
   }
 
+  function attachmentsFor(documentType: string, documentNo?: string) {
+    if (!documentNo) return [];
+    return documentAttachments.filter(
+      (a) =>
+        String(a.document_type).toLowerCase() === documentType.toLowerCase() &&
+        String(a.document_no) === String(documentNo),
+    );
+  }
+
+  async function fileToDataUrl(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error || new Error("File read failed"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function addDocumentFiles(documentType: string, documentNo: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const maxSize = 8 * 1024 * 1024;
+    const next: DocumentAttachment[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) {
+        alert(`${file.name} skipped. Only image files are supported.`);
+        continue;
+      }
+      if (file.size > maxSize) {
+        alert(`${file.name} is too large. Maximum size is 8 MB.`);
+        continue;
+      }
+      const dataUrl = await fileToDataUrl(file);
+      next.push({
+        document_type: documentType,
+        document_no: documentNo,
+        file_name: file.name,
+        mime_type: file.type || "image/jpeg",
+        size_bytes: file.size,
+        data_url: dataUrl,
+      });
+    }
+    setPendingAttachments((prev) => [...prev, ...next]);
+  }
+
+  async function savePendingDocumentAttachments(documentType: string, documentNo: string) {
+    const rows = pendingAttachments.filter(
+      (a) => a.document_type === documentType && a.document_no === documentNo,
+    );
+    if (!rows.length) return;
+    const { error } = await supabase.from("document_attachments").insert(rows);
+    if (error) {
+      alert(`Document saved, but photo upload failed: ${error.message}`);
+      return;
+    }
+    setPendingAttachments((prev) =>
+      prev.filter((a) => !(a.document_type === documentType && a.document_no === documentNo)),
+    );
+  }
+
+  async function deleteDocumentAttachment(attachment: DocumentAttachment) {
+    if (attachment.id) {
+      const { error } = await supabase.from("document_attachments").delete().eq("id", attachment.id);
+      if (error) return alert(error.message);
+      await loadData();
+      return;
+    }
+    setPendingAttachments((prev) => prev.filter((a) => a !== attachment));
+  }
+
+  function DocumentPhotoBox({ documentType, documentNo }: { documentType: string; documentNo: string }) {
+    const saved = attachmentsFor(documentType, documentNo);
+    const pending = pendingAttachments.filter((a) => a.document_type === documentType && a.document_no === documentNo);
+    const all = [...pending, ...saved];
+    return (
+      <div className="doc-photos-box">
+        <div className="doc-photos-head">
+          <div>
+            <b>Photos / Attachments</b>
+            <small>Take or upload job pictures. They are attached when emailing this document.</small>
+          </div>
+          <label className="doc-photo-upload">
+            📷 Add Photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={(e) => addDocumentFiles(documentType, documentNo, e.target.files)}
+            />
+          </label>
+        </div>
+        {all.length > 0 ? (
+          <div className="doc-photo-grid">
+            {all.map((a, idx) => (
+              <div className="doc-photo-card" key={`${a.id || 'new'}-${idx}-${a.file_name}`}>
+                <img src={a.data_url} alt={a.file_name} />
+                <div>
+                  <b>{a.file_name}</b>
+                  <small>{a.id ? "Saved" : "Pending save"}</small>
+                </div>
+                <button type="button" onClick={() => deleteDocumentAttachment(a)}>Remove</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="doc-photo-empty">No photos added yet.</p>
+        )}
+      </div>
+    );
+  }
+
+
   async function saveQuote() {
     const lines = cleanLines(quoteLines);
     if (!quote.customer.trim() || lines.length === 0)
@@ -1664,6 +1797,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       : await supabase.from("quotes").insert([payload]);
 
     if (res.error) return alert(res.error.message);
+    await savePendingDocumentAttachments("Quote", payload.quote_no);
     resetQuoteForm();
     await loadData();
   }
@@ -1881,6 +2015,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       : await supabase.from("work_orders").insert([payload]);
 
     if (res.error) return alert(res.error.message);
+    await savePendingDocumentAttachments("Work Order", payload.work_order_no);
 
     if (payload.job_id) {
       await supabase
@@ -2077,6 +2212,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       : await supabase.from("invoices").insert([payload]).select("id").single();
 
     if (res.error) return alert(res.error.message);
+    await savePendingDocumentAttachments("Invoice", payload.invoice_no);
 
     await postInvoiceAccounting(payload, res.data?.id || editingInvoiceId);
 
@@ -2467,6 +2603,8 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       .trim();
     const attachmentName = `${type} - ${documentNo} - ${safeCustomer}.pdf`;
 
+    const documentAttachmentsForEmail = attachmentsFor(type, String(documentNo || ""));
+
     setEmailDraft({
       open: true,
       type,
@@ -2489,6 +2627,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         view_url: viewUrl,
       },
       attachmentName,
+      attachments: documentAttachmentsForEmail,
     });
   }
 
@@ -2540,6 +2679,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         customerAddress: emailDraft.data.customer_address || "",
         customerPhone: emailDraft.data.customer_phone || "",
         customerEmail: emailDraft.data.customer_email || "",
+        attachments: (emailDraft.attachments || []).map((a) => ({
+          filename: a.file_name,
+          contentType: a.mime_type,
+          dataUrl: a.data_url,
+        })),
         viewUrl:
           emailDraft.data.view_url ||
           emailDraft.data.viewUrl ||
@@ -4063,6 +4207,22 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .bc-totals div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #cbd5e1; }
 .bc-totals div:last-child { border-bottom: 0; }
 .bc-grand { font-size: 18px; color: #0f6270; }
+
+.doc-photos-box { grid-column: 1 / -1; border: 1px solid #dbe5ef; border-radius: 14px; padding: 14px; background: #f8fafc; margin-top: 10px; }
+.doc-photos-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+.doc-photos-head b { display: block; color: #0f172a; font-weight: 900; }
+.doc-photos-head small { display: block; color: #64748b; margin-top: 3px; }
+.doc-photo-upload { background: #0f8f9a; color: white; padding: 10px 14px; border-radius: 10px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.doc-photo-upload input { display: none; }
+.doc-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 14px; }
+.doc-photo-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
+.doc-photo-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; background: #e2e8f0; }
+.doc-photo-card b { font-size: 12px; overflow-wrap: anywhere; }
+.doc-photo-card small { color: #64748b; }
+.doc-photo-card button { border: 0; background: #fee2e2; color: #991b1b; border-radius: 8px; padding: 8px; font-weight: 800; cursor: pointer; }
+.doc-photo-empty { color: #64748b; margin: 12px 0 0; }
+.mobile-email-send-sticky { display: none; }
+
 @media (max-width: 760px) { .bc-general-grid, .bc-footer-grid { grid-template-columns: 1fr; } .bc-action-bar { position: sticky; top: 0; background: white; z-index: 20; } .bc-lines { min-width: 760px; } .bc-lines-wrap { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
 
 /* Phase 29 - consistent ERP and mobile navigation polish */
@@ -5222,6 +5382,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                           setWorkOrder({ ...workOrder, notes: v })
                         }
                       />
+                      <DocumentPhotoBox documentType="Work Order" documentNo={workOrder.work_order_no || nextWorkOrderNo()} />
                     </div>
                     <ButtonRow>
                       <button onClick={saveWorkOrder} style={styles.primaryBtn}>
@@ -8423,6 +8584,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                 <span>✓</span>
                 <b>{emailDraft.attachmentName}</b>
               </div>
+              {(emailDraft.attachments || []).map((a, index) => (
+                <div className="email-attachment" key={`${a.file_name}-${index}`}>
+                  <span>📎</span>
+                  <b>{a.file_name}</b>
+                </div>
+              ))}
 
               <div className="email-actions">
                 <button
@@ -8430,7 +8597,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   disabled={emailSending}
                   onClick={sendEmailDraft}
                 >
-                  {emailSending ? "Sending..." : "Send"}
+                  {emailSending ? "Sending..." : `Send ${emailDraft.type}`}
                 </button>
                 <button
                   className="email-cancel-btn"
