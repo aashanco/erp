@@ -511,6 +511,8 @@ export default function ERPApp() {
   >("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -717,6 +719,8 @@ export default function ERPApp() {
     if (error) return alert(error.message);
     setSession(data.session);
     await loadUserProfile(data.user);
+    await loadData();
+    setInitialDataLoaded(true);
   }
 
   async function signUp() {
@@ -740,6 +744,16 @@ export default function ERPApp() {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    setUserMenuOpen(false);
+    setInitialDataLoaded(false);
+    setCustomers([]);
+    setVendors([]);
+    setQuotes([]);
+    setInvoices([]);
+    setReceipts([]);
+    setPayments([]);
+    setExpenses([]);
+    setPurchaseInvoices([]);
   }
 
   async function loadData() {
@@ -919,13 +933,19 @@ export default function ERPApp() {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session?.user) await loadUserProfile(data.session.user);
+      await loadData();
+      setInitialDataLoaded(true);
       setAuthLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, newSession) => {
         setSession(newSession);
-        if (newSession?.user) await loadUserProfile(newSession.user);
+        if (newSession?.user) {
+          await loadUserProfile(newSession.user);
+          await loadData();
+          setInitialDataLoaded(true);
+        }
         if (!newSession) setProfile(null);
       },
     );
@@ -936,8 +956,15 @@ export default function ERPApp() {
   }, []);
 
   useEffect(() => {
-    if (session) loadData();
-  }, [session]);
+    if (session && !initialDataLoaded) {
+      loadData().then(() => setInitialDataLoaded(true));
+    }
+  }, [session, initialDataLoaded]);
+
+  // Phase 31: load existing ERP data automatically on startup so the user does not need to click Sync.
+  useEffect(() => {
+    loadData().then(() => setInitialDataLoaded(true));
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -3746,10 +3773,54 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
             </div>
           </div>
           <div style={styles.headerRight}>
-            <button style={styles.syncBtn} onClick={loadData}>
-              Sync
+            <button
+              style={styles.syncBtn}
+              onClick={async () => {
+                await loadData();
+                setInitialDataLoaded(true);
+              }}
+            >
+              {loading ? "Syncing..." : "Sync"}
             </button>
-            <span style={styles.rolePill}>{profile?.role || "User"}</span>
+            <div style={{ position: "relative" }}>
+              <button
+                style={styles.userMenuButton}
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+              >
+                👤 {profile?.full_name || profile?.email || "Anil Thomas"} ▾
+              </button>
+              {userMenuOpen && (
+                <div style={styles.userMenu}>
+                  <div style={styles.userMenuName}>
+                    {profile?.full_name || "Aashan ERP User"}
+                  </div>
+                  <div style={styles.userMenuRole}>
+                    {profile?.role || "User"}
+                  </div>
+                  <button
+                    style={styles.userMenuItem}
+                    onClick={() => {
+                      setActiveTab("masters");
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    style={styles.userMenuItem}
+                    onClick={() => {
+                      alert("Face ID / biometric login will be available when the app is installed as a mobile PWA and browser WebAuthn is configured.");
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    Face ID / Biometrics
+                  </button>
+                  <button style={styles.userMenuLogout} onClick={logout}>
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
             <div style={styles.phaseBadge}>🔔 0</div>
           </div>
         </header>
@@ -8717,6 +8788,67 @@ const styles: Record<string, any> = {
     borderRadius: 999,
     fontWeight: 800,
     fontSize: 13,
+  },
+  userMenuButton: {
+    background: "rgba(255,255,255,0.14)",
+    border: "1px solid rgba(255,255,255,0.18)",
+    color: "white",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontWeight: 900,
+    cursor: "pointer",
+    maxWidth: 260,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  userMenu: {
+    position: "absolute",
+    right: 0,
+    top: 44,
+    width: 250,
+    background: "white",
+    color: "#0f172a",
+    borderRadius: 14,
+    boxShadow: "0 20px 45px rgba(15,23,42,0.24)",
+    border: "1px solid #d7dee8",
+    padding: 12,
+    zIndex: 10000,
+  },
+  userMenuName: {
+    fontWeight: 900,
+    fontSize: 15,
+    marginBottom: 4,
+  },
+  userMenuRole: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: 800,
+    borderBottom: "1px solid #e5e7eb",
+    paddingBottom: 10,
+    marginBottom: 8,
+  },
+  userMenuItem: {
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    border: 0,
+    padding: "10px 8px",
+    borderRadius: 9,
+    cursor: "pointer",
+    fontWeight: 800,
+    color: "#0f3f56",
+  },
+  userMenuLogout: {
+    width: "100%",
+    textAlign: "left",
+    background: "#fee2e2",
+    border: 0,
+    padding: "10px 8px",
+    borderRadius: 9,
+    cursor: "pointer",
+    fontWeight: 900,
+    color: "#991b1b",
   },
   syncBtn: {
     background: "rgba(255,255,255,0.12)",
