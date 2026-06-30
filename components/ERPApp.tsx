@@ -1154,8 +1154,11 @@ export default function ERPApp() {
     );
     const tax = findLedgerCode("tax payable", "2100", "Tax Payable");
 
-    const subtotal =
-      Number(inv.subtotal || inv.amount || 0) - Number(inv.discount || 0);
+    // IMPORTANT:
+    // documentTotals() already calculates subtotal AFTER line-level discount.
+    // Do not subtract inv.discount again here, otherwise invoices with discounts
+    // create unbalanced GL entries (Debit invoice total > Credit revenue + tax).
+    const subtotal = Number(inv.subtotal || 0);
     const taxAmount = Number(inv.tax_amount || 0);
     const total = Number(inv.total_amount || inv.amount || 0);
 
