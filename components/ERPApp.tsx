@@ -1726,7 +1726,7 @@ export default function ERPApp() {
         <div className="doc-photos-head">
           <div>
             <b>Photos / Attachments</b>
-            <small>Take or upload photos from mobile/desktop. Saved photos are attached when sending email.</small>
+            <small>Take or upload job pictures. They are attached when emailing this document.</small>
           </div>
           <label className="doc-photo-upload">
             📷 Add Photo
@@ -2634,10 +2634,20 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   async function sendEmailDraft() {
     if (!emailDraft.to) return alert("Recipient email is missing.");
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (!token) return alert("Please login again before sending email.");
+    // v2.0 Stable: mobile browsers can lose the in-memory auth object while the ERP UI
+    // is still usable. Email sending is protected by the server-side Resend key, so do
+    // not block the user with a false login error. Refresh the session when available
+    // and send the request with or without the bearer token.
+    let token = session?.access_token || "";
+    try {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      token = refreshed.session?.access_token || token;
+    } catch (_error) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        token = sessionData.session?.access_token || token;
+      } catch (_inner) {}
+    }
 
     setEmailSending(true);
 
@@ -2645,7 +2655,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         to: emailDraft.to,
@@ -4223,26 +4233,6 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .doc-photo-empty { color: #64748b; margin: 12px 0 0; }
 .mobile-email-send-sticky { display: none; }
 
-/* v1.5 mobile email + photo attachment visibility */
-@media (max-width: 900px) {
-  .doc-photos-box { padding: 12px; border-radius: 16px; background: #ffffff; }
-  .doc-photos-head { align-items: stretch; }
-  .doc-photo-upload { width: 100%; justify-content: center; padding: 13px 14px; }
-  .doc-photo-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .doc-photo-card img { height: 105px; }
-  .email-modal-backdrop { padding: 6px !important; align-items: stretch !important; }
-  .email-modal { width: 100% !important; height: calc(100vh - 12px) !important; max-height: calc(100vh - 12px) !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; }
-  .email-modal-left { flex: 1 1 auto !important; overflow-y: auto !important; padding-bottom: 96px !important; border-right: 0 !important; }
-  .email-textarea { min-height: 170px !important; }
-  .email-actions { position: sticky !important; bottom: 0 !important; left: 0 !important; right: 0 !important; background: white !important; padding: 12px 0 4px !important; z-index: 100010 !important; box-shadow: 0 -10px 24px rgba(15,23,42,0.12) !important; }
-  .email-send-btn, .email-cancel-btn { flex: 1 1 50% !important; min-height: 48px !important; }
-  .email-modal-right { flex: 0 0 42vh !important; min-height: 260px !important; max-height: 42vh !important; overflow: auto !important; }
-}
-@media (max-width: 520px) {
-  .doc-photo-grid { grid-template-columns: 1fr; }
-  .email-modal-right { flex-basis: 36vh !important; }
-}
-
 @media (max-width: 760px) { .bc-general-grid, .bc-footer-grid { grid-template-columns: 1fr; } .bc-action-bar { position: sticky; top: 0; background: white; z-index: 20; } .bc-lines { min-width: 760px; } .bc-lines-wrap { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
 
 /* Phase 29 - consistent ERP and mobile navigation polish */
@@ -5027,7 +5017,6 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </tbody>
                       </table>
                     </div>
-                    <DocumentPhotoBox documentType="Quote" documentNo={quote.quote_no || nextQuoteNo()} />
                     <div className="bc-footer-grid">
                       <Input
                         label="Notes"
@@ -5959,7 +5948,6 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </tbody>
                       </table>
                     </div>
-                    <DocumentPhotoBox documentType="Invoice" documentNo={invoice.invoice_no || nextInvoiceNo()} />
                     <div className="bc-footer-grid">
                       <Input
                         label="Notes"
@@ -8569,7 +8557,10 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                 background: "white",
               }}
             >
-              <h2>Send {emailDraft.type}</h2>
+              <div className="email-mobile-titlebar">
+                <h2>Send {emailDraft.type}</h2>
+                <button type="button" className="email-close-x" onClick={() => setEmailDraft(emptyEmailDraft)}>×</button>
+              </div>
 
               <label className="email-label">To</label>
               <input
@@ -10940,24 +10931,111 @@ const printCss = `
   line-height: 1.45;
 }
 
+
+.email-mobile-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.email-close-x {
+  display: none;
+  border: 0;
+  background: #f1f5f9;
+  color: #0f172a;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  font-size: 26px;
+  line-height: 1;
+}
+
 @media (max-width: 900px) {
+  .email-modal-backdrop {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+
   .email-modal {
     grid-template-columns: 1fr !important;
-    max-height: calc(100vh - 18px) !important;
-    border-radius: 12px !important;
+    width: 100vw !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    display: block !important;
+    padding-bottom: 96px !important;
   }
 
   .email-modal-left {
-    padding: 18px !important;
+    padding: 22px 18px 12px !important;
+    overflow: visible !important;
+    border-right: 0 !important;
+  }
+
+  .email-mobile-titlebar h2 {
+    font-size: 28px !important;
+  }
+
+  .email-close-x {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .email-input {
+    font-size: 17px !important;
+    padding: 14px !important;
+  }
+
+  .email-textarea {
+    min-height: 280px !important;
+    font-size: 16px !important;
+  }
+
+  .email-actions {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 100002 !important;
+    background: rgba(255,255,255,0.96) !important;
+    backdrop-filter: blur(12px) !important;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom)) !important;
+    box-shadow: 0 -10px 30px rgba(15,23,42,0.18) !important;
+    margin: 0 !important;
+    gap: 10px !important;
+  }
+
+  .email-send-btn {
+    flex: 1 !important;
+    min-height: 56px !important;
+    font-size: 18px !important;
+    border-radius: 14px !important;
+    background: linear-gradient(135deg, #2563eb, #0ea5e9) !important;
+  }
+
+  .email-cancel-btn {
+    min-height: 56px !important;
+    border-radius: 14px !important;
   }
 
   .email-modal-right {
     display: flex !important;
-    max-height: 45vh;
+    max-height: none !important;
+    background: #263238 !important;
+  }
+
+  .email-preview-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
   }
 
   .email-pdf-preview {
-    padding: 12px;
+    padding: 14px !important;
+    overflow: visible !important;
   }
 
   .mini-doc {
@@ -10984,20 +11062,6 @@ const printCss = `
 
   .mini-totals {
     width: 100%;
-  }
-
-  .email-actions {
-    position: sticky !important;
-    bottom: 0 !important;
-    background: #ffffff !important;
-    z-index: 100020 !important;
-    padding: 12px 0 6px !important;
-    box-shadow: 0 -12px 28px rgba(15,23,42,0.14) !important;
-  }
-
-  .email-send-btn, .email-cancel-btn {
-    width: 100% !important;
-    min-height: 50px !important;
   }
 }
 
