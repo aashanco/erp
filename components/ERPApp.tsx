@@ -612,6 +612,7 @@ export default function ERPApp() {
   const [search, setSearch] = useState("");
   const [bankRegisterAccount, setBankRegisterAccount] = useState("All Accounts");
   const [bankRegisterShow, setBankRegisterShow] = useState("All Transactions");
+  const [reportTab, setReportTab] = useState("bank_register");
   const [loading, setLoading] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -4149,6 +4150,82 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     { label: "Interest received", amount: 0 },
   ];
 
+  function signedAmountDebitCredit(balance: number, normal: "Debit" | "Credit" = "Debit") {
+    const value = Number(balance || 0);
+    if (normal === "Credit") {
+      return value >= 0 ? { debit: 0, credit: value } : { debit: Math.abs(value), credit: 0 };
+    }
+    return value >= 0 ? { debit: value, credit: 0 } : { debit: 0, credit: Math.abs(value) };
+  }
+
+  const reportProfitLossIncomeRows = [
+    { label: "Repair & Maintenance Revenue", amount: paidRevenue },
+  ].filter((r) => Number(r.amount || 0) !== 0);
+  const reportProfitLossExpenseRows = Object.values(
+    expenses.reduce((acc: Record<string, { label: string; amount: number }>, e) => {
+      const label = String(e.category || "Other").trim() || "Other";
+      acc[label] = acc[label] || { label, amount: 0 };
+      acc[label].amount += Number(e.amount || 0);
+      return acc;
+    }, {}),
+  ).filter((r: any) => Number(r.amount || 0) !== 0) as { label: string; amount: number }[];
+
+  const reportBalanceRows = [
+    { group: "Assets", account: "Accounts Receivable", amount: accountsReceivable },
+    { group: "Assets", account: "Cash & Bank", amount: bankBalance },
+    { group: "Liabilities", account: "Accounts Payable", amount: accountsPayable },
+    { group: "Liabilities", account: "Tax Payable", amount: taxPayable },
+    { group: "Equity", account: "Owner Equity / Retained Earnings", amount: balanceSheetEquity },
+  ];
+
+  const reportTrialRows = [
+    { account: "Accounts Receivable", ...signedAmountDebitCredit(accountsReceivable, "Debit") },
+    { account: "Cash & Bank", ...signedAmountDebitCredit(bankBalance, "Debit") },
+    { account: "Accounts Payable", ...signedAmountDebitCredit(accountsPayable, "Credit") },
+    { account: "Tax Payable", ...signedAmountDebitCredit(taxPayable, "Credit") },
+    { account: "Repair & Maintenance Revenue", ...signedAmountDebitCredit(paidRevenue, "Credit") },
+    ...reportProfitLossExpenseRows.map((r) => ({ account: r.label, ...signedAmountDebitCredit(Number(r.amount || 0), "Debit") })),
+    { account: "Owner Equity / Retained Earnings", ...signedAmountDebitCredit(balanceSheetEquity - netProfit, "Credit") },
+  ].filter((r) => Number(r.debit || 0) !== 0 || Number(r.credit || 0) !== 0);
+  const trialDebitTotal = reportTrialRows.reduce((sum, r) => sum + Number(r.debit || 0), 0);
+  const trialCreditTotal = reportTrialRows.reduce((sum, r) => sum + Number(r.credit || 0), 0);
+
+  const reportGeneralLedgerRows = [
+    ...invoices.filter((i) => i.status !== "Cancelled").map((i) => ({
+      date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Accounts Receivable", description: i.customer || "Customer invoice", debit: invoiceTotal(i), credit: 0,
+    })),
+    ...invoices.filter((i) => i.status !== "Cancelled").map((i) => ({
+      date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Repair & Maintenance Revenue", description: i.customer || "Sales revenue", debit: 0, credit: Math.max(0, invoiceTotal(i) - Number(i.tax_amount || 0)),
+    })),
+    ...receipts.map((r) => ({
+      date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: r.bank_name || "Cash on hand", description: r.notes || r.customer, debit: Number(r.amount || 0), credit: 0,
+    })),
+    ...receipts.map((r) => ({
+      date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: "Accounts Receivable", description: r.customer || "Customer receipt", debit: 0, credit: Number(r.amount || 0),
+    })),
+    ...expenses.map((e) => ({
+      date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: e.category || "Expense", description: e.description || e.vendor, debit: Number(e.amount || 0), credit: 0,
+    })),
+    ...expenses.map((e) => ({
+      date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: "Cash & Bank", description: e.description || e.vendor, debit: 0, credit: Number(e.amount || 0),
+    })),
+    ...journalEntries.flatMap((je) => [
+      { date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: je.debit_account, description: je.description, debit: Number(je.amount || 0), credit: 0 },
+      { date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: je.credit_account, description: je.description, debit: 0, credit: Number(je.amount || 0) },
+    ]),
+  ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  const reportCustomerStatementRows = [
+    ...invoices.map((i) => ({ date: formatReportDate(i.invoice_date), transaction: `Invoice — ${i.invoice_no}`, customer: i.customer, debit: invoiceTotal(i), credit: 0, balance: invoiceBalance(i) })),
+    ...receipts.map((r) => ({ date: formatReportDate(r.receipt_date), transaction: `Receipt — ${r.receipt_no}`, customer: r.customer, debit: 0, credit: Number(r.amount || 0), balance: 0 })),
+  ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  const reportVendorStatementRows = [
+    ...purchaseInvoices.map((pi) => ({ date: formatReportDate(pi.invoice_date), transaction: `Bill — ${pi.purchase_invoice_no}`, vendor: pi.vendor, debit: 0, credit: Number(pi.amount || 0), description: pi.description || pi.category })),
+    ...expenses.map((e) => ({ date: formatReportDate(e.expense_date), transaction: `Payment — ${e.expense_no}`, vendor: e.vendor, debit: Number(e.amount || 0), credit: 0, description: e.description || e.category })),
+  ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+
   function greetingText() {
     const hour = new Date().getHours();
     if (hour < 12) return "Good Morning";
@@ -5042,6 +5119,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </div>
                       </div>
                     </div>
+                    <DocumentPhotoBox documentType="Quote" documentNo={quote.quote_no || nextQuoteNo()} />
                   </SectionCard>
 
                   <DataTable
@@ -5975,6 +6053,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </div>
                       </div>
                     </div>
+                    <DocumentPhotoBox documentType="Invoice" documentNo={invoice.invoice_no || nextInvoiceNo()} />
                   </SectionCard>
 
                   <DataTable
@@ -7119,134 +7198,143 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                 <>
                   <SectionCard title="Reports">
                     <div style={styles.reportTabs}>
-                      <button style={{ ...styles.reportTabButton, ...styles.reportTabButtonActive }}>Bank Register</button>
-                      <button style={styles.reportTabButton}>Profit & Loss</button>
-                      <button style={styles.reportTabButton}>Balance Sheet</button>
-                      <button style={styles.reportTabButton}>Trial Balance</button>
-                      <button style={styles.reportTabButton}>General Ledger</button>
-                      <button style={styles.reportTabButton}>Customer Statement</button>
-                      <button style={styles.reportTabButton}>Vendor Statement</button>
-                    </div>
-                  </SectionCard>
-
-                  <SectionCard title="Bank Register">
-                    <div style={styles.bankRegisterToolbar}>
-                      <Field label="Bank or Cash Account">
-                        <select
-                          value={bankRegisterAccount}
-                          onChange={(e) => setBankRegisterAccount(e.target.value)}
-                          style={styles.input}
-                        >
-                          <option>All Accounts</option>
-                          {bankAccountOptions.map((name) => (
-                            <option key={name}>{name}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Show">
-                        <select
-                          value={bankRegisterShow}
-                          onChange={(e) => setBankRegisterShow(e.target.value)}
-                          style={styles.input}
-                        >
-                          <option>All Transactions</option>
-                          <option>Receipt</option>
-                          <option>Payment</option>
-                        </select>
-                      </Field>
-                      <div style={styles.bankRegisterActions}>
-                        <button style={styles.blueBtn} onClick={printBankRegister}>🖨 Print</button>
+                      {[
+                        ["bank_register", "Bank Register"],
+                        ["profit_loss", "Profit & Loss"],
+                        ["balance_sheet", "Balance Sheet"],
+                        ["trial_balance", "Trial Balance"],
+                        ["general_ledger", "General Ledger"],
+                        ["customer_statement", "Customer Statement"],
+                        ["vendor_statement", "Vendor Statement"],
+                      ].map(([key, label]) => (
                         <button
-                          style={styles.greenBtn}
-                          onClick={() =>
-                            exportCsv("bank-register.csv", [
-                              ["Date", "Transaction", "Bank or Cash Account", "Customer", "Supplier", "Description", "Debit", "Credit", "Balance"],
-                              ...bankRegisterRows.map((row) => [
-                                row.date,
-                                row.transaction,
-                                row.account,
-                                row.customer,
-                                row.supplier,
-                                row.description,
-                                row.debit ? row.debit.toFixed(2) : "",
-                                row.credit ? row.credit.toFixed(2) : "",
-                                bankBalanceText(row.runningBalance),
-                              ]),
-                            ])
-                          }
+                          key={key}
+                          onClick={() => setReportTab(key)}
+                          style={reportTab === key ? { ...styles.reportTabButton, ...styles.reportTabButtonActive } : styles.reportTabButton}
                         >
-                          ⬇ Export
+                          {label}
                         </button>
-                      </div>
-                    </div>
-
-                    <div style={styles.bankRegisterSummary}>
-                      <div style={styles.bankRegisterSummaryCard}>
-                        <span>Opening Balance</span>
-                        <b>{bankBalanceText(selectedBankOpeningBalance)}</b>
-                      </div>
-                      <div style={styles.bankRegisterSummaryCard}>
-                        <span>Total Debits</span>
-                        <b style={{ color: "#059669" }}>{money(bankRegisterDebits)}</b>
-                      </div>
-                      <div style={styles.bankRegisterSummaryCard}>
-                        <span>Total Credits</span>
-                        <b style={{ color: "#dc2626" }}>{money(bankRegisterCredits)}</b>
-                      </div>
-                      <div style={styles.bankRegisterSummaryCard}>
-                        <span>Closing Balance</span>
-                        <b>{bankBalanceText(bankRegisterClosing)}</b>
-                      </div>
+                      ))}
                     </div>
                   </SectionCard>
 
-                  <div style={styles.bankRegisterTableWrap}>
-                    <table className="bankRegisterTable" style={styles.bankRegisterTable}>
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Transaction</th>
-                          <th>Bank or Cash Account</th>
-                          <th>Customer</th>
-                          <th>Supplier</th>
-                          <th>Description</th>
-                          <th>Debit</th>
-                          <th>Credit</th>
-                          <th>Balance</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {bankRegisterRows.map((row) => (
-                          <tr key={row.id}>
-                            <td>{row.date}</td>
-                            <td style={{ color: row.kind === "Receipt" ? "#059669" : "#dc2626", fontWeight: 800 }}>
-                              {row.transaction}
-                            </td>
-                            <td>{row.account}</td>
-                            <td>{row.customer}</td>
-                            <td>{row.supplier}</td>
-                            <td style={styles.bankRegisterDescription}>{row.description}</td>
-                            <td style={{ ...styles.bankRegisterNumber, color: "#059669" }}>
-                              {row.debit ? money(row.debit) : "-"}
-                            </td>
-                            <td style={{ ...styles.bankRegisterNumber, color: "#dc2626" }}>
-                              {row.credit ? money(row.credit) : "-"}
-                            </td>
-                            <td style={{ ...styles.bankRegisterNumber, color: row.runningBalance >= 0 ? "#059669" : "#dc2626", fontWeight: 900 }}>
-                              {bankBalanceText(row.runningBalance)}
-                            </td>
-                          </tr>
-                        ))}
-                        {bankRegisterRows.length === 0 && (
-                          <tr>
-                            <td colSpan={9} style={{ padding: 24, textAlign: "center", color: "#64748b" }}>
-                              No bank register transactions found for the selected filters.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  {reportTab === "bank_register" && (
+                    <>
+                      <SectionCard title="Bank Register">
+                        <div style={styles.bankRegisterToolbar}>
+                          <Field label="Bank or Cash Account">
+                            <select value={bankRegisterAccount} onChange={(e) => setBankRegisterAccount(e.target.value)} style={styles.input}>
+                              <option>All Accounts</option>
+                              {bankAccountOptions.map((name) => (<option key={name}>{name}</option>))}
+                            </select>
+                          </Field>
+                          <Field label="Show">
+                            <select value={bankRegisterShow} onChange={(e) => setBankRegisterShow(e.target.value)} style={styles.input}>
+                              <option>All Transactions</option>
+                              <option>Receipt</option>
+                              <option>Payment</option>
+                            </select>
+                          </Field>
+                          <div style={styles.bankRegisterActions}>
+                            <button style={styles.blueBtn} onClick={printBankRegister}>🖨 Print</button>
+                            <button style={styles.greenBtn} onClick={() => exportCsv("bank-register.csv", [["Date", "Transaction", "Bank or Cash Account", "Customer", "Supplier", "Description", "Debit", "Credit", "Balance"], ...bankRegisterRows.map((row) => [row.date, row.transaction, row.account, row.customer, row.supplier, row.description, row.debit ? row.debit.toFixed(2) : "", row.credit ? row.credit.toFixed(2) : "", bankBalanceText(row.runningBalance)])])}>⬇ Export</button>
+                          </div>
+                        </div>
+                        <div style={styles.bankRegisterSummary}>
+                          <div style={styles.bankRegisterSummaryCard}><span>Opening Balance</span><b>{bankBalanceText(selectedBankOpeningBalance)}</b></div>
+                          <div style={styles.bankRegisterSummaryCard}><span>Total Debits</span><b style={{ color: "#059669" }}>{money(bankRegisterDebits)}</b></div>
+                          <div style={styles.bankRegisterSummaryCard}><span>Total Credits</span><b style={{ color: "#dc2626" }}>{money(bankRegisterCredits)}</b></div>
+                          <div style={styles.bankRegisterSummaryCard}><span>Closing Balance</span><b>{bankBalanceText(bankRegisterClosing)}</b></div>
+                        </div>
+                      </SectionCard>
+                      <div style={styles.bankRegisterTableWrap}>
+                        <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                          <thead><tr><th>Date</th><th>Transaction</th><th>Bank or Cash Account</th><th>Customer</th><th>Supplier</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
+                          <tbody>{bankRegisterRows.map((row) => (<tr key={row.id}><td>{row.date}</td><td style={{ color: row.kind === "Receipt" ? "#059669" : "#dc2626", fontWeight: 800 }}>{row.transaction}</td><td>{row.account}</td><td>{row.customer}</td><td>{row.supplier}</td><td style={styles.bankRegisterDescription}>{row.description}</td><td style={{ ...styles.bankRegisterNumber, color: "#059669" }}>{row.debit ? money(row.debit) : "-"}</td><td style={{ ...styles.bankRegisterNumber, color: "#dc2626" }}>{row.credit ? money(row.credit) : "-"}</td><td style={{ ...styles.bankRegisterNumber, color: row.runningBalance >= 0 ? "#059669" : "#dc2626", fontWeight: 900 }}>{bankBalanceText(row.runningBalance)}</td></tr>))}</tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {reportTab === "profit_loss" && (
+                    <SectionCard title="Profit & Loss Statement">
+                      <div style={styles.reportSummaryGrid}>
+                        <Card title="Income" value={money(paidRevenue)} />
+                        <Card title="Expenses" value={money(totalExpenses)} />
+                        <Card title="Net Profit" value={money(netProfit)} />
+                      </div>
+                      <div style={styles.bankRegisterTableWrap}>
+                        <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                          <thead><tr><th>Account</th><th>Type</th><th>Amount</th></tr></thead>
+                          <tbody>
+                            {reportProfitLossIncomeRows.map((r) => (<tr key={r.label}><td>{r.label}</td><td>Income</td><td style={styles.bankRegisterNumber}>{money(r.amount)}</td></tr>))}
+                            {reportProfitLossExpenseRows.map((r) => (<tr key={r.label}><td>{r.label}</td><td>Expense</td><td style={styles.bankRegisterNumber}>{money(r.amount)}</td></tr>))}
+                            <tr><td><b>Net profit (loss)</b></td><td></td><td style={styles.bankRegisterNumber}><b>{money(netProfit)}</b></td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </SectionCard>
+                  )}
+
+                  {reportTab === "balance_sheet" && (
+                    <SectionCard title="Balance Sheet">
+                      <div style={styles.reportSummaryGrid}>
+                        <Card title="Assets" value={money(balanceSheetAssets)} />
+                        <Card title="Liabilities" value={money(balanceSheetLiabilities)} />
+                        <Card title="Equity" value={money(balanceSheetEquity)} />
+                      </div>
+                      <div style={styles.bankRegisterTableWrap}>
+                        <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                          <thead><tr><th>Group</th><th>Account</th><th>Amount</th></tr></thead>
+                          <tbody>{reportBalanceRows.map((r) => (<tr key={`${r.group}-${r.account}`}><td>{r.group}</td><td>{r.account}</td><td style={styles.bankRegisterNumber}>{money(r.amount)}</td></tr>))}</tbody>
+                        </table>
+                      </div>
+                    </SectionCard>
+                  )}
+
+                  {reportTab === "trial_balance" && (
+                    <SectionCard title="Trial Balance">
+                      <div style={styles.bankRegisterTableWrap}>
+                        <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                          <thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+                          <tbody>{reportTrialRows.map((r) => (<tr key={r.account}><td>{r.account}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td></tr>))}<tr><td><b>Total</b></td><td style={styles.bankRegisterNumber}><b>{money(trialDebitTotal)}</b></td><td style={styles.bankRegisterNumber}><b>{money(trialCreditTotal)}</b></td></tr></tbody>
+                        </table>
+                      </div>
+                    </SectionCard>
+                  )}
+
+                  {reportTab === "general_ledger" && (
+                    <SectionCard title="General Ledger">
+                      <div style={styles.bankRegisterTableWrap}>
+                        <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                          <thead><tr><th>Date</th><th>Source</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
+                          <tbody>{reportGeneralLedgerRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.source}</td><td>{r.account}</td><td>{r.description}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td></tr>))}</tbody>
+                        </table>
+                      </div>
+                    </SectionCard>
+                  )}
+
+                  {reportTab === "customer_statement" && (
+                    <SectionCard title="Customer Statement">
+                      <div style={styles.bankRegisterTableWrap}>
+                        <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                          <thead><tr><th>Date</th><th>Transaction</th><th>Customer</th><th>Invoice/Debit</th><th>Payment/Credit</th><th>Open Balance</th></tr></thead>
+                          <tbody>{reportCustomerStatementRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.transaction}</td><td>{r.customer}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.balance ? money(r.balance) : "-"}</td></tr>))}</tbody>
+                        </table>
+                      </div>
+                    </SectionCard>
+                  )}
+
+                  {reportTab === "vendor_statement" && (
+                    <SectionCard title="Vendor Statement">
+                      <div style={styles.bankRegisterTableWrap}>
+                        <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                          <thead><tr><th>Date</th><th>Transaction</th><th>Vendor</th><th>Description</th><th>Payment/Debit</th><th>Bill/Credit</th></tr></thead>
+                          <tbody>{reportVendorStatementRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.transaction}</td><td>{r.vendor}</td><td>{r.description}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td></tr>))}</tbody>
+                        </table>
+                      </div>
+                    </SectionCard>
+                  )}
                 </>
               )}
 
@@ -9852,6 +9940,12 @@ const styles: Record<string, any> = {
     background: "#2563eb",
     color: "#ffffff",
     borderColor: "#2563eb",
+  },
+  reportSummaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 12,
+    marginBottom: 16,
   },
   bankRegisterToolbar: {
     display: "grid",
