@@ -1,0 +1,22 @@
+Aashan ERP v1.5 - Mobile Email + Quote/Invoice/Work Order Photos
+
+What changed:
+1. Send button is sticky/visible in mobile email popup.
+2. Quote screen now has Photos / Attachments section.
+3. Invoice screen now has Photos / Attachments section.
+4. Work Order screen keeps Photos / Attachments section.
+5. Photos can be captured from mobile camera or uploaded from desktop.
+6. Saved document photos are attached when emailing the document.
+
+Install:
+1. Copy all files from this folder into your ERP project folder and replace existing files.
+2. Run SQL in Supabase:
+   supabase/aashan_erp_v1_4_mobile_email_photos.sql
+3. Run:
+   npm install
+   npm run build
+   git add .
+   git commit -m "Aashan ERP v1.5 mobile email and document photos"
+   git push origin main
+4. Wait for Cloudflare deployment.
+5. Hard refresh browser and mobile app.

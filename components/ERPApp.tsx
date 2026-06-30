@@ -1726,7 +1726,7 @@ export default function ERPApp() {
         <div className="doc-photos-head">
           <div>
             <b>Photos / Attachments</b>
-            <small>Take or upload job pictures. They are attached when emailing this document.</small>
+            <small>Take or upload photos from mobile/desktop. Saved photos are attached when sending email.</small>
           </div>
           <label className="doc-photo-upload">
             📷 Add Photo
@@ -4223,6 +4223,26 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .doc-photo-empty { color: #64748b; margin: 12px 0 0; }
 .mobile-email-send-sticky { display: none; }
 
+/* v1.5 mobile email + photo attachment visibility */
+@media (max-width: 900px) {
+  .doc-photos-box { padding: 12px; border-radius: 16px; background: #ffffff; }
+  .doc-photos-head { align-items: stretch; }
+  .doc-photo-upload { width: 100%; justify-content: center; padding: 13px 14px; }
+  .doc-photo-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .doc-photo-card img { height: 105px; }
+  .email-modal-backdrop { padding: 6px !important; align-items: stretch !important; }
+  .email-modal { width: 100% !important; height: calc(100vh - 12px) !important; max-height: calc(100vh - 12px) !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; }
+  .email-modal-left { flex: 1 1 auto !important; overflow-y: auto !important; padding-bottom: 96px !important; border-right: 0 !important; }
+  .email-textarea { min-height: 170px !important; }
+  .email-actions { position: sticky !important; bottom: 0 !important; left: 0 !important; right: 0 !important; background: white !important; padding: 12px 0 4px !important; z-index: 100010 !important; box-shadow: 0 -10px 24px rgba(15,23,42,0.12) !important; }
+  .email-send-btn, .email-cancel-btn { flex: 1 1 50% !important; min-height: 48px !important; }
+  .email-modal-right { flex: 0 0 42vh !important; min-height: 260px !important; max-height: 42vh !important; overflow: auto !important; }
+}
+@media (max-width: 520px) {
+  .doc-photo-grid { grid-template-columns: 1fr; }
+  .email-modal-right { flex-basis: 36vh !important; }
+}
+
 @media (max-width: 760px) { .bc-general-grid, .bc-footer-grid { grid-template-columns: 1fr; } .bc-action-bar { position: sticky; top: 0; background: white; z-index: 20; } .bc-lines { min-width: 760px; } .bc-lines-wrap { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
 
 /* Phase 29 - consistent ERP and mobile navigation polish */
@@ -5007,6 +5027,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </tbody>
                       </table>
                     </div>
+                    <DocumentPhotoBox documentType="Quote" documentNo={quote.quote_no || nextQuoteNo()} />
                     <div className="bc-footer-grid">
                       <Input
                         label="Notes"
@@ -5938,6 +5959,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </tbody>
                       </table>
                     </div>
+                    <DocumentPhotoBox documentType="Invoice" documentNo={invoice.invoice_no || nextInvoiceNo()} />
                     <div className="bc-footer-grid">
                       <Input
                         label="Notes"
@@ -10962,6 +10984,20 @@ const printCss = `
 
   .mini-totals {
     width: 100%;
+  }
+
+  .email-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: #ffffff !important;
+    z-index: 100020 !important;
+    padding: 12px 0 6px !important;
+    box-shadow: 0 -12px 28px rgba(15,23,42,0.14) !important;
+  }
+
+  .email-send-btn, .email-cancel-btn {
+    width: 100% !important;
+    min-height: 50px !important;
   }
 }
 
