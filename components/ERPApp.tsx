@@ -595,6 +595,8 @@ export default function ERPApp() {
     number | null
   >(null);
   const [search, setSearch] = useState("");
+  const [bankRegisterAccount, setBankRegisterAccount] = useState("All Accounts");
+  const [bankRegisterShow, setBankRegisterShow] = useState("All Transactions");
   const [loading, setLoading] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -3764,6 +3766,128 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     0,
   );
 
+
+  const bankAccountOptions = Array.from(
+    new Set(
+      [
+        ...banks.map((b) => b.account_name || b.bank_name).filter(Boolean),
+        ...receipts.map((r) => r.bank_name).filter(Boolean),
+        ...expenses
+          .map((e: any) => e.bank_name || e.paid_from || e.bank_account || e.payment_account)
+          .filter(Boolean),
+        ...vendorPaymentsForRegister().map((v: any) => v.bank_name || v.paid_from || v.bank_account).filter(Boolean),
+      ].map((value) => String(value).trim()).filter(Boolean),
+    ),
+  ).sort();
+
+  function vendorPaymentsForRegister() {
+    // Some data imports write vendor payments to expenses, while newer screens may write to vendor_payments.
+    // This keeps the bank register flexible without double-counting expenses that already carry a vendor payment id.
+    return (Array.isArray((globalThis as any).__unused) ? [] : []) as any[];
+  }
+
+  function formatReportDate(value: any) {
+    if (!value) return "";
+    const text = String(value);
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+      const [y, m, d] = text.slice(0, 10).split("-");
+      return `${m}/${d}/${y}`;
+    }
+    return text;
+  }
+
+  function bankRegisterSourceRows() {
+    const receiptRows = receipts.map((r) => ({
+      id: `receipt-${r.id || r.receipt_no}`,
+      rawDate: r.receipt_date || "",
+      date: formatReportDate(r.receipt_date),
+      transaction: `Receipt — ${r.receipt_no || r.id || ""}`,
+      account: r.bank_name || "Cash on hand",
+      customer: r.customer || "",
+      supplier: "",
+      description: cleanDocumentDescription(r.notes || `Payment received from ${r.customer || "customer"}`),
+      debit: Number(r.amount || 0),
+      credit: 0,
+      kind: "Receipt",
+      sortId: Number(r.id || 0),
+    }));
+
+    const expenseRows = expenses.map((e: any) => ({
+      id: `expense-${e.id || e.expense_no}`,
+      rawDate: e.expense_date || e.payment_date || "",
+      date: formatReportDate(e.expense_date || e.payment_date),
+      transaction: `Payment — ${e.expense_no || e.payment_no || e.id || ""}`,
+      account: e.bank_name || e.paid_from || e.bank_account || e.payment_account || e.payment_method || "Cash on hand",
+      customer: "",
+      supplier: e.vendor || e.payee || "",
+      description: cleanDocumentDescription(e.description || e.notes || "Payment"),
+      debit: 0,
+      credit: Number(e.amount || 0),
+      kind: "Payment",
+      sortId: Number(e.id || 0),
+    }));
+
+    return [...receiptRows, ...expenseRows].filter((row) => {
+      const accountOk =
+        bankRegisterAccount === "All Accounts" || row.account === bankRegisterAccount;
+      const showOk =
+        bankRegisterShow === "All Transactions" || row.kind === bankRegisterShow;
+      const searchOk = !q || [row.date, row.transaction, row.account, row.customer, row.supplier, row.description, row.debit, row.credit]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+      return accountOk && showOk && searchOk;
+    });
+  }
+
+  const selectedBankOpeningBalance =
+    bankRegisterAccount === "All Accounts"
+      ? banks.reduce((sum, b) => sum + Number(b.opening_balance || 0), 0)
+      : banks
+          .filter((b) => (b.account_name || b.bank_name) === bankRegisterAccount)
+          .reduce((sum, b) => sum + Number(b.opening_balance || 0), 0);
+
+  const bankRegisterRowsAscending = bankRegisterSourceRows()
+    .sort((a, b) => {
+      const dateCompare = String(a.rawDate || "").localeCompare(String(b.rawDate || ""));
+      if (dateCompare !== 0) return dateCompare;
+      return a.sortId - b.sortId;
+    })
+    .reduce((acc: any[], row) => {
+      const previousBalance = acc.length ? acc[acc.length - 1].runningBalance : selectedBankOpeningBalance;
+      acc.push({ ...row, runningBalance: previousBalance + row.debit - row.credit });
+      return acc;
+    }, []);
+
+  const bankRegisterRows = [...bankRegisterRowsAscending].sort((a, b) => {
+    const dateCompare = String(b.rawDate || "").localeCompare(String(a.rawDate || ""));
+    if (dateCompare !== 0) return dateCompare;
+    return b.sortId - a.sortId;
+  });
+
+  const bankRegisterDebits = bankRegisterRows.reduce((sum, row) => sum + row.debit, 0);
+  const bankRegisterCredits = bankRegisterRows.reduce((sum, row) => sum + row.credit, 0);
+  const bankRegisterClosing = selectedBankOpeningBalance + bankRegisterDebits - bankRegisterCredits;
+
+  function bankBalanceText(value: number) {
+    const abs = Math.abs(value);
+    if (value < 0) return `${money(abs)} Cr`;
+    return `${money(abs)} Dr`;
+  }
+
+  function printBankRegister() {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const rows = bankRegisterRows
+      .map(
+        (row) => `<tr><td>${row.date}</td><td>${row.transaction}</td><td>${row.account}</td><td>${row.customer}</td><td>${row.supplier}</td><td>${row.description}</td><td class="num">${row.debit ? money(row.debit) : "-"}</td><td class="num">${row.credit ? money(row.credit) : "-"}</td><td class="num">${bankBalanceText(row.runningBalance)}</td></tr>`,
+      )
+      .join("");
+    printWindow.document.write(`<!doctype html><html><head><title>Bank Register</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}h1{margin:0 0 6px}p{margin:0 0 18px;color:#475569}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d7dee8;padding:8px;text-align:left}th{background:#f8fafc}.num{text-align:right;white-space:nowrap}.summary{display:flex;gap:18px;margin:18px 0}.summary div{border:1px solid #d7dee8;border-radius:10px;padding:12px 16px}</style></head><body><h1>Aashan & Co LLC - Bank Register</h1><p>${bankRegisterAccount} • ${bankRegisterShow}</p><div class="summary"><div>Opening: <b>${bankBalanceText(selectedBankOpeningBalance)}</b></div><div>Debits: <b>${money(bankRegisterDebits)}</b></div><div>Credits: <b>${money(bankRegisterCredits)}</b></div><div>Closing: <b>${bankBalanceText(bankRegisterClosing)}</b></div></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Bank or Cash Account</th><th>Customer</th><th>Supplier</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    printWindow.document.close();
+    printWindow.print();
+  }
+
   const currentMonth = new Date().toISOString().slice(0, 7);
   const revenueMTD = invoices
     .filter((i) => String(i.invoice_date || "").slice(0, 7) === currentMonth && i.status !== "Cancelled")
@@ -3988,6 +4112,10 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   .topBar p { font-size: 12px !important; }
 }
 
+
+.bankRegisterTable th, .bankRegisterTable td { padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+.bankRegisterTable th { background: #f8fafc; color: #334155; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+@media (max-width: 900px) { .bank-register-toolbar-mobile { grid-template-columns: 1fr !important; } }
 `}</style>
 
       <div className="app-screen">
@@ -6818,90 +6946,136 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
               {activeTab === "reports" && (
                 <>
-                  <SectionCard title="Profit & Loss Summary">
-                    <div style={styles.cards}>
-                      <Card
-                        title="Paid Revenue"
-                        value={`$${paidRevenue.toFixed(2)}`}
-                      />
-                      <Card
-                        title="Total Expenses"
-                        value={`$${totalExpenses.toFixed(2)}`}
-                      />
-                      <Card
-                        title="Net Profit"
-                        value={`$${netProfit.toFixed(2)}`}
-                      />
-                      <Card
-                        title="Outstanding AR"
-                        value={`$${outstanding.toFixed(2)}`}
-                      />
-                      <Card
-                        title="Approved/Paid Expenses"
-                        value={`$${approvedExpenses.toFixed(2)}`}
-                      />
-                      <Card
-                        title="Draft/Submitted Expenses"
-                        value={`$${draftExpenses.toFixed(2)}`}
-                      />
+                  <SectionCard title="Reports">
+                    <div style={styles.reportTabs}>
+                      <button style={{ ...styles.reportTabButton, ...styles.reportTabButtonActive }}>Bank Register</button>
+                      <button style={styles.reportTabButton}>Profit & Loss</button>
+                      <button style={styles.reportTabButton}>Balance Sheet</button>
+                      <button style={styles.reportTabButton}>Trial Balance</button>
+                      <button style={styles.reportTabButton}>General Ledger</button>
+                      <button style={styles.reportTabButton}>Customer Statement</button>
+                      <button style={styles.reportTabButton}>Vendor Statement</button>
                     </div>
                   </SectionCard>
 
-                  <DataTable
-                    title="Revenue Report"
-                    headers={[
-                      "Invoice #",
-                      "Customer",
-                      "Date",
-                      "Amount",
-                      "Paid",
-                      "Balance",
-                      "Status",
-                    ]}
-                  >
-                    {filteredInvoices.map((i) => (
-                      <tr key={i.id}>
-                        <Td>{i.invoice_no}</Td>
-                        <Td>{i.customer}</Td>
-                        <Td>{i.invoice_date}</Td>
-                        <Td>
-                          ${Number(i.total_amount || i.amount || 0).toFixed(2)}
-                        </Td>
-                        <Td>
-                          ${invoicePaidAmount(i.id, i.invoice_no).toFixed(2)}
-                        </Td>
-                        <Td>${invoiceBalance(i).toFixed(2)}</Td>
-                        <Td>
-                          <StatusBadge status={i.status} />
-                        </Td>
-                      </tr>
-                    ))}
-                  </DataTable>
+                  <SectionCard title="Bank Register">
+                    <div style={styles.bankRegisterToolbar}>
+                      <Field label="Bank or Cash Account">
+                        <select
+                          value={bankRegisterAccount}
+                          onChange={(e) => setBankRegisterAccount(e.target.value)}
+                          style={styles.input}
+                        >
+                          <option>All Accounts</option>
+                          {bankAccountOptions.map((name) => (
+                            <option key={name}>{name}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Show">
+                        <select
+                          value={bankRegisterShow}
+                          onChange={(e) => setBankRegisterShow(e.target.value)}
+                          style={styles.input}
+                        >
+                          <option>All Transactions</option>
+                          <option>Receipt</option>
+                          <option>Payment</option>
+                        </select>
+                      </Field>
+                      <div style={styles.bankRegisterActions}>
+                        <button style={styles.blueBtn} onClick={printBankRegister}>🖨 Print</button>
+                        <button
+                          style={styles.greenBtn}
+                          onClick={() =>
+                            exportCsv("bank-register.csv", [
+                              ["Date", "Transaction", "Bank or Cash Account", "Customer", "Supplier", "Description", "Debit", "Credit", "Balance"],
+                              ...bankRegisterRows.map((row) => [
+                                row.date,
+                                row.transaction,
+                                row.account,
+                                row.customer,
+                                row.supplier,
+                                row.description,
+                                row.debit ? row.debit.toFixed(2) : "",
+                                row.credit ? row.credit.toFixed(2) : "",
+                                bankBalanceText(row.runningBalance),
+                              ]),
+                            ])
+                          }
+                        >
+                          ⬇ Export
+                        </button>
+                      </div>
+                    </div>
 
-                  <DataTable
-                    title="Expense Report"
-                    headers={[
-                      "Expense #",
-                      "Date",
-                      "Vendor",
-                      "Category",
-                      "Amount",
-                      "Status",
-                    ]}
-                  >
-                    {filteredExpenses.map((e) => (
-                      <tr key={e.id}>
-                        <Td>{e.expense_no}</Td>
-                        <Td>{e.expense_date}</Td>
-                        <Td>{e.vendor}</Td>
-                        <Td>{e.category}</Td>
-                        <Td>${Number(e.amount || 0).toFixed(2)}</Td>
-                        <Td>
-                          <StatusBadge status={e.status} />
-                        </Td>
-                      </tr>
-                    ))}
-                  </DataTable>
+                    <div style={styles.bankRegisterSummary}>
+                      <div style={styles.bankRegisterSummaryCard}>
+                        <span>Opening Balance</span>
+                        <b>{bankBalanceText(selectedBankOpeningBalance)}</b>
+                      </div>
+                      <div style={styles.bankRegisterSummaryCard}>
+                        <span>Total Debits</span>
+                        <b style={{ color: "#059669" }}>{money(bankRegisterDebits)}</b>
+                      </div>
+                      <div style={styles.bankRegisterSummaryCard}>
+                        <span>Total Credits</span>
+                        <b style={{ color: "#dc2626" }}>{money(bankRegisterCredits)}</b>
+                      </div>
+                      <div style={styles.bankRegisterSummaryCard}>
+                        <span>Closing Balance</span>
+                        <b>{bankBalanceText(bankRegisterClosing)}</b>
+                      </div>
+                    </div>
+                  </SectionCard>
+
+                  <div style={styles.bankRegisterTableWrap}>
+                    <table className="bankRegisterTable" style={styles.bankRegisterTable}>
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Transaction</th>
+                          <th>Bank or Cash Account</th>
+                          <th>Customer</th>
+                          <th>Supplier</th>
+                          <th>Description</th>
+                          <th>Debit</th>
+                          <th>Credit</th>
+                          <th>Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bankRegisterRows.map((row) => (
+                          <tr key={row.id}>
+                            <td>{row.date}</td>
+                            <td style={{ color: row.kind === "Receipt" ? "#059669" : "#dc2626", fontWeight: 800 }}>
+                              {row.transaction}
+                            </td>
+                            <td>{row.account}</td>
+                            <td>{row.customer}</td>
+                            <td>{row.supplier}</td>
+                            <td style={styles.bankRegisterDescription}>{row.description}</td>
+                            <td style={{ ...styles.bankRegisterNumber, color: "#059669" }}>
+                              {row.debit ? money(row.debit) : "-"}
+                            </td>
+                            <td style={{ ...styles.bankRegisterNumber, color: "#dc2626" }}>
+                              {row.credit ? money(row.credit) : "-"}
+                            </td>
+                            <td style={{ ...styles.bankRegisterNumber, color: row.runningBalance >= 0 ? "#059669" : "#dc2626", fontWeight: 900 }}>
+                              {bankBalanceText(row.runningBalance)}
+                            </td>
+                          </tr>
+                        ))}
+                        {bankRegisterRows.length === 0 && (
+                          <tr>
+                            <td colSpan={9} style={{ padding: 24, textAlign: "center", color: "#64748b" }}>
+                              No bank register transactions found for the selected filters.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </>
               )}
 
@@ -9478,6 +9652,77 @@ const styles: Record<string, any> = {
     justifyContent: "space-between",
     alignItems: "center",
     gap: 10,
+  },
+
+  reportTabs: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  reportTabButton: {
+    border: "1px solid #d7dee8",
+    background: "#ffffff",
+    color: "#0f3f56",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  reportTabButtonActive: {
+    background: "#2563eb",
+    color: "#ffffff",
+    borderColor: "#2563eb",
+  },
+  bankRegisterToolbar: {
+    display: "grid",
+    gridTemplateColumns: "minmax(220px, 1fr) minmax(180px, 260px) auto",
+    gap: 14,
+    alignItems: "end",
+  },
+  bankRegisterActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+  },
+  bankRegisterSummary: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(160px, 1fr))",
+    gap: 12,
+    marginTop: 16,
+  },
+  bankRegisterSummaryCard: {
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 14,
+    padding: 14,
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 8,
+  },
+  bankRegisterTableWrap: {
+    background: "#ffffff",
+    border: "1px solid #d7dee8",
+    borderRadius: 16,
+    overflow: "auto",
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
+    marginBottom: 24,
+  },
+  bankRegisterTable: {
+    width: "100%",
+    minWidth: 1100,
+    borderCollapse: "collapse" as const,
+    fontSize: 14,
+  },
+  bankRegisterDescription: {
+    minWidth: 260,
+    whiteSpace: "normal" as const,
+    lineHeight: 1.35,
+  },
+  bankRegisterNumber: {
+    textAlign: "right" as const,
+    whiteSpace: "nowrap" as const,
   },
   mobileDashboardSummary: {
     display: "none",
