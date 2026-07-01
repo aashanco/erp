@@ -10395,6 +10395,219 @@ const printCss = `
   }
 }
 
+
+@media screen and (max-width: 700px) {
+  .invoice-print {
+    padding: 0 !important;
+    background: #e5ebf3 !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .quote-page {
+    width: calc(100vw - 18px) !important;
+    min-height: auto !important;
+    max-width: calc(100vw - 18px) !important;
+    margin: 10px auto 84px !important;
+    padding: 18px 14px 22px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 32px rgba(15, 23, 42, 0.14) !important;
+    overflow: hidden !important;
+  }
+
+  .doc-header {
+    display: grid !important;
+    grid-template-columns: 76px 1fr !important;
+    align-items: start !important;
+    gap: 12px !important;
+  }
+
+  .doc-brand {
+    display: contents !important;
+  }
+
+  .doc-logo {
+    width: 72px !important;
+    height: 72px !important;
+  }
+
+  .doc-brand h1 {
+    font-size: 25px !important;
+    line-height: 1.08 !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+
+  .doc-brand p {
+    font-size: 14px !important;
+    margin-top: 5px !important;
+  }
+
+  .doc-contact {
+    grid-column: 1 / -1 !important;
+    min-width: 0 !important;
+    text-align: center !important;
+    font-size: 13px !important;
+    line-height: 1.35 !important;
+    margin-top: 8px !important;
+  }
+
+  .doc-contact p {
+    margin: 2px 0 !important;
+  }
+
+  .doc-line {
+    margin: 17px 0 16px !important;
+    border-top-width: 3px !important;
+  }
+
+  .doc-title-row {
+    display: block !important;
+    margin-bottom: 14px !important;
+  }
+
+  .doc-title-row h2 {
+    font-size: 34px !important;
+    line-height: 1 !important;
+    margin-bottom: 10px !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  .doc-title-row p {
+    font-size: 15px !important;
+    margin: 5px 0 !important;
+  }
+
+  .doc-date-box {
+    min-width: 0 !important;
+    padding-top: 8px !important;
+  }
+
+  .doc-date-box p {
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 6px !important;
+    margin: 6px 0 !important;
+    font-size: 15px !important;
+  }
+
+  .doc-date-box b::after {
+    content: ':';
+  }
+
+  .doc-bill-box {
+    width: auto !important;
+    max-width: 100% !important;
+    padding: 14px !important;
+    margin: 12px 0 18px !important;
+    border-radius: 9px !important;
+  }
+
+  .doc-bill-box h3 {
+    font-size: 18px !important;
+  }
+
+  .doc-bill-box p {
+    font-size: 15px !important;
+    line-height: 1.25 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .doc-service-title {
+    font-size: 16px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .doc-items {
+    table-layout: fixed !important;
+    width: 100% !important;
+    font-size: 12px !important;
+  }
+
+  .doc-items th,
+  .doc-items td {
+    padding: 7px 5px !important;
+    font-size: 12px !important;
+    line-height: 1.22 !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .doc-items th:first-child,
+  .doc-items td:first-child {
+    width: 32% !important;
+    text-align: left !important;
+  }
+
+  .doc-items th:nth-child(2),
+  .doc-items td:nth-child(2) {
+    width: 9% !important;
+  }
+
+  .doc-items th:nth-child(3),
+  .doc-items td:nth-child(3) {
+    width: 16% !important;
+  }
+
+  .doc-items th:nth-child(4),
+  .doc-items td:nth-child(4) {
+    width: 16% !important;
+  }
+
+  .doc-items th:nth-child(5),
+  .doc-items td:nth-child(5) {
+    width: 12% !important;
+  }
+
+  .doc-items th:nth-child(6),
+  .doc-items td:nth-child(6) {
+    width: 15% !important;
+  }
+
+  .doc-totals {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-top: 12px !important;
+    font-size: 15px !important;
+  }
+
+  .doc-totals p {
+    padding: 8px 10px !important;
+  }
+
+  .doc-grand-total {
+    font-size: 17px !important;
+  }
+
+  .doc-terms {
+    margin-top: 18px !important;
+    font-size: 12px !important;
+  }
+
+  .doc-footer {
+    margin-top: 18px !important;
+    padding-top: 10px !important;
+    font-size: 13px !important;
+  }
+
+  .print-action-row {
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: 10px !important;
+    z-index: 100000 !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .close-print {
+    width: 100% !important;
+    border-radius: 12px !important;
+    padding: 13px 10px !important;
+  }
+}
+
 @media print {
   @page {
     size: Letter;
