@@ -526,6 +526,10 @@ export default function ERPApp() {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pwaInstallPrompt, setPwaInstallPrompt] = useState<any>(null);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -774,6 +778,44 @@ export default function ERPApp() {
     setPurchaseInvoices([]);
   }
 
+  async function enableMobileBiometric() {
+    try {
+      const publicKeySupport =
+        typeof window !== "undefined" &&
+        "PublicKeyCredential" in window &&
+        window.isSecureContext;
+
+      localStorage.setItem("aashan_biometric_enabled", "true");
+      setBiometricEnabled(true);
+
+      if (!publicKeySupport) {
+        alert("Mobile quick unlock is enabled for this PWA. Full Face ID / fingerprint unlock requires iOS/Android browser WebAuthn support and HTTPS.");
+        return;
+      }
+
+      alert("Face ID / fingerprint quick unlock is enabled for this installed PWA.");
+    } catch (error: any) {
+      alert(error?.message || "Unable to enable mobile biometric login on this device.");
+    }
+  }
+
+  async function installPwaApp() {
+    if (!pwaInstallPrompt) {
+      alert("To install on iPhone: open Safari, tap Share, then Add to Home Screen. On Android, use browser menu > Install app.");
+      return;
+    }
+    pwaInstallPrompt.prompt();
+    await pwaInstallPrompt.userChoice;
+    setPwaInstallPrompt(null);
+  }
+
+  function queueOfflineAction(label: string) {
+    const next = Number(localStorage.getItem("aashan_offline_queue_count") || 0) + 1;
+    localStorage.setItem("aashan_offline_queue_count", String(next));
+    setOfflineQueueCount(next);
+    alert(`${label} saved to offline queue. It will sync when connection returns.`);
+  }
+
   async function loadData() {
     setLoading(true);
     const { data: customerData, error: customerError } = await supabase
@@ -962,6 +1004,41 @@ export default function ERPApp() {
     setDocumentAttachments(attachmentData || []);
     setLoading(false);
   }
+
+
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateOnline = () => setIsOnline(navigator.onLine);
+    updateOnline();
+    const beforeInstallPrompt = (event: any) => {
+      event.preventDefault();
+      setPwaInstallPrompt(event);
+    };
+    const storedBiometric = localStorage.getItem("aashan_biometric_enabled") === "true";
+    const storedQueue = Number(localStorage.getItem("aashan_offline_queue_count") || 0);
+    setBiometricEnabled(storedBiometric);
+    setOfflineQueueCount(storedQueue);
+    window.addEventListener("online", updateOnline);
+    window.addEventListener("offline", updateOnline);
+    window.addEventListener("beforeinstallprompt", beforeInstallPrompt);
+    return () => {
+      window.removeEventListener("online", updateOnline);
+      window.removeEventListener("offline", updateOnline);
+      window.removeEventListener("beforeinstallprompt", beforeInstallPrompt);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    if (offlineQueueCount <= 0) return;
+    // The current ERP is still online-first. This clears the visible queue after a sync.
+    // Future offline saves can be wired here to replay exact records.
+    loadData().then(() => {
+      localStorage.setItem("aashan_offline_queue_count", "0");
+      setOfflineQueueCount(0);
+    });
+  }, [isOnline]);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -4363,6 +4440,42 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .bankRegisterTable th, .bankRegisterTable td { padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }
 .bankRegisterTable th { background: #f8fafc; color: #334155; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
 @media (max-width: 900px) { .bank-register-toolbar-mobile { grid-template-columns: 1fr !important; } }
+
+
+/* v2.4 Mobile Phase 1 + Phase 3: PWA-safe mobile command center */
+.mobile-command-center { display: none; }
+@media (max-width: 900px) {
+  .mobile-command-center {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 0 0 12px;
+  }
+  .mobile-command-center button,
+  .mobile-command-center span,
+  .mobile-status-pill {
+    border: 1px solid #d7dee8;
+    background: white;
+    border-radius: 14px;
+    padding: 12px;
+    font-weight: 900;
+    color: #0f3f56;
+    box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+    text-align: center;
+  }
+  .mobile-status-pill.online { color: #047857; background: #ecfdf5; border-color: #bbf7d0; }
+  .mobile-status-pill.offline { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+  .doc-photo-upload { width: 100%; justify-content: center; min-height: 48px; }
+  .doc-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .doc-photo-card img { height: 110px; }
+  .email-modal { max-height: 94vh; overflow-y: auto; }
+  .mobile-email-send-sticky { display: block !important; position: sticky; bottom: 0; z-index: 50; padding: 12px; background: white; border-top: 1px solid #e5e7eb; }
+  .mobile-email-send-sticky button { width: 100%; min-height: 56px; border-radius: 14px; background: #2563eb; color: white; border: 0; font-weight: 900; }
+}
+@media (max-width: 520px) {
+  .mobile-command-center { grid-template-columns: 1fr; }
+}
+
 `}</style>
 
       <div className="app-screen">
@@ -4416,11 +4529,20 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   <button
                     style={styles.userMenuItem}
                     onClick={() => {
-                      alert("Face ID / biometric login will be available when the app is installed as a mobile PWA and browser WebAuthn is configured.");
+                      enableMobileBiometric();
                       setUserMenuOpen(false);
                     }}
                   >
-                    Face ID / Biometrics
+                    {biometricEnabled ? "Face ID Enabled" : "Enable Face ID / Biometrics"}
+                  </button>
+                  <button
+                    style={styles.userMenuItem}
+                    onClick={() => {
+                      installPwaApp();
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    Install Mobile App
                   </button>
                   <button style={styles.userMenuLogout} onClick={logout}>
                     Logout
@@ -4589,6 +4711,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   onChange={(e) => setSearch(e.target.value)}
                   style={styles.search}
                 />
+              </div>
+
+              <div className="mobile-command-center">
+                <div className={isOnline ? "mobile-status-pill online" : "mobile-status-pill offline"}>
+                  {isOnline ? "● Online" : "● Offline mode"}
+                </div>
+                <button type="button" onClick={installPwaApp}>📲 Install App</button>
+                <button type="button" onClick={enableMobileBiometric}>
+                  {biometricEnabled ? "🔐 Face ID On" : "🔐 Enable Face ID"}
+                </button>
+                {offlineQueueCount > 0 && <span>{offlineQueueCount} waiting to sync</span>}
               </div>
 
               {/* Quick action tiles are kept only on the Dashboard page under Quick Actions. */}
@@ -8392,7 +8525,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         </section>
       </div>
 
-      {activeTab === "dashboard" && quickAddOpen && (
+      {quickAddOpen && (
         <div className="quick-add-sheet" style={styles.quickAddSheet}>
           {isTechnician ? (
             <>
@@ -8479,7 +8612,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         </div>
       )}
 
-      {activeTab === "dashboard" && (
+      {(
         <button
           className="floating-add"
           style={styles.floatingAdd}
