@@ -1,13 +1,16 @@
 {
-  "name": "Aashan ERP",
+  "name": "Aashan & Co LLC ERP",
   "short_name": "Aashan ERP",
-  "description": "Aashan ERP Business Management System",
-  "start_url": "/",
+  "description": "Aashan & Co LLC ERP mobile app for quotes, invoices, receipts, jobs, reports, and field service.",
+  "id": "/?source=pwa",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#ffffff",
   "theme_color": "#0f172a",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity", "finance"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -20,6 +23,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Quote",
+      "short_name": "Quote",
+      "description": "Open quotes in Aashan ERP",
+      "url": "/?screen=quotes",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "New Invoice",
+      "short_name": "Invoice",
+      "description": "Open invoices in Aashan ERP",
+      "url": "/?screen=invoices",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Work Orders",
+      "short_name": "Jobs",
+      "description": "Open work orders in Aashan ERP",
+      "url": "/?screen=work-orders",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

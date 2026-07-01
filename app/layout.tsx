@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import PWARegister from "../components/PWARegister";
 
 export const metadata: Metadata = {
-  title: "Aashan ERP",
-  description: "Aashan ERP Business Management System",
+  title: "Aashan & Co LLC",
+  description: "Aashan & Co LLC ERP mobile app for quotes, invoices, receipts, jobs, reports, and field service.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Aashan ERP",
+    title: "Aashan & Co LLC",
     statusBarStyle: "default",
   },
   icons: {
@@ -36,14 +37,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="application-name" content="Aashan ERP" />
+        <meta name="application-name" content="Aashan & Co LLC" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Aashan ERP" />
+        <meta name="apple-mobile-web-app-title" content="Aashan & Co LLC" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
-      <body>{children}</body>
+      <body>{children}<PWARegister /></body>
     </html>
   );
 }

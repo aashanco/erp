@@ -1,0 +1,9 @@
+Aashan ERP PWA Install Steps
+
+1. Deploy this build to https://erp.aashan.co.
+2. Open the site in Chrome/Edge on desktop or Android and click Install App.
+3. On iPhone Safari: Share button > Add to Home Screen.
+4. Open from the home screen; it will run like an app.
+5. Live ERP data still requires internet; the app shell/offline screen is cached.
+
+No SQL required for this PWA build.
