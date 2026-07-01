@@ -185,6 +185,20 @@ type Expense = {
   status: string;
 };
 
+type VendorPayment = {
+  id?: number;
+  payment_no: string;
+  payment_date: string;
+  paid_from: string;
+  vendor: string;
+  description: string;
+  amount: string;
+  payment_method: string;
+  applied_purchase_invoice_no?: string;
+  notes?: string;
+  created_at?: string;
+};
+
 type CompanySettings = {
   id?: number;
   company_name: string;
@@ -544,6 +558,7 @@ export default function ERPApp() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [vendorPayments, setVendorPayments] = useState<VendorPayment[]>([]);
   const [customer, setCustomer] = useState<Customer>(emptyCustomer);
   const [job, setJob] = useState<Job>(emptyJob);
   const [quote, setQuote] = useState<Quote>(emptyQuote);
@@ -907,6 +922,10 @@ export default function ERPApp() {
       .from("expenses")
       .select("*")
       .order("id", { ascending: false });
+    const { data: vendorPaymentData, error: vendorPaymentError } = await supabase
+      .from("vendor_payments")
+      .select("*")
+      .order("id", { ascending: false });
     const { data: companyData } = await supabase
       .from("company_settings")
       .select("*")
@@ -952,6 +971,7 @@ export default function ERPApp() {
     if (journalEntryError) console.warn(journalEntryError.message);
     if (vendorError) alert(vendorError.message);
     if (expenseError) alert(expenseError.message);
+    if (vendorPaymentError) console.warn(vendorPaymentError.message);
     if (attachmentError) console.warn(attachmentError.message);
 
     setCustomers(customerData || []);
@@ -1020,6 +1040,12 @@ export default function ERPApp() {
       (expenseData || []).map((e: any) => ({
         ...e,
         amount: String(e.amount || ""),
+      })),
+    );
+    setVendorPayments(
+      (vendorPaymentData || []).map((vp: any) => ({
+        ...vp,
+        amount: String(vp.amount || ""),
       })),
     );
     if (companyData && companyData.length > 0)
@@ -1846,7 +1872,7 @@ export default function ERPApp() {
             <b>Photos / Attachments</b>
             <small>Take or upload job pictures. They are attached when emailing this document.</small>
           </div>
-          <label className="doc-photo-upload">
+          <label className="doc-photo-upload" title="Take or upload photos">
             📷 Add Photo
             <input
               type="file"
@@ -4018,7 +4044,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       String(e.expense_date || "").startsWith(String(currentYear)),
     ),
   ].reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const netProfit = paidRevenue - totalExpenses;
+  const legacyNetProfit = paidRevenue - totalExpenses;
   const approvedExpenses = expenses
     .filter((e) => ["Approved", "Paid"].includes(e.status))
     .reduce((sum, e) => sum + Number(e.amount || 0), 0);
@@ -4029,34 +4055,48 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   // Authentication is now handled by components/AuthGate.tsx.
 
   const accountsReceivable = outstanding;
-  const accountsPayable = purchaseInvoices
-    .filter((pi) => !["Paid", "Paid in full", "Cancelled"].includes(String(pi.status || "")))
-    .reduce((sum, pi) => sum + Number(pi.amount || 0), 0);
 
-  const bankBalance = banks.reduce(
-    (sum, b) => sum + Number(b.current_balance || 0),
-    0,
-  );
+  function isActiveStatus(status: any) {
+    const value = String(status || "Posted").trim().toLowerCase();
+    return !["draft", "submitted", "void", "cancelled", "canceled", "deleted"].includes(value);
+  }
 
+  function normText(value: any) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function expenseAccountName(row: Partial<Expense> & Record<string, any>) {
+    return String(row.payment_method || row.bank_name || row.paid_from || row.bank_account || row.payment_account || "Cash on hand").trim();
+  }
+
+  function vendorPaymentAccountName(row: Partial<VendorPayment> & Record<string, any>) {
+    return String(row.paid_from || row.bank_name || row.bank_account || row.payment_method || "Cash on hand").trim();
+  }
+
+  function expenseMatchesVendorPayment(e: any, vp: any) {
+    const sameDate = String(e.expense_date || e.payment_date || "") === String(vp.payment_date || "");
+    const sameVendor = normText(e.vendor || e.payee) === normText(vp.vendor);
+    const sameAmount = Math.abs(Number(e.amount || 0) - Number(vp.amount || 0)) < 0.01;
+    const sameBank = normText(expenseAccountName(e)) === normText(vendorPaymentAccountName(vp));
+    return sameDate && sameVendor && sameAmount && sameBank;
+  }
+
+  function vendorPaymentsForRegister() {
+    return vendorPayments.filter((vp) => !expenses.some((e: any) => expenseMatchesVendorPayment(e, vp)));
+  }
 
   const bankAccountOptions = Array.from(
     new Set(
       [
+        ...banks.map((b) => b.bank_name || b.account_name).filter(Boolean),
         ...banks.map((b) => b.account_name || b.bank_name).filter(Boolean),
         ...receipts.map((r) => r.bank_name).filter(Boolean),
-        ...expenses
-          .map((e: any) => e.bank_name || e.paid_from || e.bank_account || e.payment_account)
-          .filter(Boolean),
-        ...vendorPaymentsForRegister().map((v: any) => v.bank_name || v.paid_from || v.bank_account).filter(Boolean),
+        ...payments.map((p) => p.bank_name).filter(Boolean),
+        ...expenses.map((e: any) => expenseAccountName(e)).filter(Boolean),
+        ...vendorPaymentsForRegister().map((v: any) => vendorPaymentAccountName(v)).filter(Boolean),
       ].map((value) => String(value).trim()).filter(Boolean),
     ),
   ).sort();
-
-  function vendorPaymentsForRegister() {
-    // Some data imports write vendor payments to expenses, while newer screens may write to vendor_payments.
-    // This keeps the bank register flexible without double-counting expenses that already carry a vendor payment id.
-    return (Array.isArray((globalThis as any).__unused) ? [] : []) as any[];
-  }
 
   function formatReportDate(value: any) {
     if (!value) return "";
@@ -4068,8 +4108,16 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     return text;
   }
 
-  function bankRegisterSourceRows() {
-    const receiptRows = receipts.map((r) => ({
+  function bankOpeningBalanceFor(accountName: string) {
+    return banks
+      .filter((b) => accountName === "All Accounts" || b.bank_name === accountName || b.account_name === accountName)
+      .reduce((sum, b) => sum + Number(b.opening_balance || 0), 0);
+  }
+
+  function bankRegisterSourceRows(accountOverride?: string, showOverride?: string) {
+    const selectedAccount = accountOverride || bankRegisterAccount;
+    const selectedShow = showOverride || bankRegisterShow;
+    const receiptRows = receipts.filter((r) => isActiveStatus(r.status)).map((r) => ({
       id: `receipt-${r.id || r.receipt_no}`,
       rawDate: r.receipt_date || "",
       date: formatReportDate(r.receipt_date),
@@ -4084,12 +4132,27 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       sortId: Number(r.id || 0),
     }));
 
-    const expenseRows = expenses.map((e: any) => ({
+    const legacyPaymentRows = payments.filter((p) => isActiveStatus(p.status)).map((p: any) => ({
+      id: `payment-${p.id || p.payment_no}`,
+      rawDate: p.payment_date || "",
+      date: formatReportDate(p.payment_date),
+      transaction: `Receipt — ${p.payment_no || p.id || ""}`,
+      account: p.bank_name || "Cash on hand",
+      customer: p.customer || "",
+      supplier: "",
+      description: cleanDocumentDescription(p.notes || `Payment received from ${p.customer || "customer"}`),
+      debit: Number(p.amount || 0),
+      credit: 0,
+      kind: "Receipt",
+      sortId: Number(p.id || 0),
+    }));
+
+    const expenseRows = expenses.filter((e: any) => isActiveStatus(e.status || "Paid")).map((e: any) => ({
       id: `expense-${e.id || e.expense_no}`,
       rawDate: e.expense_date || e.payment_date || "",
       date: formatReportDate(e.expense_date || e.payment_date),
       transaction: `Payment — ${e.expense_no || e.payment_no || e.id || ""}`,
-      account: e.bank_name || e.paid_from || e.bank_account || e.payment_account || e.payment_method || "Cash on hand",
+      account: expenseAccountName(e),
       customer: "",
       supplier: e.vendor || e.payee || "",
       description: cleanDocumentDescription(e.description || e.notes || "Payment"),
@@ -4099,11 +4162,24 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       sortId: Number(e.id || 0),
     }));
 
-    return [...receiptRows, ...expenseRows].filter((row) => {
-      const accountOk =
-        bankRegisterAccount === "All Accounts" || row.account === bankRegisterAccount;
-      const showOk =
-        bankRegisterShow === "All Transactions" || row.kind === bankRegisterShow;
+    const vendorPaymentRows = vendorPaymentsForRegister().map((vp: any) => ({
+      id: `vendor-payment-${vp.id || vp.payment_no}`,
+      rawDate: vp.payment_date || "",
+      date: formatReportDate(vp.payment_date),
+      transaction: `Payment — ${vp.payment_no || vp.id || ""}`,
+      account: vendorPaymentAccountName(vp),
+      customer: "",
+      supplier: vp.vendor || "",
+      description: cleanDocumentDescription(vp.description || vp.notes || "Vendor payment"),
+      debit: 0,
+      credit: Number(vp.amount || 0),
+      kind: "Payment",
+      sortId: Number(vp.id || 0),
+    }));
+
+    return [...receiptRows, ...legacyPaymentRows, ...expenseRows, ...vendorPaymentRows].filter((row) => {
+      const accountOk = selectedAccount === "All Accounts" || row.account === selectedAccount;
+      const showOk = selectedShow === "All Transactions" || row.kind === selectedShow;
       const searchOk = !q || [row.date, row.transaction, row.account, row.customer, row.supplier, row.description, row.debit, row.credit]
         .join(" ")
         .toLowerCase()
@@ -4112,12 +4188,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     });
   }
 
-  const selectedBankOpeningBalance =
-    bankRegisterAccount === "All Accounts"
-      ? banks.reduce((sum, b) => sum + Number(b.opening_balance || 0), 0)
-      : banks
-          .filter((b) => (b.account_name || b.bank_name) === bankRegisterAccount)
-          .reduce((sum, b) => sum + Number(b.opening_balance || 0), 0);
+  const selectedBankOpeningBalance = bankOpeningBalanceFor(bankRegisterAccount);
 
   const bankRegisterRowsAscending = bankRegisterSourceRows()
     .sort((a, b) => {
@@ -4140,6 +4211,15 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   const bankRegisterDebits = bankRegisterRows.reduce((sum, row) => sum + row.debit, 0);
   const bankRegisterCredits = bankRegisterRows.reduce((sum, row) => sum + row.credit, 0);
   const bankRegisterClosing = selectedBankOpeningBalance + bankRegisterDebits - bankRegisterCredits;
+
+  function bankBalanceForAccount(accountName: string) {
+    const rows = bankRegisterSourceRows(accountName, "All Transactions");
+    return bankOpeningBalanceFor(accountName) + rows.reduce((sum, row) => sum + Number(row.debit || 0) - Number(row.credit || 0), 0);
+  }
+
+  const bankBalance = bankAccountOptions.length
+    ? bankAccountOptions.reduce((sum, accountName) => sum + bankBalanceForAccount(accountName), 0)
+    : bankOpeningBalanceFor("All Accounts");
 
   function bankBalanceText(value: number) {
     const abs = Math.abs(value);
@@ -4229,38 +4309,29 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   const totalInvoiceAmount = invoices
     .filter((i) => i.status !== "Cancelled")
     .reduce((sum, i) => sum + invoiceTotal(i), 0);
-  const totalReceiptAmount = receipts.reduce(
-    (sum, r) => sum + Number(r.amount || 0),
-    0,
-  );
-  const totalPurchaseInvoiceAmount = purchaseInvoices.reduce(
-    (sum, pi) => sum + Number(pi.amount || 0),
-    0,
-  );
-  const totalVendorPaymentAmount = expenses
-    .filter((e) => ["Approved", "Paid", "Posted", ""].includes(String(e.status || "")))
-    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const totalDiscounts = invoices.reduce(
-    (sum, i) => sum + Number(i.discount || 0),
-    0,
-  );
-  const taxPayable = invoices
-    .filter((i) => i.status !== "Cancelled")
-    .reduce((sum, i) => sum + Number(i.tax_amount || 0), 0);
+  const totalReceiptAmount = receipts.reduce((sum, r) => sum + Number(r.amount || 0), 0) + payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalPurchaseInvoiceAmount = purchaseInvoices.reduce((sum, pi) => sum + Number(pi.amount || 0), 0);
+  const totalVendorPaymentAmount = expenses.filter((e: any) => isActiveStatus(e.status || "Paid")).reduce((sum, e) => sum + Number(e.amount || 0), 0) + vendorPaymentsForRegister().reduce((sum, vp) => sum + Number(vp.amount || 0), 0);
+  const totalDiscounts = invoices.reduce((sum, i) => sum + Number(i.discount || 0), 0);
+  const taxPayable = invoices.filter((i) => i.status !== "Cancelled").reduce((sum, i) => sum + Number(i.tax_amount || 0), 0);
+  const accountsPayable = Math.max(0, totalPurchaseInvoiceAmount - totalVendorPaymentAmount);
   const balanceSheetAssets = accountsReceivable + bankBalance;
   const balanceSheetLiabilities = accountsPayable + taxPayable;
+  const netProfit = paidRevenue - totalVendorPaymentAmount;
   const balanceSheetEquity = balanceSheetAssets - balanceSheetLiabilities;
+  const ownerCapital = balanceSheetEquity - netProfit;
+
   const dashboardExpenseRows = Object.values(
-    expenses.reduce((acc: Record<string, { label: string; amount: number }>, e) => {
+    expenses.filter((e: any) => isActiveStatus(e.status || "Paid")).reduce((acc: Record<string, { label: string; amount: number }>, e) => {
       const label = String(e.category || "Other").trim() || "Other";
       acc[label] = acc[label] || { label, amount: 0 };
       acc[label].amount += Number(e.amount || 0);
       return acc;
     }, {}),
-  ).sort((a: any, b: any) => b.amount - a.amount);
-  if (totalDiscounts > 0) {
-    dashboardExpenseRows.push({ label: "Sales Discount", amount: totalDiscounts });
-  }
+  ).sort((a: any, b: any) => b.amount - a.amount) as { label: string; amount: number }[];
+  const vendorPaymentExtraTotal = vendorPaymentsForRegister().reduce((sum, vp) => sum + Number(vp.amount || 0), 0);
+  if (vendorPaymentExtraTotal > 0) dashboardExpenseRows.push({ label: "Vendor Payments", amount: vendorPaymentExtraTotal });
+  if (totalDiscounts > 0) dashboardExpenseRows.push({ label: "Sales Discount", amount: totalDiscounts });
   const dashboardIncomeRows = [
     { label: "Repair & Maintenance Revenue", amount: paidRevenue },
     { label: "Sales", amount: 0 },
@@ -4279,53 +4350,68 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     { label: "Repair & Maintenance Revenue", amount: paidRevenue },
   ].filter((r) => Number(r.amount || 0) !== 0);
   const reportProfitLossExpenseRows = Object.values(
-    expenses.reduce((acc: Record<string, { label: string; amount: number }>, e) => {
+    expenses.filter((e: any) => isActiveStatus(e.status || "Paid")).reduce((acc: Record<string, { label: string; amount: number }>, e) => {
       const label = String(e.category || "Other").trim() || "Other";
       acc[label] = acc[label] || { label, amount: 0 };
       acc[label].amount += Number(e.amount || 0);
       return acc;
     }, {}),
   ).filter((r: any) => Number(r.amount || 0) !== 0) as { label: string; amount: number }[];
+  if (vendorPaymentExtraTotal > 0) reportProfitLossExpenseRows.push({ label: "Vendor Payments", amount: vendorPaymentExtraTotal });
+  if (totalDiscounts > 0) reportProfitLossExpenseRows.push({ label: "Sales Discount", amount: totalDiscounts });
 
   const reportBalanceRows = [
     { group: "Assets", account: "Accounts Receivable", amount: accountsReceivable },
     { group: "Assets", account: "Cash & Bank", amount: bankBalance },
     { group: "Liabilities", account: "Accounts Payable", amount: accountsPayable },
     { group: "Liabilities", account: "Tax Payable", amount: taxPayable },
-    { group: "Equity", account: "Owner Equity / Retained Earnings", amount: balanceSheetEquity },
-  ];
+    { group: "Equity", account: "Owner's Capital / Opening Balance", amount: ownerCapital },
+    { group: "Equity", account: "Current Year Profit", amount: netProfit },
+  ].filter((r) => Math.abs(Number(r.amount || 0)) > 0.004);
 
   const reportTrialRows = [
     { account: "Accounts Receivable", ...signedAmountDebitCredit(accountsReceivable, "Debit") },
     { account: "Cash & Bank", ...signedAmountDebitCredit(bankBalance, "Debit") },
     { account: "Accounts Payable", ...signedAmountDebitCredit(accountsPayable, "Credit") },
     { account: "Tax Payable", ...signedAmountDebitCredit(taxPayable, "Credit") },
+    { account: "Owner's Capital / Opening Balance", ...signedAmountDebitCredit(ownerCapital, "Credit") },
     { account: "Repair & Maintenance Revenue", ...signedAmountDebitCredit(paidRevenue, "Credit") },
     ...reportProfitLossExpenseRows.map((r) => ({ account: r.label, ...signedAmountDebitCredit(Number(r.amount || 0), "Debit") })),
-    { account: "Owner Equity / Retained Earnings", ...signedAmountDebitCredit(balanceSheetEquity - netProfit, "Credit") },
   ].filter((r) => Number(r.debit || 0) !== 0 || Number(r.credit || 0) !== 0);
   const trialDebitTotal = reportTrialRows.reduce((sum, r) => sum + Number(r.debit || 0), 0);
   const trialCreditTotal = reportTrialRows.reduce((sum, r) => sum + Number(r.credit || 0), 0);
 
   const reportGeneralLedgerRows = [
-    ...invoices.filter((i) => i.status !== "Cancelled").map((i) => ({
-      date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Accounts Receivable", description: i.customer || "Customer invoice", debit: invoiceTotal(i), credit: 0,
-    })),
-    ...invoices.filter((i) => i.status !== "Cancelled").map((i) => ({
-      date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Repair & Maintenance Revenue", description: i.customer || "Sales revenue", debit: 0, credit: Math.max(0, invoiceTotal(i) - Number(i.tax_amount || 0)),
-    })),
-    ...receipts.map((r) => ({
-      date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: r.bank_name || "Cash on hand", description: r.notes || r.customer, debit: Number(r.amount || 0), credit: 0,
-    })),
-    ...receipts.map((r) => ({
-      date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: "Accounts Receivable", description: r.customer || "Customer receipt", debit: 0, credit: Number(r.amount || 0),
-    })),
-    ...expenses.map((e) => ({
-      date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: e.category || "Expense", description: e.description || e.vendor, debit: Number(e.amount || 0), credit: 0,
-    })),
-    ...expenses.map((e) => ({
-      date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: "Cash & Bank", description: e.description || e.vendor, debit: 0, credit: Number(e.amount || 0),
-    })),
+    ...invoices.filter((i) => i.status !== "Cancelled").flatMap((i) => {
+      const total = invoiceTotal(i);
+      const tax = Number(i.tax_amount || 0);
+      const revenue = Math.max(0, total - tax);
+      return [
+        { date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Accounts Receivable", description: i.customer || "Customer invoice", debit: total, credit: 0 },
+        { date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Repair & Maintenance Revenue", description: i.customer || "Sales revenue", debit: 0, credit: revenue },
+        ...(tax ? [{ date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Tax Payable", description: i.customer || "Sales tax", debit: 0, credit: tax }] : []),
+      ];
+    }),
+    ...receipts.flatMap((r) => [
+      { date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: r.bank_name || "Cash on hand", description: r.notes || r.customer, debit: Number(r.amount || 0), credit: 0 },
+      { date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: "Accounts Receivable", description: r.customer || "Customer receipt", debit: 0, credit: Number(r.amount || 0) },
+    ]),
+    ...payments.flatMap((p) => [
+      { date: formatReportDate(p.payment_date), source: `Receipt — ${p.invoice_no || p.id}`, account: p.bank_name || "Cash on hand", description: p.notes || p.customer, debit: Number(p.amount || 0), credit: 0 },
+      { date: formatReportDate(p.payment_date), source: `Receipt — ${p.invoice_no || p.id}`, account: "Accounts Receivable", description: p.customer || "Customer receipt", debit: 0, credit: Number(p.amount || 0) },
+    ]),
+    ...purchaseInvoices.flatMap((pi) => [
+      { date: formatReportDate(pi.invoice_date), source: `Bill — ${pi.purchase_invoice_no}`, account: pi.category || "Expense", description: pi.description || pi.vendor, debit: Number(pi.amount || 0), credit: 0 },
+      { date: formatReportDate(pi.invoice_date), source: `Bill — ${pi.purchase_invoice_no}`, account: "Accounts Payable", description: pi.vendor || "Vendor bill", debit: 0, credit: Number(pi.amount || 0) },
+    ]),
+    ...expenses.filter((e: any) => isActiveStatus(e.status || "Paid")).flatMap((e) => [
+      { date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: e.category || "Expense", description: e.description || e.vendor, debit: Number(e.amount || 0), credit: 0 },
+      { date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: expenseAccountName(e), description: e.description || e.vendor, debit: 0, credit: Number(e.amount || 0) },
+    ]),
+    ...vendorPaymentsForRegister().flatMap((vp) => [
+      { date: formatReportDate(vp.payment_date), source: `Payment — ${vp.payment_no}`, account: "Accounts Payable", description: vp.description || vp.vendor, debit: Number(vp.amount || 0), credit: 0 },
+      { date: formatReportDate(vp.payment_date), source: `Payment — ${vp.payment_no}`, account: vendorPaymentAccountName(vp), description: vp.description || vp.vendor, debit: 0, credit: Number(vp.amount || 0) },
+    ]),
     ...journalEntries.flatMap((je) => [
       { date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: je.debit_account, description: je.description, debit: Number(je.amount || 0), credit: 0 },
       { date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: je.credit_account, description: je.description, debit: 0, credit: Number(je.amount || 0) },
@@ -4335,13 +4421,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   const reportCustomerStatementRows = [
     ...invoices.map((i) => ({ date: formatReportDate(i.invoice_date), transaction: `Invoice — ${i.invoice_no}`, customer: i.customer, debit: invoiceTotal(i), credit: 0, balance: invoiceBalance(i) })),
     ...receipts.map((r) => ({ date: formatReportDate(r.receipt_date), transaction: `Receipt — ${r.receipt_no}`, customer: r.customer, debit: 0, credit: Number(r.amount || 0), balance: 0 })),
+    ...payments.map((p) => ({ date: formatReportDate(p.payment_date), transaction: `Receipt — ${p.invoice_no || p.id}`, customer: p.customer, debit: 0, credit: Number(p.amount || 0), balance: 0 })),
   ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
   const reportVendorStatementRows = [
     ...purchaseInvoices.map((pi) => ({ date: formatReportDate(pi.invoice_date), transaction: `Bill — ${pi.purchase_invoice_no}`, vendor: pi.vendor, debit: 0, credit: Number(pi.amount || 0), description: pi.description || pi.category })),
     ...expenses.map((e) => ({ date: formatReportDate(e.expense_date), transaction: `Payment — ${e.expense_no}`, vendor: e.vendor, debit: Number(e.amount || 0), credit: 0, description: e.description || e.category })),
+    ...vendorPaymentsForRegister().map((vp) => ({ date: formatReportDate(vp.payment_date), transaction: `Payment — ${vp.payment_no}`, vendor: vp.vendor, debit: Number(vp.amount || 0), credit: 0, description: vp.description || vp.notes || "Vendor payment" })),
   ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-
 
   function greetingText() {
     const hour = new Date().getHours();
@@ -4881,8 +4968,8 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         amount={balanceSheetEquity}
                         tone="#7c3aed"
                         rows={[
-                          { label: "Owner equity / opening balance", amount: balanceSheetEquity - netProfit },
-                          { label: "Retained earnings", amount: netProfit },
+                          { label: "Owner's Capital / Opening Balance", amount: ownerCapital },
+                          { label: "Current Year Profit", amount: netProfit },
                         ]}
                       />
                     </div>
@@ -4905,7 +4992,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                       <FinancialBlock
                         title="Less Expenses"
-                        amount={totalExpenses + totalDiscounts}
+                        amount={totalVendorPaymentAmount + totalDiscounts}
                         tone="#dc2626"
                         rows={dashboardExpenseRows.length ? dashboardExpenseRows : [{ label: "No expenses recorded", amount: 0 }]}
                       />
@@ -7504,7 +7591,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                     <SectionCard title="Profit & Loss Statement">
                       <div style={styles.reportSummaryGrid}>
                         <Card title="Income" value={money(paidRevenue)} />
-                        <Card title="Expenses" value={money(totalExpenses)} />
+                        <Card title="Expenses" value={money(totalVendorPaymentAmount)} />
                         <Card title="Net Profit" value={money(netProfit)} />
                       </div>
                       <div style={styles.bankRegisterTableWrap}>
