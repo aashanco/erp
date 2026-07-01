@@ -1263,11 +1263,15 @@ export default function ERPApp() {
     receiptRowsOverride?: Receipt[],
     paymentRowsOverride?: Payment[],
   ) {
-    if (inv.status === "Draft" || inv.status === "Cancelled") return inv.status;
+    // Cancelled invoices should stay cancelled. Draft invoices with no payment should stay draft.
+    // If a receipt is linked to a draft invoice, the receipt must drive the invoice status immediately.
+    if (inv.status === "Cancelled") return inv.status;
+
     const total = invoiceTotal(inv);
     const paid = invoicePaidAmount(inv.id, inv.invoice_no, receiptRowsOverride, paymentRowsOverride);
     const balance = Number((total - paid).toFixed(2));
-    if (paid <= 0) return "Open";
+
+    if (paid <= 0) return inv.status === "Draft" ? "Draft" : "Open";
     if (balance < -0.009) return "Overpaid";
     if (Math.abs(balance) <= 0.009) return "Paid";
     return "Partially Paid";
