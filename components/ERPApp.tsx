@@ -762,12 +762,14 @@ export default function ERPApp() {
     }
   }
 
-  async function logout() {
-    await supabase.auth.signOut();
+  function clearSessionData() {
     setSession(null);
     setProfile(null);
     setUserMenuOpen(false);
+    setMobileMenuOpen(false);
+    setQuickAddOpen(false);
     setInitialDataLoaded(false);
+    setActiveTab("dashboard");
     setCustomers([]);
     setVendors([]);
     setQuotes([]);
@@ -776,6 +778,44 @@ export default function ERPApp() {
     setPayments([]);
     setExpenses([]);
     setPurchaseInvoices([]);
+    setJobs([]);
+    setWorkOrders([]);
+    setBanks([]);
+    setJournalEntries([]);
+  }
+
+  async function logout() {
+    try {
+      clearSessionData();
+      await supabase.auth.signOut({ scope: "global" });
+
+      if (typeof window !== "undefined") {
+        const keepRememberedEmail = localStorage.getItem("aashan_remember_email");
+        Object.keys(localStorage).forEach((key) => {
+          const lower = key.toLowerCase();
+          if (key.startsWith("sb-") || lower.includes("supabase") || lower.includes("auth-token")) {
+            localStorage.removeItem(key);
+          }
+        });
+        if (keepRememberedEmail) localStorage.setItem("aashan_remember_email", keepRememberedEmail);
+
+        if ("caches" in window) {
+          try {
+            const cacheNames = await caches.keys();
+            await Promise.all(
+              cacheNames
+                .filter((name) => name.toLowerCase().includes("aashan") || name.toLowerCase().includes("erp"))
+                .map((name) => caches.delete(name)),
+            );
+          } catch {
+            // Cache cleanup is best-effort only.
+          }
+        }
+      }
+    } catch (error: any) {
+      clearSessionData();
+      console.warn(error?.message || error);
+    }
   }
 
   async function enableMobileBiometric() {
@@ -4348,6 +4388,77 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       import: "Import / Export",
     };
     return labels[tab] || "Aashan & Co LLC";
+  }
+
+  if (authLoading) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#eef5fb", padding: 20 }}>
+        <div style={{ background: "white", borderRadius: 20, padding: 28, boxShadow: "0 18px 50px rgba(15,23,42,.12)", textAlign: "center", width: "min(420px, 100%)" }}>
+          <img src="/aashan-logo.png" alt="Aashan & Co LLC" style={{ width: 86, height: 86, objectFit: "contain", marginBottom: 12 }} />
+          <h1 style={{ margin: 0, color: "#0f172a", fontSize: 26 }}>Aashan & Co LLC</h1>
+          <p style={{ color: "#64748b", marginTop: 8, marginBottom: 0 }}>Loading ERP...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "linear-gradient(135deg, #0f2742 0%, #047e89 100%)", padding: 18 }}>
+        <div style={{ width: "min(460px, 100%)", background: "white", borderRadius: 24, padding: 28, boxShadow: "0 24px 70px rgba(2,6,23,.28)" }}>
+          <div style={{ textAlign: "center", marginBottom: 22 }}>
+            <img src="/aashan-logo.png" alt="Aashan & Co LLC" style={{ width: 92, height: 92, objectFit: "contain", marginBottom: 12 }} />
+            <h1 style={{ margin: 0, color: "#0f172a", fontSize: 30, fontWeight: 900 }}>Aashan & Co LLC</h1>
+            <p style={{ margin: "8px 0 0", color: "#64748b", fontWeight: 700 }}>ERP Login</p>
+          </div>
+
+          <div style={{ display: "grid", gap: 14 }}>
+            <label style={{ display: "grid", gap: 7, color: "#334155", fontWeight: 800 }}>
+              Email
+              <input
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+                type="email"
+                autoComplete="email"
+                placeholder="Enter email"
+                style={{ width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 12, padding: "14px 16px", fontSize: 16 }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 7, color: "#334155", fontWeight: 800 }}>
+              Password
+              <input
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                type="password"
+                autoComplete="current-password"
+                placeholder="Enter password"
+                onKeyDown={(event) => { if (event.key === "Enter") login(); }}
+                style={{ width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 12, padding: "14px 16px", fontSize: 16 }}
+              />
+            </label>
+
+            <button
+              onClick={login}
+              style={{ border: 0, borderRadius: 14, background: "#2563eb", color: "white", padding: "15px 18px", fontSize: 17, fontWeight: 900, cursor: "pointer", marginTop: 4 }}
+            >
+              Sign In
+            </button>
+
+            <button
+              onClick={signUp}
+              style={{ border: "1px solid #cbd5e1", borderRadius: 14, background: "#f8fafc", color: "#0f3f56", padding: "13px 18px", fontSize: 15, fontWeight: 900, cursor: "pointer" }}
+            >
+              Create Account
+            </button>
+          </div>
+
+          <p style={{ color: "#64748b", fontSize: 12, lineHeight: 1.5, marginTop: 18, textAlign: "center" }}>
+            Logout now fully clears the mobile/PWA session and returns to this login screen.
+          </p>
+        </div>
+      </main>
+    );
   }
 
   return (
