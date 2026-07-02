@@ -57,11 +57,17 @@ type WorkOrder = {
   customer: string;
   service: string;
   technician: string;
+  customer_phone?: string;
+  customer_address?: string;
+  priority?: string;
   scheduled_date: string;
   start_time: string;
   end_time: string;
   status: string;
   notes: string;
+  completion_notes?: string;
+  started_at?: string;
+  completed_at?: string;
 };
 type Invoice = {
   id?: number;
@@ -309,11 +315,17 @@ const emptyWorkOrder: WorkOrder = {
   customer: "",
   service: "",
   technician: "",
+  customer_phone: "",
+  customer_address: "",
+  priority: "Normal",
   scheduled_date: "",
   start_time: "",
   end_time: "",
   status: "Scheduled",
   notes: "",
+  completion_notes: "",
+  started_at: "",
+  completed_at: "",
 };
 const emptyInvoice: Invoice = {
   invoice_no: "",
@@ -2266,12 +2278,16 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     const selected = jobs.find((j) => String(j.id) === jobIdValue);
     if (!selected) return;
     const today = new Date().toISOString().slice(0, 10);
+    const cust = customers.find((c) => c.name === selected.customer);
     setWorkOrder({
       work_order_no: workOrder.work_order_no || nextWorkOrderNo(),
       job_id: selected.id || null,
       customer: selected.customer,
       service: selected.service,
       technician: workOrder.technician || "",
+      customer_phone: workOrder.customer_phone || cust?.phone || "",
+      customer_address: workOrder.customer_address || cust?.address || "",
+      priority: workOrder.priority || "Normal",
       scheduled_date: workOrder.scheduled_date || today,
       start_time: workOrder.start_time || "",
       end_time: workOrder.end_time || "",
@@ -2289,11 +2305,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       customer: workOrder.customer,
       service: workOrder.service,
       technician: workOrder.technician,
+      customer_phone: workOrder.customer_phone || "",
+      customer_address: workOrder.customer_address || "",
+      priority: workOrder.priority || "Normal",
       scheduled_date: workOrder.scheduled_date || null,
       start_time: workOrder.start_time,
       end_time: workOrder.end_time,
       status: workOrder.status,
       notes: workOrder.notes,
+      completion_notes: workOrder.completion_notes || "",
+      started_at: workOrder.started_at || null,
+      completed_at: workOrder.completed_at || null,
     };
 
     const res = editingWorkOrderId
@@ -2340,9 +2362,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     jobId?: number | null,
   ) {
     if (!id) return;
+    const statusPayload: any = { status };
+    if (status === "In Progress") statusPayload.started_at = new Date().toISOString();
+    if (status === "Completed") statusPayload.completed_at = new Date().toISOString();
     const { error } = await supabase
       .from("work_orders")
-      .update({ status })
+      .update(statusPayload)
       .eq("id", id);
     if (error) return alert(error.message);
     if (jobId)
@@ -2353,6 +2378,57 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         })
         .eq("id", jobId);
     await loadData();
+  }
+
+  function callCustomer(phone?: string) {
+    const cleaned = String(phone || "").trim();
+    if (!cleaned) return alert("No customer phone number on this work order.");
+    window.location.href = `tel:${cleaned}`;
+  }
+
+  function textCustomer(phone?: string) {
+    const cleaned = String(phone || "").trim();
+    if (!cleaned) return alert("No customer phone number on this work order.");
+    window.location.href = `sms:${cleaned}`;
+  }
+
+  function navigateToAddress(address?: string) {
+    const destination = String(address || "").trim();
+    if (!destination) return alert("No customer address on this work order.");
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`, "_blank");
+  }
+
+  async function convertWorkOrderToInvoice(wo: WorkOrder) {
+    if (!wo.customer || !wo.service) return alert("Work order is missing customer or service.");
+    const cust = customers.find((c) => c.name === wo.customer);
+    const payload: any = {
+      invoice_no: nextInvoiceNo(),
+      customer: wo.customer,
+      customer_id: cust?.id || null,
+      job_id: wo.job_id || null,
+      description: wo.service,
+      amount: 0,
+      qty: 1,
+      unit_price: 0,
+      discount: 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      subtotal: 0,
+      total_amount: 0,
+      invoice_date: new Date().toISOString().slice(0, 10),
+      due_date: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+      status: "Draft",
+      notes: `Created from Work Order ${wo.work_order_no}. ${wo.notes || ""}`.trim(),
+      customer_phone: wo.customer_phone || cust?.phone || "",
+      customer_email: cust?.email || "",
+      customer_address: wo.customer_address || cust?.address || "",
+    };
+    const res = await supabase.from("invoices").insert([payload]);
+    if (res.error) return alert(res.error.message);
+    if (wo.id) await quickWorkOrderStatus(wo.id, "Completed", wo.job_id);
+    await loadData();
+    alert("Invoice draft created from work order.");
+    setActiveTab("invoices");
   }
 
   function fillInvoiceFromQuote(quoteIdValue: string) {
@@ -6198,6 +6274,34 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         }
                       />
                       <Input
+                        label="Customer Phone"
+                        value={workOrder.customer_phone || ""}
+                        onChange={(v: string) =>
+                          setWorkOrder({ ...workOrder, customer_phone: v })
+                        }
+                      />
+                      <Input
+                        label="Customer Address"
+                        value={workOrder.customer_address || ""}
+                        onChange={(v: string) =>
+                          setWorkOrder({ ...workOrder, customer_address: v })
+                        }
+                      />
+                      <Field label="Priority">
+                        <select
+                          value={workOrder.priority || "Normal"}
+                          onChange={(e) =>
+                            setWorkOrder({ ...workOrder, priority: e.target.value })
+                          }
+                          style={styles.input}
+                        >
+                          <option>Low</option>
+                          <option>Normal</option>
+                          <option>High</option>
+                          <option>Urgent</option>
+                        </select>
+                      </Field>
+                      <Input
                         label="Scheduled Date"
                         type="date"
                         value={workOrder.scheduled_date}
@@ -6243,6 +6347,13 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         value={workOrder.notes}
                         onChange={(v: string) =>
                           setWorkOrder({ ...workOrder, notes: v })
+                        }
+                      />
+                      <Input
+                        label="Completion Notes"
+                        value={workOrder.completion_notes || ""}
+                        onChange={(v: string) =>
+                          setWorkOrder({ ...workOrder, completion_notes: v })
                         }
                       />
                       <DocumentPhotoBox documentType="Work Order" documentNo={workOrder.work_order_no || nextWorkOrderNo()} />
@@ -6314,6 +6425,24 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                             onClick={() => editWorkOrder(wo)}
                           >
                             Edit
+                          </button>
+                          <button
+                            style={styles.smallBtn}
+                            onClick={() => callCustomer(wo.customer_phone)}
+                          >
+                            Call
+                          </button>
+                          <button
+                            style={styles.smallBtn}
+                            onClick={() => navigateToAddress(wo.customer_address)}
+                          >
+                            Map
+                          </button>
+                          <button
+                            style={styles.greenBtn}
+                            onClick={() => convertWorkOrderToInvoice(wo)}
+                          >
+                            Invoice
                           </button>
                           <button
                             style={styles.dangerBtn}
@@ -6435,33 +6564,33 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                             <div style={styles.techPlaceholders}>
                               <button
                                 style={styles.smallBtn}
-                                onClick={() =>
-                                  alert(
-                                    "Photo upload will be added in Phase 15B",
-                                  )
-                                }
+                                onClick={() => callCustomer(wo.customer_phone)}
                               >
-                                Upload Photos
+                                Call
                               </button>
                               <button
                                 style={styles.smallBtn}
-                                onClick={() =>
-                                  alert(
-                                    "Customer signature will be added in Phase 15B",
-                                  )
-                                }
+                                onClick={() => textCustomer(wo.customer_phone)}
                               >
-                                Signature
+                                Text
                               </button>
                               <button
                                 style={styles.smallBtn}
-                                onClick={() =>
-                                  alert(
-                                    "GPS check-in will be added in Phase 15B",
-                                  )
-                                }
+                                onClick={() => navigateToAddress(wo.customer_address)}
                               >
-                                GPS Check-in
+                                Navigate
+                              </button>
+                              <button
+                                style={styles.smallBtn}
+                                onClick={() => editWorkOrder(wo)}
+                              >
+                                Photos / Notes
+                              </button>
+                              <button
+                                style={styles.greenBtn}
+                                onClick={() => convertWorkOrderToInvoice(wo)}
+                              >
+                                Convert to Invoice
                               </button>
                             </div>
                           </div>
