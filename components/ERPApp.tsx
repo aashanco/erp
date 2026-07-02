@@ -4719,6 +4719,36 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   <div style={styles.userMenuRole}>
                     {profile?.role || "User"}
                   </div>
+                  <div style={styles.userMenuStatusPanel}>
+                    <div style={isOnline ? styles.userMenuStatusOnline : styles.userMenuStatusOffline}>
+                      {isOnline ? "● Online" : "● Offline mode"}
+                    </div>
+                    <button
+                      type="button"
+                      style={styles.userMenuStatusButton}
+                      onClick={() => {
+                        installPwaApp();
+                        setUserMenuOpen(false);
+                      }}
+                    >
+                      📲 Install App
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.userMenuStatusButton}
+                      onClick={() => {
+                        enableMobileBiometric();
+                        setUserMenuOpen(false);
+                      }}
+                    >
+                      {biometricEnabled ? "🔐 Face ID On" : "🔐 Enable Face ID"}
+                    </button>
+                    {offlineQueueCount > 0 && (
+                      <div style={styles.userMenuQueueNote}>
+                        {offlineQueueCount} waiting to sync
+                      </div>
+                    )}
+                  </div>
                   <button
                     style={styles.userMenuItem}
                     onClick={() => {
@@ -4727,24 +4757,6 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                     }}
                   >
                     Settings
-                  </button>
-                  <button
-                    style={styles.userMenuItem}
-                    onClick={() => {
-                      enableMobileBiometric();
-                      setUserMenuOpen(false);
-                    }}
-                  >
-                    {biometricEnabled ? "Face ID Enabled" : "Enable Face ID / Biometrics"}
-                  </button>
-                  <button
-                    style={styles.userMenuItem}
-                    onClick={() => {
-                      installPwaApp();
-                      setUserMenuOpen(false);
-                    }}
-                  >
-                    Install Mobile App
                   </button>
                   <button style={styles.userMenuLogout} onClick={logout}>
                     Logout
@@ -4913,17 +4925,6 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   onChange={(e) => setSearch(e.target.value)}
                   style={styles.search}
                 />
-              </div>
-
-              <div className="mobile-command-center">
-                <div className={isOnline ? "mobile-status-pill online" : "mobile-status-pill offline"}>
-                  {isOnline ? "● Online" : "● Offline mode"}
-                </div>
-                <button type="button" onClick={installPwaApp}>📲 Install App</button>
-                <button type="button" onClick={enableMobileBiometric}>
-                  {biometricEnabled ? "🔐 Face ID On" : "🔐 Enable Face ID"}
-                </button>
-                {offlineQueueCount > 0 && <span>{offlineQueueCount} waiting to sync</span>}
               </div>
 
               {/* Quick action tiles are kept only on the Dashboard page under Quick Actions. */}
@@ -9935,6 +9936,51 @@ const styles: Record<string, any> = {
     borderBottom: "1px solid #e5e7eb",
     paddingBottom: 10,
     marginBottom: 8,
+  },
+  userMenuStatusPanel: {
+    display: "grid",
+    gap: 8,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 10,
+  },
+  userMenuStatusButton: {
+    width: "100%",
+    textAlign: "left",
+    background: "white",
+    border: "1px solid #d7dee8",
+    padding: "9px 10px",
+    borderRadius: 10,
+    cursor: "pointer",
+    fontWeight: 850,
+    color: "#0f3f56",
+  },
+  userMenuStatusOnline: {
+    color: "#047857",
+    background: "#ecfdf5",
+    border: "1px solid #bbf7d0",
+    borderRadius: 10,
+    padding: "9px 10px",
+    fontWeight: 900,
+  },
+  userMenuStatusOffline: {
+    color: "#b45309",
+    background: "#fffbeb",
+    border: "1px solid #fde68a",
+    borderRadius: 10,
+    padding: "9px 10px",
+    fontWeight: 900,
+  },
+  userMenuQueueNote: {
+    color: "#7c3aed",
+    background: "#f5f3ff",
+    border: "1px solid #ddd6fe",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontWeight: 850,
+    fontSize: 12,
   },
   userMenuItem: {
     width: "100%",
