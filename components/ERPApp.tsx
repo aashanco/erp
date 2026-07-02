@@ -4678,6 +4678,71 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   .mobile-command-center { grid-template-columns: 1fr; }
 }
 
+
+
+/* v3.2.2 Mobile Navigation + Sticky Actions: UI-only changes */
+@media (max-width: 900px) {
+  body { overscroll-behavior-y: contain; }
+  main, .app-screen { -webkit-overflow-scrolling: touch; }
+  .topBar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 35 !important;
+    background: rgba(238,243,248,0.96) !important;
+    backdrop-filter: blur(12px) !important;
+    border-radius: 0 0 18px 18px !important;
+    margin: -4px -4px 12px !important;
+    padding: 10px 10px 12px !important;
+  }
+  .topBar h2 { font-size: 20px !important; margin-bottom: 2px !important; }
+  .topBar p { display: none !important; }
+  .topBar input { min-height: 44px !important; font-size: 16px !important; }
+  input, select, textarea {
+    min-height: 46px !important;
+    font-size: 16px !important;
+    border-radius: 12px !important;
+  }
+  textarea { min-height: 92px !important; }
+  button { touch-action: manipulation; }
+  .mobile-sticky-actions,
+  .bc-action-bar {
+    position: sticky !important;
+    bottom: 74px !important;
+    z-index: 45 !important;
+    background: rgba(255,255,255,0.98) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid #d7dee8 !important;
+    border-radius: 16px !important;
+    padding: 10px !important;
+    margin: 14px 0 10px !important;
+    box-shadow: 0 14px 32px rgba(15,23,42,0.14) !important;
+  }
+  .mobile-sticky-actions button,
+  .bc-action-bar button {
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    font-weight: 900 !important;
+  }
+  .bottom-nav {
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom)) !important;
+  }
+  .bottom-nav button {
+    min-height: 54px !important;
+    font-size: 11px !important;
+    justify-content: center !important;
+  }
+  .floating-add {
+    bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+    right: 16px !important;
+  }
+  .quick-add-sheet {
+    bottom: calc(164px + env(safe-area-inset-bottom)) !important;
+    right: 16px !important;
+    left: 16px !important;
+    min-width: 0 !important;
+  }
+  .quick-add-sheet button { min-height: 48px !important; }
+}
 `}</style>
 
       <div className="app-screen">
@@ -8825,7 +8890,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         </button>
       )}
 
-      <nav className="bottom-nav" style={styles.bottomNav}>
+      <nav className="bottom-nav" style={styles.bottomNav} aria-label="Mobile navigation">
         <button
           style={
             activeTab === "dashboard"
@@ -8834,108 +8899,38 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
           }
           onClick={() => openTab("dashboard")}
         >
-          🏠<span>Home</span>
+          🏠<span>Dashboard</span>
         </button>
-        {isTechnician ? (
-          <>
-            <button
-              style={
-                activeTab === "jobs"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("jobs")}
-            >
-              📋<span>Jobs</span>
-            </button>
-            <button
-              style={
-                activeTab === "workorders"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("workorders")}
-            >
-              🛠️<span>WO</span>
-            </button>
-            <button
-              style={
-                activeTab === "technician"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("technician")}
-            >
-              📅<span>Today</span>
-            </button>
-          </>
-        ) : isCustomer ? (
-          <>
-            <button
-              style={
-                activeTab === "quotes"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("quotes")}
-            >
-              📄<span>Quotes</span>
-            </button>
-            <button
-              style={
-                activeTab === "invoices"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("invoices")}
-            >
-              🧾<span>Invoices</span>
-            </button>
-            <button
-              style={
-                activeTab === "receipts"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("receipts")}
-            >
-              💵<span>Receipts</span>
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              style={
-                activeTab === "customers"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("customers")}
-            >
-              👥<span>Customers</span>
-            </button>
-            <button
-              style={
-                activeTab === "quotes"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("quotes")}
-            >
-              📄<span>Quotes</span>
-            </button>
-            <button
-              style={
-                activeTab === "invoices"
-                  ? styles.bottomNavActive
-                  : styles.bottomNavBtn
-              }
-              onClick={() => openTab("invoices")}
-            >
-              🧾<span>Invoices</span>
-            </button>
-          </>
-        )}
+        <button
+          style={
+            activeTab === "customers"
+              ? styles.bottomNavActive
+              : styles.bottomNavBtn
+          }
+          onClick={() => openTab("customers")}
+        >
+          👥<span>Customers</span>
+        </button>
+        <button
+          style={
+            activeTab === "jobs" || activeTab === "workorders" || activeTab === "technician"
+              ? styles.bottomNavActive
+              : styles.bottomNavBtn
+          }
+          onClick={() => openTab("jobs")}
+        >
+          📋<span>Jobs</span>
+        </button>
+        <button
+          style={
+            activeTab === "invoices" || activeTab === "receipts"
+              ? styles.bottomNavActive
+              : styles.bottomNavBtn
+          }
+          onClick={() => openTab("invoices")}
+        >
+          🧾<span>Invoices</span>
+        </button>
         <button
           style={styles.bottomNavBtn}
           onClick={() => setMobileMenuOpen(true)}
@@ -8943,7 +8938,6 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
           ☰<span>More</span>
         </button>
       </nav>
-
       {emailDraft.open && (
         <div
           className="email-modal-backdrop"
@@ -9817,7 +9811,11 @@ function Td({ children }: any) {
   return <td style={styles.td}>{children}</td>;
 }
 function ButtonRow({ children }: any) {
-  return <div style={styles.buttonRow}>{children}</div>;
+  return (
+    <div className="mobile-sticky-actions" style={styles.buttonRow}>
+      {children}
+    </div>
+  );
 }
 function StatusBadge({ status }: { status: string }) {
   const color =
