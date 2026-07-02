@@ -4758,6 +4758,167 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 }
 
 
+/* v3.2.4 PWA Polish + Mobile Reports: UI-only, no accounting/report formulas changed */
+.pwa-update-banner { display: none; }
+@media (max-width: 900px) {
+  .report-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+  .report-tabs button {
+    min-height: 52px !important;
+    width: 100% !important;
+    text-align: center !important;
+    white-space: normal !important;
+    line-height: 1.15 !important;
+  }
+  .report-toolbar,
+  .bank-register-toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+  .bank-register-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    width: 100% !important;
+    justify-content: stretch !important;
+  }
+  .bank-register-actions button {
+    width: 100% !important;
+    min-height: 48px !important;
+  }
+  .bank-register-summary,
+  .report-summary-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+  .bank-register-summary-card {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .bank-register-summary-card span,
+  .bank-register-summary-card b {
+    overflow-wrap: anywhere !important;
+  }
+  .report-table-wrap,
+  .bank-register-table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-x: contain !important;
+    border-radius: 16px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    touch-action: pan-x pan-y !important;
+  }
+  .bankRegisterTable {
+    width: max-content !important;
+    min-width: 920px !important;
+    table-layout: auto !important;
+  }
+  .bankRegisterTable th,
+  .bankRegisterTable td {
+    white-space: nowrap !important;
+    font-size: 13px !important;
+  }
+  .bankRegisterTable thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 4 !important;
+  }
+  .bankRegisterTable td:nth-child(6),
+  .bankRegisterTable th:nth-child(6) {
+    min-width: 240px !important;
+    max-width: 320px !important;
+    white-space: normal !important;
+  }
+  /* AccountingEngine mobile report fix */
+  .accounting-mobile-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  .accounting-summary-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+  .accounting-summary-grid > * {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .accounting-table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x pan-y !important;
+  }
+  .accounting-table {
+    width: max-content !important;
+    min-width: 900px !important;
+  }
+  .accounting-table th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 3 !important;
+  }
+  .floating-add {
+    bottom: calc(104px + env(safe-area-inset-bottom)) !important;
+    right: 18px !important;
+    width: 58px !important;
+    height: 58px !important;
+    box-shadow: 0 12px 32px rgba(0,139,150,0.36) !important;
+  }
+  .pwa-install-button {
+    bottom: calc(90px + env(safe-area-inset-bottom)) !important;
+    right: 14px !important;
+  }
+  .pwa-update-banner {
+    display: flex !important;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(86px + env(safe-area-inset-bottom));
+    z-index: 100000;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #0f172a;
+    color: white;
+    box-shadow: 0 18px 50px rgba(15,23,42,0.25);
+    font-weight: 800;
+  }
+  .pwa-update-banner button {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #2563eb;
+    color: white;
+    font-weight: 900;
+  }
+}
+@media (max-width: 420px) {
+  .report-tabs { grid-template-columns: 1fr !important; }
+  .bank-register-actions { grid-template-columns: 1fr !important; }
+}
+
+
 /* v3.2.3 Mobile Performance: UI-only optimization, no accounting/report logic changes */
 @media (max-width: 900px) {
   html, body {
@@ -7658,7 +7819,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
               {activeTab === "reports" && (
                 <>
                   <SectionCard title="Reports">
-                    <div style={styles.reportTabs}>
+                    <div className="report-tabs" style={styles.reportTabs}>
                       {[
                         ["bank_register", "Bank Register"],
                         ["profit_loss", "Profit & Loss"],
@@ -7682,7 +7843,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   {reportTab === "bank_register" && (
                     <>
                       <SectionCard title="Bank Register">
-                        <div style={styles.bankRegisterToolbar}>
+                        <div className="report-toolbar bank-register-toolbar" style={styles.bankRegisterToolbar}>
                           <Field label="Bank or Cash Account">
                             <select value={bankRegisterAccount} onChange={(e) => setBankRegisterAccount(e.target.value)} style={styles.input}>
                               <option>All Accounts</option>
@@ -7696,19 +7857,19 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                               <option>Payment</option>
                             </select>
                           </Field>
-                          <div style={styles.bankRegisterActions}>
+                          <div className="bank-register-actions" style={styles.bankRegisterActions}>
                             <button style={styles.blueBtn} onClick={printBankRegister}>🖨 Print</button>
                             <button style={styles.greenBtn} onClick={() => exportCsv("bank-register.csv", [["Date", "Transaction", "Bank or Cash Account", "Customer", "Supplier", "Description", "Debit", "Credit", "Balance"], ...bankRegisterRows.map((row) => [row.date, row.transaction, row.account, row.customer, row.supplier, row.description, row.debit ? row.debit.toFixed(2) : "", row.credit ? row.credit.toFixed(2) : "", bankBalanceText(row.runningBalance)])])}>⬇ Export</button>
                           </div>
                         </div>
-                        <div style={styles.bankRegisterSummary}>
-                          <div style={styles.bankRegisterSummaryCard}><span>Opening Balance</span><b>{bankBalanceText(selectedBankOpeningBalance)}</b></div>
-                          <div style={styles.bankRegisterSummaryCard}><span>Total Debits</span><b style={{ color: "#059669" }}>{money(bankRegisterDebits)}</b></div>
-                          <div style={styles.bankRegisterSummaryCard}><span>Total Credits</span><b style={{ color: "#dc2626" }}>{money(bankRegisterCredits)}</b></div>
-                          <div style={styles.bankRegisterSummaryCard}><span>Closing Balance</span><b>{bankBalanceText(bankRegisterClosing)}</b></div>
+                        <div className="bank-register-summary" style={styles.bankRegisterSummary}>
+                          <div className="bank-register-summary-card" style={styles.bankRegisterSummaryCard}><span>Opening Balance</span><b>{bankBalanceText(selectedBankOpeningBalance)}</b></div>
+                          <div className="bank-register-summary-card" style={styles.bankRegisterSummaryCard}><span>Total Debits</span><b style={{ color: "#059669" }}>{money(bankRegisterDebits)}</b></div>
+                          <div className="bank-register-summary-card" style={styles.bankRegisterSummaryCard}><span>Total Credits</span><b style={{ color: "#dc2626" }}>{money(bankRegisterCredits)}</b></div>
+                          <div className="bank-register-summary-card" style={styles.bankRegisterSummaryCard}><span>Closing Balance</span><b>{bankBalanceText(bankRegisterClosing)}</b></div>
                         </div>
                       </SectionCard>
-                      <div style={styles.bankRegisterTableWrap}>
+                      <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Date</th><th>Transaction</th><th>Bank or Cash Account</th><th>Customer</th><th>Supplier</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
                           <tbody>{bankRegisterRows.map((row) => (<tr key={row.id}><td>{row.date}</td><td style={{ color: row.kind === "Receipt" ? "#059669" : "#dc2626", fontWeight: 800 }}>{row.transaction}</td><td>{row.account}</td><td>{row.customer}</td><td>{row.supplier}</td><td style={styles.bankRegisterDescription}>{row.description}</td><td style={{ ...styles.bankRegisterNumber, color: "#059669" }}>{row.debit ? money(row.debit) : "-"}</td><td style={{ ...styles.bankRegisterNumber, color: "#dc2626" }}>{row.credit ? money(row.credit) : "-"}</td><td style={{ ...styles.bankRegisterNumber, color: row.runningBalance >= 0 ? "#059669" : "#dc2626", fontWeight: 900 }}>{bankBalanceText(row.runningBalance)}</td></tr>))}</tbody>
@@ -7719,12 +7880,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                   {reportTab === "profit_loss" && (
                     <SectionCard title="Profit & Loss Statement">
-                      <div style={styles.reportSummaryGrid}>
+                      <div className="report-summary-grid" style={styles.reportSummaryGrid}>
                         <Card title="Income" value={money(paidRevenue)} />
                         <Card title="Expenses" value={money(totalVendorPaymentAmount)} />
                         <Card title="Net Profit" value={money(netProfit)} />
                       </div>
-                      <div style={styles.bankRegisterTableWrap}>
+                      <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Account</th><th>Type</th><th>Amount</th></tr></thead>
                           <tbody>
@@ -7739,12 +7900,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                   {reportTab === "balance_sheet" && (
                     <SectionCard title="Balance Sheet">
-                      <div style={styles.reportSummaryGrid}>
+                      <div className="report-summary-grid" style={styles.reportSummaryGrid}>
                         <Card title="Assets" value={money(balanceSheetAssets)} />
                         <Card title="Liabilities" value={money(balanceSheetLiabilities)} />
                         <Card title="Equity" value={money(balanceSheetEquity)} />
                       </div>
-                      <div style={styles.bankRegisterTableWrap}>
+                      <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Group</th><th>Account</th><th>Amount</th></tr></thead>
                           <tbody>{reportBalanceRows.map((r) => (<tr key={`${r.group}-${r.account}`}><td>{r.group}</td><td>{r.account}</td><td style={styles.bankRegisterNumber}>{money(r.amount)}</td></tr>))}</tbody>
@@ -7755,7 +7916,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                   {reportTab === "trial_balance" && (
                     <SectionCard title="Trial Balance">
-                      <div style={styles.bankRegisterTableWrap}>
+                      <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
                           <tbody>{reportTrialRows.map((r) => (<tr key={r.account}><td>{r.account}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td></tr>))}<tr><td><b>Total</b></td><td style={styles.bankRegisterNumber}><b>{money(trialDebitTotal)}</b></td><td style={styles.bankRegisterNumber}><b>{money(trialCreditTotal)}</b></td></tr></tbody>
@@ -7766,7 +7927,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                   {reportTab === "general_ledger" && (
                     <SectionCard title="General Ledger">
-                      <div style={styles.bankRegisterTableWrap}>
+                      <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Date</th><th>Source</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
                           <tbody>{reportGeneralLedgerRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.source}</td><td>{r.account}</td><td>{r.description}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td></tr>))}</tbody>
@@ -7777,7 +7938,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                   {reportTab === "customer_statement" && (
                     <SectionCard title="Customer Statement">
-                      <div style={styles.bankRegisterTableWrap}>
+                      <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Date</th><th>Transaction</th><th>Customer</th><th>Invoice/Debit</th><th>Payment/Credit</th><th>Open Balance</th></tr></thead>
                           <tbody>{reportCustomerStatementRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.transaction}</td><td>{r.customer}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.balance ? money(r.balance) : "-"}</td></tr>))}</tbody>
@@ -7788,7 +7949,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                   {reportTab === "vendor_statement" && (
                     <SectionCard title="Vendor Statement">
-                      <div style={styles.bankRegisterTableWrap}>
+                      <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Date</th><th>Transaction</th><th>Vendor</th><th>Description</th><th>Payment/Debit</th><th>Bill/Credit</th></tr></thead>
                           <tbody>{reportVendorStatementRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.transaction}</td><td>{r.vendor}</td><td>{r.description}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td></tr>))}</tbody>

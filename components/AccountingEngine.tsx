@@ -79,8 +79,8 @@ export default function AccountingEngine() {
   }
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.summaryGrid}>
+    <div className="accounting-mobile-wrap" style={styles.wrap}>
+      <div className="accounting-summary-grid" style={styles.summaryGrid}>
         <div style={styles.summaryCard}>
           <span>Total Transactions</span>
           <b>{headers.length}</b>
@@ -105,8 +105,8 @@ export default function AccountingEngine() {
         <div style={styles.grid}>
           <div style={styles.card}>
             <h3>General Ledger Transactions</h3>
-            <div style={styles.tableWrap}>
-              <table style={styles.table}>
+            <div className="accounting-table-wrap" style={styles.tableWrap}>
+              <table className="accounting-table" style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Date</th>
@@ -139,8 +139,8 @@ export default function AccountingEngine() {
 
           <div style={styles.card}>
             <h3>Transaction Lines</h3>
-            <div style={styles.tableWrap}>
-              <table style={styles.table}>
+            <div className="accounting-table-wrap" style={styles.tableWrap}>
+              <table className="accounting-table" style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Account</th>
@@ -177,8 +177,8 @@ const styles: Record<string, any> = {
   empty: { background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 16, padding: 22, color: '#475569' },
   grid: { display: 'grid', gap: 16 },
   card: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: 16 },
-  tableWrap: { overflowX: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse' },
+  tableWrap: { overflowX: 'auto', WebkitOverflowScrolling: 'touch' },
+  table: { width: '100%', minWidth: 760, borderCollapse: 'collapse' },
   th: { background: 'white', textAlign: 'left', padding: 10, borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' },
   thRight: { background: 'white', textAlign: 'right', padding: 10, borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' },
   td: { padding: 10, borderBottom: '1px solid #e2e8f0' },

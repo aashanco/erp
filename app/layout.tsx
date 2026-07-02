@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Aashan & Co LLC",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
   },
   icons: {
     icon: [
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#083344",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -39,9 +39,12 @@ export default function RootLayout({
       <head>
         <meta name="application-name" content="Aashan & Co LLC" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Aashan & Co LLC" />
         <meta name="mobile-web-app-capable" content="yes" />
+
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="theme-color" content="#083344" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="manifest" href="/manifest.json" />
       </head>
