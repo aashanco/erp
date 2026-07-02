@@ -2,7 +2,7 @@
 
 import AccountingEngine from "./AccountingEngine";
 import UserManagement from "./UserManagement";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import * as XLSX from "xlsx";
 import {
@@ -509,6 +509,7 @@ const emptyPrintTemplate: PrintTemplate = {
 export default function ERPApp() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const dataLoadPromiseRef = useRef<Promise<void> | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -872,107 +873,94 @@ export default function ERPApp() {
   }
 
   async function loadData() {
-    setLoading(true);
-    const { data: customerData, error: customerError } = await supabase
-      .from("customers")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: jobData, error: jobError } = await supabase
-      .from("jobs")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: quoteData, error: quoteError } = await supabase
-      .from("quotes")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: workOrderData, error: workOrderError } = await supabase
-      .from("work_orders")
-      .select("*")
-      .order("scheduled_date", { ascending: true });
-    const { data: invoiceData, error: invoiceError } = await supabase
-      .from("invoices")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: paymentData, error: paymentError } = await supabase
-      .from("payments")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: bankData, error: bankError } = await supabase
-      .from("banks")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: receiptData, error: receiptError } = await supabase
-      .from("receipts")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: purchaseInvoiceData, error: purchaseInvoiceError } =
-      await supabase
-        .from("purchase_invoices")
-        .select("*")
-        .order("id", { ascending: false });
-    const { data: journalEntryData, error: journalEntryError } = await supabase
-      .from("journal_entries")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: vendorData, error: vendorError } = await supabase
-      .from("vendors")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: expenseData, error: expenseError } = await supabase
-      .from("expenses")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: vendorPaymentData, error: vendorPaymentError } = await supabase
-      .from("vendor_payments")
-      .select("*")
-      .order("id", { ascending: false });
-    const { data: companyData } = await supabase
-      .from("company_settings")
-      .select("*")
-      .limit(1);
-    const { data: sequenceData } = await supabase
-      .from("number_sequences")
-      .select("*")
-      .order("id", { ascending: true });
-    const { data: accountData } = await supabase
-      .from("gl_accounts")
-      .select("*")
-      .order("account_code", { ascending: true });
-    const { data: emailSettingsData } = await supabase
-      .from("email_settings")
-      .select("*")
-      .limit(1);
-    const { data: templateData } = await supabase
-      .from("email_templates")
-      .select("*")
-      .order("template_name", { ascending: true });
-    const { data: printTemplateData } = await supabase
-      .from("print_templates")
-      .select("*")
-      .order("document_type", { ascending: true });
-    const { data: profileData } = await supabase
-      .from("user_profiles")
-      .select("*")
-      .order("email", { ascending: true });
-    const { data: attachmentData, error: attachmentError } = await supabase
-      .from("document_attachments")
-      .select("*")
-      .order("created_at", { ascending: false });
+    if (dataLoadPromiseRef.current) {
+      return dataLoadPromiseRef.current;
+    }
 
-    if (customerError) alert(customerError.message);
-    if (jobError) alert(jobError.message);
-    if (quoteError) alert(quoteError.message);
-    if (workOrderError) alert(workOrderError.message);
-    if (invoiceError) alert(invoiceError.message);
-    if (paymentError) alert(paymentError.message);
-    if (bankError) console.warn(bankError.message);
-    if (receiptError) console.warn(receiptError.message);
-    if (purchaseInvoiceError) console.warn(purchaseInvoiceError.message);
-    if (journalEntryError) console.warn(journalEntryError.message);
-    if (vendorError) alert(vendorError.message);
-    if (expenseError) alert(expenseError.message);
-    if (vendorPaymentError) console.warn(vendorPaymentError.message);
-    if (attachmentError) console.warn(attachmentError.message);
+    const loadPromise = (async () => {
+      setLoading(true);
+
+      const [
+        customerResult,
+        jobResult,
+        quoteResult,
+        workOrderResult,
+        invoiceResult,
+        paymentResult,
+        bankResult,
+        receiptResult,
+        purchaseInvoiceResult,
+        journalEntryResult,
+        vendorResult,
+        expenseResult,
+        vendorPaymentResult,
+        companyResult,
+        sequenceResult,
+        accountResult,
+        emailSettingsResult,
+        templateResult,
+        printTemplateResult,
+        profileResult,
+        attachmentResult,
+      ] = await Promise.all([
+        supabase.from("customers").select("*").order("id", { ascending: false }),
+        supabase.from("jobs").select("*").order("id", { ascending: false }),
+        supabase.from("quotes").select("*").order("id", { ascending: false }),
+        supabase.from("work_orders").select("*").order("scheduled_date", { ascending: true }),
+        supabase.from("invoices").select("*").order("id", { ascending: false }),
+        supabase.from("payments").select("*").order("id", { ascending: false }),
+        supabase.from("banks").select("*").order("id", { ascending: false }),
+        supabase.from("receipts").select("*").order("id", { ascending: false }),
+        supabase.from("purchase_invoices").select("*").order("id", { ascending: false }),
+        supabase.from("journal_entries").select("*").order("id", { ascending: false }),
+        supabase.from("vendors").select("*").order("id", { ascending: false }),
+        supabase.from("expenses").select("*").order("id", { ascending: false }),
+        supabase.from("vendor_payments").select("*").order("id", { ascending: false }),
+        supabase.from("company_settings").select("*").limit(1),
+        supabase.from("number_sequences").select("*").order("id", { ascending: true }),
+        supabase.from("gl_accounts").select("*").order("account_code", { ascending: true }),
+        supabase.from("email_settings").select("*").limit(1),
+        supabase.from("email_templates").select("*").order("template_name", { ascending: true }),
+        supabase.from("print_templates").select("*").order("document_type", { ascending: true }),
+        supabase.from("user_profiles").select("*").order("email", { ascending: true }),
+        supabase.from("document_attachments").select("*").order("created_at", { ascending: false }),
+      ]);
+
+      const { data: customerData, error: customerError } = customerResult;
+      const { data: jobData, error: jobError } = jobResult;
+      const { data: quoteData, error: quoteError } = quoteResult;
+      const { data: workOrderData, error: workOrderError } = workOrderResult;
+      const { data: invoiceData, error: invoiceError } = invoiceResult;
+      const { data: paymentData, error: paymentError } = paymentResult;
+      const { data: bankData, error: bankError } = bankResult;
+      const { data: receiptData, error: receiptError } = receiptResult;
+      const { data: purchaseInvoiceData, error: purchaseInvoiceError } = purchaseInvoiceResult;
+      const { data: journalEntryData, error: journalEntryError } = journalEntryResult;
+      const { data: vendorData, error: vendorError } = vendorResult;
+      const { data: expenseData, error: expenseError } = expenseResult;
+      const { data: vendorPaymentData, error: vendorPaymentError } = vendorPaymentResult;
+      const { data: companyData } = companyResult;
+      const { data: sequenceData } = sequenceResult;
+      const { data: accountData } = accountResult;
+      const { data: emailSettingsData } = emailSettingsResult;
+      const { data: templateData } = templateResult;
+      const { data: printTemplateData } = printTemplateResult;
+      const { data: profileData } = profileResult;
+      const { data: attachmentData, error: attachmentError } = attachmentResult;
+      if (customerError) alert(customerError.message);
+      if (jobError) alert(jobError.message);
+      if (quoteError) alert(quoteError.message);
+      if (workOrderError) alert(workOrderError.message);
+      if (invoiceError) alert(invoiceError.message);
+      if (paymentError) alert(paymentError.message);
+      if (bankError) console.warn(bankError.message);
+      if (receiptError) console.warn(receiptError.message);
+      if (purchaseInvoiceError) console.warn(purchaseInvoiceError.message);
+      if (journalEntryError) console.warn(journalEntryError.message);
+      if (vendorError) alert(vendorError.message);
+      if (expenseError) alert(expenseError.message);
+      if (vendorPaymentError) console.warn(vendorPaymentError.message);
+      if (attachmentError) console.warn(attachmentError.message);
 
     setCustomers(customerData || []);
     setJobs(
@@ -1059,16 +1047,22 @@ export default function ERPApp() {
         ...s,
         next_number: String(s.next_number || ""),
         padding: String(s.padding || 4),
-      })),
-    );
-    setAccounts(accountData || []);
+        })),
+      );
+      setAccounts(accountData || []);
     if (emailSettingsData && emailSettingsData.length > 0)
       setEmailSettings({ ...emptyEmailSettings, ...emailSettingsData[0] });
     setTemplates(templateData || []);
     setPrintTemplates(printTemplateData || []);
     setUserProfiles(profileData || []);
-    setDocumentAttachments(attachmentData || []);
-    setLoading(false);
+      setDocumentAttachments(attachmentData || []);
+      setLoading(false);
+    })().finally(() => {
+      dataLoadPromiseRef.current = null;
+    });
+
+    dataLoadPromiseRef.current = loadPromise;
+    return loadPromise;
   }
 
 
@@ -1105,6 +1099,25 @@ export default function ERPApp() {
       setOfflineQueueCount(0);
     });
   }, [isOnline]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedTab = localStorage.getItem("aashan_last_mobile_tab");
+    const allowedTabs = [
+      "dashboard", "customers", "vendors", "accounting", "quotes", "jobs",
+      "workorders", "technician", "calendar", "invoices", "payments",
+      "receipts", "expenses", "purchases", "journals", "banks",
+      "reports", "masters", "import",
+    ];
+    if (savedTab && allowedTabs.includes(savedTab)) {
+      setActiveTab(savedTab as typeof activeTab);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("aashan_last_mobile_tab", activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -4743,6 +4756,53 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   }
   .quick-add-sheet button { min-height: 48px !important; }
 }
+
+
+/* v3.2.3 Mobile Performance: UI-only optimization, no accounting/report logic changes */
+@media (max-width: 900px) {
+  html, body {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  .app-screen {
+    min-height: 100dvh;
+    overflow-x: hidden;
+    contain: layout style;
+  }
+  .mainContent,
+  .card,
+  .tableWrap,
+  .bc-card,
+  .bankRegisterWrap {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 720px;
+  }
+  .tableWrap, .bankRegisterWrap {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-snap-type: none;
+  }
+  .sidebar-open {
+    will-change: transform;
+  }
+  .bottom-nav, .floating-add, .quick-add-sheet, .mobile-sticky-actions, .bc-action-bar {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+  input:focus, select:focus, textarea:focus {
+    scroll-margin-bottom: 180px;
+    outline: 2px solid rgba(37,99,235,0.22);
+    outline-offset: 1px;
+  }
+  .formGrid, .bc-general-grid {
+    gap: 12px !important;
+  }
+  .emptyState {
+    min-height: 120px;
+  }
+}
+
 `}</style>
 
       <div className="app-screen">
