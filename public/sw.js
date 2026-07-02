@@ -1,4 +1,4 @@
-const CACHE_NAME = "aashan-erp-pwa-v324";
+const CACHE_NAME = "aashan-erp-pwa-v325";
 const APP_SHELL = [
   "/",
   "/offline.html",
@@ -26,6 +26,45 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (_error) {
+    payload = { title: "Aashan ERP", body: event.data ? event.data.text() : "New ERP notification" };
+  }
+
+  const title = payload.title || "Aashan ERP";
+  const options = {
+    body: payload.body || "New ERP update available.",
+    icon: payload.icon || "/icon-192.png",
+    badge: payload.badge || "/icon-192.png",
+    tag: payload.tag || "aashan-erp-notification",
+    data: {
+      url: payload.url || "/",
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification?.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          client.navigate(targetUrl).catch(() => undefined);
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      return undefined;
+    })
+  );
 });
 
 self.addEventListener("fetch", (event) => {

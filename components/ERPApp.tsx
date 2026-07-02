@@ -544,6 +544,8 @@ export default function ERPApp() {
   const [isOnline, setIsOnline] = useState(true);
   const [pwaInstallPrompt, setPwaInstallPrompt] = useState<any>(null);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -872,6 +874,121 @@ export default function ERPApp() {
     alert(`${label} saved to offline queue. It will sync when connection returns.`);
   }
 
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  async function refreshNotificationStatus() {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      setPushEnabled(false);
+      return;
+    }
+    setNotificationPermission(Notification.permission);
+    try {
+      const registration = await navigator.serviceWorker?.ready;
+      const subscription = await registration?.pushManager?.getSubscription?.();
+      setPushEnabled(Boolean(subscription || localStorage.getItem("aashan_push_enabled") === "true"));
+    } catch {
+      setPushEnabled(localStorage.getItem("aashan_push_enabled") === "true");
+    }
+  }
+
+  async function enablePushNotifications() {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      alert("Push notifications are not supported on this device/browser.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+    if (permission !== "granted") {
+      alert("Notifications were not enabled. Please allow notifications in your browser settings.");
+      return;
+    }
+
+    let savedSubscription = false;
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+      let subscription: PushSubscription | null = await registration.pushManager.getSubscription();
+      if (!subscription && vapidKey) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+      }
+
+      if (subscription) {
+        const payload = {
+          user_id: session?.user?.id || null,
+          email: session?.user?.email || profile?.email || "",
+          endpoint: subscription.endpoint,
+          p256dh: subscription.toJSON().keys?.p256dh || "",
+          auth: subscription.toJSON().keys?.auth || "",
+          user_agent: navigator.userAgent,
+          active: true,
+          updated_at: new Date().toISOString(),
+        };
+        const { error } = await supabase.from("push_subscriptions").upsert(payload, { onConflict: "endpoint" });
+        if (!error) savedSubscription = true;
+      }
+
+      await registration.showNotification("Aashan ERP notifications enabled", {
+        body: "You will receive ERP alerts on this device.",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: "aashan-erp-push-enabled",
+        data: { url: "/" },
+      });
+    } catch (error: any) {
+      console.warn("Push setup warning", error?.message || error);
+    }
+
+    localStorage.setItem("aashan_push_enabled", "true");
+    setPushEnabled(true);
+    alert(savedSubscription ? "Push notifications are enabled for this device." : "Notifications are enabled. Add NEXT_PUBLIC_VAPID_PUBLIC_KEY later to enable server push alerts.");
+  }
+
+  async function disablePushNotifications() {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await supabase.from("push_subscriptions").update({ active: false, updated_at: new Date().toISOString() }).eq("endpoint", subscription.endpoint);
+        await subscription.unsubscribe();
+      }
+    } catch (error: any) {
+      console.warn("Push disable warning", error?.message || error);
+    }
+    localStorage.removeItem("aashan_push_enabled");
+    setPushEnabled(false);
+    alert("Push notifications are turned off on this device.");
+  }
+
+  async function showLocalNotification(title: string, body: string) {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, {
+        body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: `aashan-${Date.now()}`,
+        data: { url: "/" },
+      });
+    } catch {
+      // Notification is best-effort only.
+    }
+  }
+
+
   async function loadData() {
     if (dataLoadPromiseRef.current) {
       return dataLoadPromiseRef.current;
@@ -1079,6 +1196,7 @@ export default function ERPApp() {
     const storedQueue = Number(localStorage.getItem("aashan_offline_queue_count") || 0);
     setBiometricEnabled(storedBiometric);
     setOfflineQueueCount(storedQueue);
+    refreshNotificationStatus();
     window.addEventListener("online", updateOnline);
     window.addEventListener("offline", updateOnline);
     window.addEventListener("beforeinstallprompt", beforeInstallPrompt);
@@ -1889,16 +2007,26 @@ export default function ERPApp() {
             <b>Photos / Attachments</b>
             <small>Take or upload job pictures. They are attached when emailing this document.</small>
           </div>
-          <label className="doc-photo-upload" title="Take or upload photos">
-            📷 Add Photo
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              onChange={(e) => addDocumentFiles(documentType, documentNo, e.target.files)}
-            />
-          </label>
+          <div className="doc-photo-actions">
+            <label className="doc-photo-upload" title="Take photo with camera">
+              📷 Camera
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => addDocumentFiles(documentType, documentNo, e.target.files)}
+              />
+            </label>
+            <label className="doc-photo-upload secondary" title="Upload photos from gallery">
+              🖼️ Gallery
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => addDocumentFiles(documentType, documentNo, e.target.files)}
+              />
+            </label>
+          </div>
         </div>
         {all.length > 0 ? (
           <div className="doc-photo-grid">
@@ -2879,6 +3007,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     alert(
       result.message || `${emailDraft.type} email sent to ${emailDraft.to}`,
     );
+    showLocalNotification("Aashan ERP email sent", `${emailDraft.type} sent to ${emailDraft.to}`);
     setEmailDraft(emptyEmailDraft);
   }
 
@@ -4591,7 +4720,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .doc-photos-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
 .doc-photos-head b { display: block; color: #0f172a; font-weight: 900; }
 .doc-photos-head small { display: block; color: #64748b; margin-top: 3px; }
+.doc-photo-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .doc-photo-upload { background: #0f8f9a; color: white; padding: 10px 14px; border-radius: 10px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.doc-photo-upload.secondary { background: #2563eb; }
 .doc-photo-upload input { display: none; }
 .doc-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 14px; }
 .doc-photo-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
@@ -4602,7 +4733,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .doc-photo-empty { color: #64748b; margin: 12px 0 0; }
 .mobile-email-send-sticky { display: none; }
 
-@media (max-width: 760px) { .bc-general-grid, .bc-footer-grid { grid-template-columns: 1fr; } .bc-action-bar { position: sticky; top: 0; background: white; z-index: 20; } .bc-lines { min-width: 760px; } .bc-lines-wrap { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
+@media (max-width: 760px) {
+  .doc-photo-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .doc-photo-upload { justify-content: center; } .bc-general-grid, .bc-footer-grid { grid-template-columns: 1fr; } .bc-action-bar { position: sticky; top: 0; background: white; z-index: 20; } .bc-lines { min-width: 760px; } .bc-lines-wrap { margin-left: -8px; margin-right: -8px; width: calc(100% + 16px); } }
 
 /* Phase 29 - consistent ERP and mobile navigation polish */
 .app-screen { min-height: 100vh; }
@@ -5029,6 +5162,26 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                     >
                       {biometricEnabled ? "🔐 Face ID On" : "🔐 Enable Face ID"}
                     </button>
+                    <button
+                      type="button"
+                      style={styles.userMenuStatusButton}
+                      onClick={() => {
+                        if (pushEnabled) disablePushNotifications();
+                        else enablePushNotifications();
+                        setUserMenuOpen(false);
+                      }}
+                    >
+                      {pushEnabled ? "🔔 Push On" : "🔔 Enable Push"}
+                    </button>
+                    <div style={styles.userMenuPushNote}>
+                      {notificationPermission === "denied"
+                        ? "Notifications blocked in browser settings"
+                        : notificationPermission === "unsupported"
+                          ? "Push support depends on device/browser"
+                          : pushEnabled
+                            ? "Mobile alerts enabled"
+                            : "Tap to allow mobile alerts"}
+                    </div>
                     {offlineQueueCount > 0 && (
                       <div style={styles.userMenuQueueNote}>
                         {offlineQueueCount} waiting to sync
