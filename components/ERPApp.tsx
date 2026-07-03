@@ -1957,9 +1957,50 @@ export default function ERPApp() {
     });
   }
 
-  async function addDocumentFiles(documentType: string, documentNo: string, files: FileList | null) {
+  async function compressImageForMobile(file: File) {
+    const originalDataUrl = await fileToDataUrl(file);
+    const safeName = (file.name || `photo-${Date.now()}.jpg`).replace(/\.(heic|heif|png|webp)$/i, ".jpg");
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Image preview failed"));
+        img.src = originalDataUrl;
+      });
+
+      const maxSide = 1600;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas not available");
+      ctx.drawImage(image, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+      const sizeBytes = Math.round((dataUrl.length * 3) / 4);
+      return { dataUrl, fileName: safeName, mimeType: "image/jpeg", sizeBytes };
+    } catch {
+      return {
+        dataUrl: originalDataUrl,
+        fileName: file.name || safeName,
+        mimeType: file.type || "image/jpeg",
+        sizeBytes: file.size || Math.round((originalDataUrl.length * 3) / 4),
+      };
+    }
+  }
+
+  async function addDocumentFiles(
+    documentType: string,
+    documentNo: string,
+    files: FileList | null,
+    autoSave = false,
+  ) {
     if (!files || files.length === 0) return;
-    const maxSize = 8 * 1024 * 1024;
+    if (!documentNo) return alert("Please save the document before adding photos.");
+    const maxSize = 14 * 1024 * 1024;
     const next: DocumentAttachment[] = [];
     for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) {
@@ -1967,19 +2008,31 @@ export default function ERPApp() {
         continue;
       }
       if (file.size > maxSize) {
-        alert(`${file.name} is too large. Maximum size is 8 MB.`);
+        alert(`${file.name} is too large. Maximum size is 14 MB.`);
         continue;
       }
-      const dataUrl = await fileToDataUrl(file);
+      const compressed = await compressImageForMobile(file);
       next.push({
         document_type: documentType,
         document_no: documentNo,
-        file_name: file.name,
-        mime_type: file.type || "image/jpeg",
-        size_bytes: file.size,
-        data_url: dataUrl,
+        file_name: compressed.fileName,
+        mime_type: compressed.mimeType,
+        size_bytes: compressed.sizeBytes,
+        data_url: compressed.dataUrl,
       });
     }
+    if (!next.length) return;
+
+    if (autoSave) {
+      const { error } = await supabase.from("document_attachments").insert(next);
+      if (error) {
+        alert(`Photo upload failed: ${error.message}`);
+        return;
+      }
+      await loadData();
+      return;
+    }
+
     setPendingAttachments((prev) => [...prev, ...next]);
   }
 
@@ -2008,7 +2061,7 @@ export default function ERPApp() {
     setPendingAttachments((prev) => prev.filter((a) => a !== attachment));
   }
 
-  function DocumentPhotoBox({ documentType, documentNo }: { documentType: string; documentNo: string }) {
+  function DocumentPhotoBox({ documentType, documentNo, autoSave = false }: { documentType: string; documentNo: string; autoSave?: boolean }) {
     const saved = attachmentsFor(documentType, documentNo);
     const pending = pendingAttachments.filter((a) => a.document_type === documentType && a.document_no === documentNo);
     const all = [...pending, ...saved];
@@ -2026,7 +2079,7 @@ export default function ERPApp() {
                 type="file"
                 accept="image/*"
                 capture="environment"
-                onChange={(e) => addDocumentFiles(documentType, documentNo, e.target.files)}
+                onChange={async (e) => { await addDocumentFiles(documentType, documentNo, e.target.files, autoSave); e.currentTarget.value = ""; }}
               />
             </label>
             <label className="doc-photo-upload secondary" title="Upload photos from gallery">
@@ -2035,7 +2088,7 @@ export default function ERPApp() {
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(e) => addDocumentFiles(documentType, documentNo, e.target.files)}
+                onChange={async (e) => { await addDocumentFiles(documentType, documentNo, e.target.files, autoSave); e.currentTarget.value = ""; }}
               />
             </label>
           </div>
@@ -5970,7 +6023,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </div>
                       </div>
                     </div>
-                    <DocumentPhotoBox documentType="Quote" documentNo={quote.quote_no || nextQuoteNo()} />
+                    <DocumentPhotoBox documentType="Quote" documentNo={quote.quote_no || nextQuoteNo()} autoSave={!!editingQuoteId} />
                   </SectionCard>
 
                   <DataTable
@@ -6356,7 +6409,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                           setWorkOrder({ ...workOrder, completion_notes: v })
                         }
                       />
-                      <DocumentPhotoBox documentType="Work Order" documentNo={workOrder.work_order_no || nextWorkOrderNo()} />
+                      <DocumentPhotoBox documentType="Work Order" documentNo={workOrder.work_order_no || nextWorkOrderNo()} autoSave={!!editingWorkOrderId} />
                     </div>
                     <ButtonRow>
                       <button onClick={saveWorkOrder} style={styles.primaryBtn}>
@@ -6957,7 +7010,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         </div>
                       </div>
                     </div>
-                    <DocumentPhotoBox documentType="Invoice" documentNo={invoice.invoice_no || nextInvoiceNo()} />
+                    <DocumentPhotoBox documentType="Invoice" documentNo={invoice.invoice_no || nextInvoiceNo()} autoSave={!!editingInvoiceId} />
                   </SectionCard>
 
                   <DataTable
