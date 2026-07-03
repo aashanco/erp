@@ -2037,18 +2037,18 @@ export default function ERPApp() {
   }
 
   async function savePendingDocumentAttachments(documentType: string, documentNo: string) {
-    const rows = pendingAttachments.filter(
-      (a) => a.document_type === documentType && a.document_no === documentNo,
-    );
+    // Mobile Safari can re-render while a new Quote/Invoice/Work Order is still unsaved.
+    // That can make pending photos hold a temporary document number.  When the document is
+    // finally saved, attach all pending photos of that document type to the final number.
+    const rows = pendingAttachments.filter((a) => a.document_type === documentType);
     if (!rows.length) return;
-    const { error } = await supabase.from("document_attachments").insert(rows);
+    const rowsToInsert = rows.map((a) => ({ ...a, document_no: documentNo }));
+    const { error } = await supabase.from("document_attachments").insert(rowsToInsert);
     if (error) {
       alert(`Document saved, but photo upload failed: ${error.message}`);
       return;
     }
-    setPendingAttachments((prev) =>
-      prev.filter((a) => !(a.document_type === documentType && a.document_no === documentNo)),
-    );
+    setPendingAttachments((prev) => prev.filter((a) => a.document_type !== documentType));
   }
 
   async function deleteDocumentAttachment(attachment: DocumentAttachment) {
@@ -2454,12 +2454,21 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   async function convertWorkOrderToInvoice(wo: WorkOrder) {
     if (!wo.customer || !wo.service) return alert("Work order is missing customer or service.");
     const cust = customers.find((c) => c.name === wo.customer);
+    const invoiceNo = nextInvoiceNo();
+    const invoiceLines = [
+      {
+        description: wo.service || `Work Order ${wo.work_order_no || ""}`.trim(),
+        qty: "1",
+        unit_price: "0",
+        discount: "0",
+        tax_rate: "",
+      },
+    ];
     const payload: any = {
-      invoice_no: nextInvoiceNo(),
+      invoice_no: invoiceNo,
       customer: wo.customer,
       customer_id: cust?.id || null,
       job_id: wo.job_id || null,
-      description: wo.service,
       amount: 0,
       qty: 1,
       unit_price: 0,
@@ -2471,13 +2480,33 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       invoice_date: new Date().toISOString().slice(0, 10),
       due_date: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
       status: "Draft",
-      notes: `Created from Work Order ${wo.work_order_no}. ${wo.notes || ""}`.trim(),
+      notes: `Created from Work Order ${wo.work_order_no}. ${wo.notes || ""}
+
+LINES_JSON:${JSON.stringify(invoiceLines)}`.trim(),
       customer_phone: wo.customer_phone || cust?.phone || "",
       customer_email: cust?.email || "",
       customer_address: wo.customer_address || cust?.address || "",
     };
     const res = await supabase.from("invoices").insert([payload]);
     if (res.error) return alert(res.error.message);
+
+    // Carry work-order photos to the new invoice so they are available for preview/email.
+    if (wo.work_order_no) {
+      const existingPhotos = attachmentsFor("Work Order", wo.work_order_no);
+      if (existingPhotos.length) {
+        const copiedPhotos = existingPhotos.map((a) => ({
+          document_type: "Invoice",
+          document_no: invoiceNo,
+          file_name: a.file_name,
+          mime_type: a.mime_type,
+          size_bytes: a.size_bytes || 0,
+          data_url: a.data_url,
+        }));
+        const photoCopy = await supabase.from("document_attachments").insert(copiedPhotos);
+        if (photoCopy.error) alert(`Invoice created, but photos were not copied: ${photoCopy.error.message}`);
+      }
+    }
+
     if (wo.id) await quickWorkOrderStatus(wo.id, "Completed", wo.job_id);
     await loadData();
     alert("Invoice draft created from work order.");
