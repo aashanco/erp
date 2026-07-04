@@ -44,15 +44,28 @@ function makeViewUrl(requestUrl: string, body: any) {
   return `${origin}/view?type=${encodeURIComponent(type)}&no=${encodeURIComponent(no)}`;
 }
 
-function dataUrlToResendAttachment(item: any) {
-  const dataUrl = String(item.dataUrl || item.data_url || item.content || '');
+async function fileAttachmentToResend(item: any) {
   const filename = String(item.filename || item.file_name || 'attachment.jpg');
+  const dataUrl = String(item.dataUrl || item.data_url || item.content || '');
   const match = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
-  if (!match) return null;
-  return {
-    filename,
-    content: match[2],
-  };
+  if (match) {
+    return { filename, content: match[2] };
+  }
+
+  const fileUrl = String(item.fileUrl || item.file_url || item.url || '');
+  if (!fileUrl || !/^https?:\/\//i.test(fileUrl)) return null;
+
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    let binary = '';
+    const bytes = new Uint8Array(arrayBuffer);
+    for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+    return { filename, content: btoa(binary) };
+  } catch {
+    return null;
+  }
 }
 
 function htmlShell(rawBody: string, viewUrl: string, documentType: string) {
@@ -127,7 +140,7 @@ export async function onRequestPost(context: any) {
     if (bcc.length) resendBody.bcc = bcc;
 
     const uploadedAttachments = Array.isArray(body.attachments)
-      ? body.attachments.map(dataUrlToResendAttachment).filter(Boolean)
+      ? (await Promise.all(body.attachments.map(fileAttachmentToResend))).filter(Boolean)
       : [];
     if (uploadedAttachments.length) {
       resendBody.attachments = uploadedAttachments;

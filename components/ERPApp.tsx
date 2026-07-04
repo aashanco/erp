@@ -272,9 +272,13 @@ type DocumentAttachment = {
   file_name: string;
   mime_type: string;
   size_bytes?: number;
-  data_url: string;
+  data_url?: string;
+  storage_path?: string;
+  file_url?: string;
   created_at?: string;
 };
+
+const ATTACHMENT_BUCKET = "aashan-erp-attachments";
 
 const LOGO_SRC = "/aashan-logo.png";
 const FORCE_ADMIN_EMAILS = ["thomasmathew77@gmail.com", "support@aashan.co"];
@@ -1957,9 +1961,30 @@ export default function ERPApp() {
     });
   }
 
+  function dataUrlToBlob(dataUrl: string) {
+    const [meta, data] = String(dataUrl || "").split(",");
+    const mime = meta.match(/data:([^;]+)/)?.[1] || "application/octet-stream";
+    const binary = atob(data || "");
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+
+  function attachmentUrl(attachment: DocumentAttachment) {
+    if (attachment.data_url) return attachment.data_url;
+    if (attachment.file_url) return attachment.file_url;
+    if (attachment.storage_path) {
+      const { data } = supabase.storage
+        .from(ATTACHMENT_BUCKET)
+        .getPublicUrl(attachment.storage_path);
+      return data.publicUrl || "";
+    }
+    return "";
+  }
+
   async function compressImageForMobile(file: File) {
     const originalDataUrl = await fileToDataUrl(file);
-    const safeName = (file.name || `photo-${Date.now()}.jpg`).replace(/\.(heic|heif|png|webp)$/i, ".jpg");
+    const safeName = (file.name || `photo-${Date.now()}.jpg`).replace(/[^a-zA-Z0-9._-]/g, "-").replace(/\.(heic|heif|png|webp)$/i, ".jpg");
 
     try {
       const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -1969,7 +1994,7 @@ export default function ERPApp() {
         img.src = originalDataUrl;
       });
 
-      const maxSide = 1600;
+      const maxSide = 1400;
       const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
       const width = Math.max(1, Math.round(image.width * scale));
       const height = Math.max(1, Math.round(image.height * scale));
@@ -1979,17 +2004,67 @@ export default function ERPApp() {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Canvas not available");
       ctx.drawImage(image, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
-      const sizeBytes = Math.round((dataUrl.length * 3) / 4);
-      return { dataUrl, fileName: safeName, mimeType: "image/jpeg", sizeBytes };
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+      const blob = dataUrlToBlob(dataUrl);
+      return { dataUrl, blob, fileName: safeName, mimeType: "image/jpeg", sizeBytes: blob.size };
     } catch {
+      const blob = file;
       return {
         dataUrl: originalDataUrl,
+        blob,
         fileName: file.name || safeName,
         mimeType: file.type || "image/jpeg",
         sizeBytes: file.size || Math.round((originalDataUrl.length * 3) / 4),
       };
     }
+  }
+
+  function cleanStorageSegment(value: string) {
+    return String(value || "document")
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "document";
+  }
+
+  async function uploadAttachmentFile(documentType: string, documentNo: string, file: File) {
+    const compressed = await compressImageForMobile(file);
+    const typeSegment = cleanStorageSegment(documentType.toLowerCase());
+    const noSegment = cleanStorageSegment(documentNo);
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${cleanStorageSegment(compressed.fileName)}`;
+    const storagePath = `${typeSegment}/${noSegment}/${uniqueName}`;
+
+    const upload = await supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .upload(storagePath, compressed.blob, {
+        contentType: compressed.mimeType,
+        upsert: false,
+      });
+
+    if (upload.error) {
+      // If storage was not configured, keep the small compressed image in the database so the user does not lose the photo.
+      if (/bucket|storage|not found|row-level security|policy/i.test(upload.error.message || "")) {
+        return {
+          document_type: documentType,
+          document_no: documentNo,
+          file_name: compressed.fileName,
+          mime_type: compressed.mimeType,
+          size_bytes: compressed.sizeBytes,
+          data_url: compressed.dataUrl,
+        } as DocumentAttachment;
+      }
+      throw upload.error;
+    }
+
+    const { data } = supabase.storage.from(ATTACHMENT_BUCKET).getPublicUrl(storagePath);
+    return {
+      document_type: documentType,
+      document_no: documentNo,
+      file_name: compressed.fileName,
+      mime_type: compressed.mimeType,
+      size_bytes: compressed.sizeBytes,
+      storage_path: storagePath,
+      file_url: data.publicUrl || "",
+    } as DocumentAttachment;
   }
 
   async function addDocumentFiles(
@@ -2000,52 +2075,65 @@ export default function ERPApp() {
   ) {
     if (!files || files.length === 0) return;
     if (!documentNo) return alert("Please save the document before adding photos.");
-    const maxSize = 14 * 1024 * 1024;
+    const maxSize = 25 * 1024 * 1024;
     const next: DocumentAttachment[] = [];
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith("image/")) {
-        alert(`${file.name} skipped. Only image files are supported.`);
-        continue;
-      }
-      if (file.size > maxSize) {
-        alert(`${file.name} is too large. Maximum size is 14 MB.`);
-        continue;
-      }
-      const compressed = await compressImageForMobile(file);
-      next.push({
-        document_type: documentType,
-        document_no: documentNo,
-        file_name: compressed.fileName,
-        mime_type: compressed.mimeType,
-        size_bytes: compressed.sizeBytes,
-        data_url: compressed.dataUrl,
-      });
-    }
-    if (!next.length) return;
 
-    if (autoSave) {
-      const { error } = await supabase.from("document_attachments").insert(next);
-      if (error) {
-        alert(`Photo upload failed: ${error.message}`);
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name || "")) {
+          alert(`${file.name} skipped. Only image files are supported.`);
+          continue;
+        }
+        if (file.size > maxSize) {
+          alert(`${file.name} is too large. Maximum size is 25 MB.`);
+          continue;
+        }
+
+        if (autoSave) {
+          const row = await uploadAttachmentFile(documentType, documentNo, file);
+          const { error } = await supabase.from("document_attachments").insert(row);
+          if (error) throw error;
+        } else {
+          const compressed = await compressImageForMobile(file);
+          next.push({
+            document_type: documentType,
+            document_no: documentNo,
+            file_name: compressed.fileName,
+            mime_type: compressed.mimeType,
+            size_bytes: compressed.sizeBytes,
+            data_url: compressed.dataUrl,
+          });
+        }
+      }
+
+      if (autoSave) {
+        await loadData();
         return;
       }
-      await loadData();
-      return;
+      if (next.length) setPendingAttachments((prev) => [...prev, ...next]);
+    } catch (error: any) {
+      alert(`Photo save failed: ${error?.message || "Unable to save photo. Please try again."}`);
     }
-
-    setPendingAttachments((prev) => [...prev, ...next]);
   }
 
   async function savePendingDocumentAttachments(documentType: string, documentNo: string) {
-    // Mobile Safari can re-render while a new Quote/Invoice/Work Order is still unsaved.
-    // That can make pending photos hold a temporary document number.  When the document is
-    // finally saved, attach all pending photos of that document type to the final number.
     const rows = pendingAttachments.filter((a) => a.document_type === documentType);
     if (!rows.length) return;
-    const rowsToInsert = rows.map((a) => ({ ...a, document_no: documentNo }));
+
+    const rowsToInsert = rows.map((a) => ({
+      document_type: documentType,
+      document_no: documentNo,
+      file_name: a.file_name,
+      mime_type: a.mime_type,
+      size_bytes: a.size_bytes || 0,
+      data_url: a.data_url || null,
+      storage_path: a.storage_path || null,
+      file_url: a.file_url || null,
+    }));
+
     const { error } = await supabase.from("document_attachments").insert(rowsToInsert);
     if (error) {
-      alert(`Document saved, but photo upload failed: ${error.message}`);
+      alert(`Document saved, but photo attachment failed: ${error.message}`);
       return;
     }
     setPendingAttachments((prev) => prev.filter((a) => a.document_type !== documentType));
@@ -2055,6 +2143,9 @@ export default function ERPApp() {
     if (attachment.id) {
       const { error } = await supabase.from("document_attachments").delete().eq("id", attachment.id);
       if (error) return alert(error.message);
+      if (attachment.storage_path) {
+        await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.storage_path]);
+      }
       await loadData();
       return;
     }
@@ -2097,7 +2188,7 @@ export default function ERPApp() {
           <div className="doc-photo-grid">
             {all.map((a, idx) => (
               <div className="doc-photo-card" key={`${a.id || 'new'}-${idx}-${a.file_name}`}>
-                <img src={a.data_url} alt={a.file_name} />
+                <img src={attachmentUrl(a)} alt={a.file_name} />
                 <div>
                   <b>{a.file_name}</b>
                   <small>{a.id ? "Saved" : "Pending save"}</small>
@@ -2500,7 +2591,9 @@ LINES_JSON:${JSON.stringify(invoiceLines)}`.trim(),
           file_name: a.file_name,
           mime_type: a.mime_type,
           size_bytes: a.size_bytes || 0,
-          data_url: a.data_url,
+          data_url: a.data_url || null,
+          storage_path: a.storage_path || null,
+          file_url: a.file_url || null,
         }));
         const photoCopy = await supabase.from("document_attachments").insert(copiedPhotos);
         if (photoCopy.error) alert(`Invoice created, but photos were not copied: ${photoCopy.error.message}`);
@@ -3078,6 +3171,58 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     });
   }
 
+  async function addEmailDraftFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const maxSize = 18 * 1024 * 1024;
+    const added: DocumentAttachment[] = [];
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > maxSize) {
+          alert(`${file.name} is too large. Maximum email attachment size is 18 MB.`);
+          continue;
+        }
+
+        if (file.type.startsWith("image/") || /\.(heic|heif)$/i.test(file.name || "")) {
+          const compressed = await compressImageForMobile(file);
+          added.push({
+            document_type: "Email",
+            document_no: emailDraft.data?.document_no || emailDraft.data?.invoice_no || emailDraft.data?.quote_no || "email",
+            file_name: compressed.fileName,
+            mime_type: compressed.mimeType,
+            size_bytes: compressed.sizeBytes,
+            data_url: compressed.dataUrl,
+          });
+        } else {
+          const dataUrl = await fileToDataUrl(file);
+          added.push({
+            document_type: "Email",
+            document_no: emailDraft.data?.document_no || emailDraft.data?.invoice_no || emailDraft.data?.quote_no || "email",
+            file_name: file.name || `attachment-${Date.now()}`,
+            mime_type: file.type || "application/octet-stream",
+            size_bytes: file.size || 0,
+            data_url: dataUrl,
+          });
+        }
+      }
+
+      if (added.length) {
+        setEmailDraft((prev) => ({
+          ...prev,
+          attachments: [...(prev.attachments || []), ...added],
+        }));
+      }
+    } catch (error: any) {
+      alert(`Could not attach file: ${error?.message || "Unknown error"}`);
+    }
+  }
+
+  function removeEmailDraftAttachment(index: number) {
+    setEmailDraft((prev) => ({
+      ...prev,
+      attachments: (prev.attachments || []).filter((_, i) => i !== index),
+    }));
+  }
+
   async function sendEmailDraft() {
     if (!emailDraft.to) return alert("Recipient email is missing.");
 
@@ -3139,7 +3284,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         attachments: (emailDraft.attachments || []).map((a) => ({
           filename: a.file_name,
           contentType: a.mime_type,
-          dataUrl: a.data_url,
+          dataUrl: a.data_url || "",
+          fileUrl: attachmentUrl(a),
+          storagePath: a.storage_path || "",
         })),
         viewUrl:
           emailDraft.data.view_url ||
@@ -4539,7 +4686,75 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         (row) => `<tr><td>${row.date}</td><td>${row.transaction}</td><td>${row.account}</td><td>${row.customer}</td><td>${row.supplier}</td><td>${row.description}</td><td class="num">${row.debit ? money(row.debit) : "-"}</td><td class="num">${row.credit ? money(row.credit) : "-"}</td><td class="num">${bankBalanceText(row.runningBalance)}</td></tr>`,
       )
       .join("");
-    printWindow.document.write(`<!doctype html><html><head><title>Bank Register</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}h1{margin:0 0 6px}p{margin:0 0 18px;color:#475569}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d7dee8;padding:8px;text-align:left}th{background:#f8fafc}.num{text-align:right;white-space:nowrap}.summary{display:flex;gap:18px;margin:18px 0}.summary div{border:1px solid #d7dee8;border-radius:10px;padding:12px 16px}</style></head><body><h1>Aashan & Co LLC - Bank Register</h1><p>${bankRegisterAccount} • ${bankRegisterShow}</p><div class="summary"><div>Opening: <b>${bankBalanceText(selectedBankOpeningBalance)}</b></div><div>Debits: <b>${money(bankRegisterDebits)}</b></div><div>Credits: <b>${money(bankRegisterCredits)}</b></div><div>Closing: <b>${bankBalanceText(bankRegisterClosing)}</b></div></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Bank or Cash Account</th><th>Customer</th><th>Supplier</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    printWindow.document.write(`<!doctype html><html><head><title>Bank Register</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}h1{margin:0 0 6px}p{margin:0 0 18px;color:#475569}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d7dee8;padding:8px;text-align:left}th{background:#f8fafc}.num{text-align:right;white-space:nowrap}.summary{display:flex;gap:18px;margin:18px 0}.summary div{border:1px solid #d7dee8;border-radius:10px;padding:12px 16px}
+
+.email-file-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f4c5c;
+  font-weight: 900;
+  cursor: pointer;
+}
+.email-file-attach input { display: none; }
+.email-attachment button {
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 800;
+}
+
+.tax-clear-btn {
+  margin-top: 6px;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f4c5c;
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  
+.email-file-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f4c5c;
+  font-weight: 900;
+  cursor: pointer;
+}
+.email-file-attach input { display: none; }
+.email-attachment button {
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 800;
+}
+
+.tax-clear-btn { min-height: 40px; font-size: 14px; }
+}
+
+</style></head><body><h1>Aashan & Co LLC - Bank Register</h1><p>${bankRegisterAccount} • ${bankRegisterShow}</p><div class="summary"><div>Opening: <b>${bankBalanceText(selectedBankOpeningBalance)}</b></div><div>Debits: <b>${money(bankRegisterDebits)}</b></div><div>Credits: <b>${money(bankRegisterCredits)}</b></div><div>Closing: <b>${bankBalanceText(bankRegisterClosing)}</b></div></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Bank or Cash Account</th><th>Customer</th><th>Supplier</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
     printWindow.document.close();
     printWindow.print();
   }
@@ -5255,7 +5470,75 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   }
 }
 
-`}</style>
+
+
+.email-file-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f4c5c;
+  font-weight: 900;
+  cursor: pointer;
+}
+.email-file-attach input { display: none; }
+.email-attachment button {
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 800;
+}
+
+.tax-clear-btn {
+  margin-top: 6px;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f4c5c;
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  
+.email-file-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f4c5c;
+  font-weight: 900;
+  cursor: pointer;
+}
+.email-file-attach input { display: none; }
+.email-attachment button {
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 800;
+}
+
+.tax-clear-btn { min-height: 40px; font-size: 14px; }
+}
+`}
+</style>
 
       <div className="app-screen">
         <header style={styles.header}>
@@ -6008,7 +6291,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                       )
                                     }
                                     placeholder="Blank = no tax"
+                                    inputMode="decimal"
                                   />
+                                  <button
+                                    type="button"
+                                    className="tax-clear-btn"
+                                    onClick={() =>
+                                      updateQuoteLine(index, "tax_rate", "")
+                                    }
+                                  >
+                                    No Tax
+                                  </button>
                                 </td>
                                 <td className="bc-amount">
                                   ${c.total.toFixed(2)}
@@ -6993,7 +7286,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                       )
                                     }
                                     placeholder="Blank = no tax"
+                                    inputMode="decimal"
                                   />
+                                  <button
+                                    type="button"
+                                    className="tax-clear-btn"
+                                    onClick={() =>
+                                      updateInvoiceLine(index, "tax_rate", "")
+                                    }
+                                  >
+                                    No Tax
+                                  </button>
                                 </td>
                                 <td className="bc-amount">
                                   ${c.total.toFixed(2)}
@@ -9600,10 +9903,25 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                 <span>✓</span>
                 <b>{emailDraft.attachmentName}</b>
               </div>
+
+              <label className="email-file-attach">
+                📎 Attach images or documents
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                  onChange={async (e) => {
+                    await addEmailDraftFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                />
+              </label>
+
               {(emailDraft.attachments || []).map((a, index) => (
                 <div className="email-attachment" key={`${a.file_name}-${index}`}>
                   <span>📎</span>
                   <b>{a.file_name}</b>
+                  <button type="button" onClick={() => removeEmailDraftAttachment(index)}>Remove</button>
                 </div>
               ))}
 
