@@ -275,6 +275,7 @@ type DocumentAttachment = {
   data_url?: string;
   storage_path?: string;
   file_url?: string;
+  preview_url?: string;
   created_at?: string;
 };
 
@@ -1971,6 +1972,9 @@ export default function ERPApp() {
   }
 
   function attachmentUrl(attachment: DocumentAttachment) {
+    // For newly selected mobile camera/files, always show the local compressed preview first.
+    // Supabase public URLs can fail when the bucket existed as private before the SQL was rerun.
+    if (attachment.preview_url) return attachment.preview_url;
     if (attachment.data_url) return attachment.data_url;
     if (attachment.file_url) return attachment.file_url;
     if (attachment.storage_path) {
@@ -2063,9 +2067,12 @@ export default function ERPApp() {
       file_name: prepared.fileName,
       mime_type: prepared.mimeType,
       size_bytes: prepared.sizeBytes,
-      data_url: null,
+      // Keep a compressed image data_url as a display fallback.
+      // The real file is still stored in Supabase Storage using storage_path.
+      data_url: prepared.dataUrl || null,
       storage_path: storagePath,
       file_url: data.publicUrl || "",
+      preview_url: prepared.dataUrl || data.publicUrl || "",
     } as DocumentAttachment;
   }
 
@@ -2123,9 +2130,9 @@ export default function ERPApp() {
       file_name: a.file_name,
       mime_type: a.mime_type,
       size_bytes: a.size_bytes || 0,
-      data_url: null,
+      data_url: a.data_url || null,
       storage_path: a.storage_path || null,
-      file_url: a.file_url || attachmentUrl(a) || null,
+      file_url: a.file_url || (a.storage_path ? attachmentUrl(a) : null),
     }));
 
     const { error } = await supabase.from("document_attachments").insert(rowsToInsert);
@@ -2186,7 +2193,14 @@ export default function ERPApp() {
             {all.map((a, idx) => (
               <div className="doc-photo-card" key={`${a.id || 'new'}-${idx}-${a.file_name}`}>
                 {String(a.mime_type || "").startsWith("image/") ? (
-                  <img src={attachmentUrl(a)} alt={a.file_name} />
+                  <img
+                    src={attachmentUrl(a)}
+                    alt={a.file_name}
+                    onError={(e) => {
+                      const fallback = a.data_url || a.preview_url || "";
+                      if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+                    }}
+                  />
                 ) : (
                   <a className="doc-file-preview" href={attachmentUrl(a)} target="_blank" rel="noreferrer">📄 Open</a>
                 )}

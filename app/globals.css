@@ -22,3 +22,112 @@ select,
 textarea {
   font-family: inherit;
 }
+
+/* v3.4.1 mobile photo/document attachment display fix */
+.doc-photos-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px;
+  background: #ffffff;
+  margin-top: 14px;
+  overflow: hidden;
+}
+.doc-photos-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.doc-photos-head small {
+  display: block;
+  color: #64748b;
+  margin-top: 4px;
+}
+.doc-photo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.doc-photo-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #0f172a;
+}
+.doc-photo-upload.secondary {
+  background: #ffffff;
+  color: #0f172a;
+}
+.doc-photo-upload input {
+  display: none;
+}
+.doc-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.doc-photo-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 10px;
+  background: #f8fafc;
+  min-width: 0;
+}
+.doc-photo-card img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #e5e7eb;
+  display: block;
+}
+.doc-photo-card b,
+.doc-photo-card small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.doc-photo-card small {
+  color: #64748b;
+  margin-top: 2px;
+}
+.doc-photo-card button {
+  margin-top: 8px;
+  width: 100%;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+  font-weight: 700;
+}
+.doc-file-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-weight: 800;
+  text-decoration: none;
+}
+.doc-photo-empty {
+  color: #64748b;
+  margin: 12px 0 0;
+}
+@media (max-width: 640px) {
+  .doc-photos-box { padding: 12px; }
+  .doc-photo-actions { width: 100%; }
+  .doc-photo-upload { flex: 1 1 140px; }
+  .doc-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .doc-photo-card img, .doc-file-preview { height: 105px; }
+}
