@@ -5080,6 +5080,67 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     }
   }
 
+
+  function formatAiRecordSearch(term: string) {
+    const q = term.toLowerCase().trim();
+    const contains = (value: any) => String(value || "").toLowerCase().includes(q);
+
+    const customerMatches = customers
+      .filter((c) => contains(c.name) || contains(c.phone) || contains(c.email) || contains(c.address))
+      .slice(0, 6)
+      .map((c) => `• Customer: ${c.name || "Customer"}${c.phone ? ` — ${c.phone}` : ""}${c.email ? ` — ${c.email}` : ""}`);
+
+    const quoteMatches = quotes
+      .filter((qte: any) => contains(qte.quote_no) || contains(qte.customer) || contains(qte.service) || contains(qte.notes))
+      .slice(0, 6)
+      .map((qte: any) => `• Quote: ${qte.quote_no || "Quote"} — ${qte.customer || "Customer"} — ${money(qte.total_amount || qte.amount || 0)} — ${qte.status || "Status not set"}`);
+
+    const invoiceMatches = invoices
+      .filter((inv: any) => contains(inv.invoice_no) || contains(inv.customer) || contains(inv.notes))
+      .slice(0, 6)
+      .map((inv: any) => `• Invoice: ${inv.invoice_no || "Invoice"} — ${inv.customer || "Customer"} — ${money(inv.total_amount || inv.amount || 0)} — ${inv.status || "Status not set"}`);
+
+    const workOrderMatches = workOrders
+      .filter((wo: any) => contains(wo.work_order_no) || contains(wo.customer) || contains(wo.service) || contains(wo.notes) || contains(wo.technician))
+      .slice(0, 6)
+      .map((wo: any) => `• Work Order: ${wo.work_order_no || "WO"} — ${wo.customer || "Customer"} — ${wo.service || "Service"} — ${wo.status || "Status not set"}`);
+
+    const receiptMatches = receipts
+      .filter((r: any) => contains(r.receipt_no) || contains(r.customer) || contains(r.invoice_no) || contains(r.notes))
+      .slice(0, 6)
+      .map((r: any) => `• Receipt: ${r.receipt_no || "Receipt"} — ${r.customer || "Customer"} — ${money(r.amount || 0)} — ${r.payment_method || "Payment"}`);
+
+    const vendorMatches = vendors
+      .filter((v) => contains(v.vendor_name) || contains(v.phone) || contains(v.email) || contains(v.address))
+      .slice(0, 6)
+      .map((v) => `• Vendor: ${v.vendor_name || "Vendor"}${v.phone ? ` — ${v.phone}` : ""}${v.email ? ` — ${v.email}` : ""}`);
+
+    const lines = [
+      ...customerMatches,
+      ...quoteMatches,
+      ...invoiceMatches,
+      ...workOrderMatches,
+      ...receiptMatches,
+      ...vendorMatches,
+    ];
+
+    return lines.length
+      ? `Smart Search results for "${term}":\n${lines.join("\n")}\n\nTip: copy the document number or customer name, then open the related module to edit it.`
+      : `No loaded ERP records found for "${term}". Try a customer name, phone number, invoice number, quote number, receipt number, service name, or vendor name.`;
+  }
+
+  function formatAiBusinessSummary() {
+    const pendingQuoteList = quotes.filter((q: any) => !String(q.status || "").toLowerCase().includes("accepted") && !String(q.status || "").toLowerCase().includes("converted"));
+    const overdueInvoices = invoices.filter((inv: any) => Number(inv.balance_due || inv.total_amount || inv.amount || 0) > 0 && !String(inv.status || "").toLowerCase().includes("paid"));
+    const openWorkOrders = workOrders.filter((wo: any) => !String(wo.status || "").toLowerCase().includes("complete") && !String(wo.status || "").toLowerCase().includes("closed"));
+    const today = new Date().toISOString().slice(0, 10);
+    const todayJobs = jobs.filter((j: any) => String(j.job_date || "").slice(0, 10) === today);
+    const todayReceipts = receipts.filter((r: any) => String(r.receipt_date || "").slice(0, 10) === today);
+    const todayReceiptAmount = todayReceipts.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+
+    return `${greetingText()} Anil, here is your Aashan ERP business summary:\n\nFinancials\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n• Accounts Receivable: ${money(accountsReceivable)}\n• Bank/Cash Balance: ${money(bankBalance)}\n• Receipts Today: ${money(todayReceiptAmount)}\n\nWork\n• Jobs Today: ${todayJobs.length}\n• Open Work Orders: ${openWorkOrders.length}\n• Pending Quotes: ${pendingQuoteList.length}\n• Unpaid Invoices: ${overdueInvoices.length}\n\nRecommended Actions\n• Follow up top pending quotes\n• Review unpaid invoices and send reminders\n• Check open work orders before end of day\n• Review Bank Register for latest cash movement`;
+  }
+
   function runAashanAI(customPrompt?: string) {
     const prompt = (customPrompt ?? aashanAiPrompt).trim();
     const lower = prompt.toLowerCase();
@@ -8830,15 +8891,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
                         <button style={styles.blueBtn} onClick={() => runAashanAI("summarize business")}>📊 Business Summary</button>
                         <button style={styles.greenBtn} onClick={() => runAashanAI("show unpaid invoices")}>💰 Unpaid Invoices</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("find customer")}>🔎 Smart Search</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("create quote")}>📝 Quote Helper</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("write follow up email")}>📧 Email Writer</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("show today jobs")}>🛠 Today / Open Work</button>
                       </div>
 
                       <Field label="Ask Aashan AI">
                         <textarea
                           value={aashanAiPrompt}
                           onChange={(e) => setAashanAiPrompt(e.target.value)}
-                          placeholder="Example: create quote for Roy to install ceiling fan and repair drywall"
+                          placeholder="Example: find Roy, show unpaid invoices, summarize business, or create quote for Roy to install ceiling fan"
                           style={{ ...styles.input, minHeight: 110, resize: "vertical", lineHeight: 1.5 }}
                         />
                       </Field>
