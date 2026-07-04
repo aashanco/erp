@@ -5016,7 +5016,68 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   function findCustomerNameFromPrompt(prompt: string) {
     const text = prompt.toLowerCase();
     const match = customers.find((c) => c.name && text.includes(String(c.name).toLowerCase()));
-    return match?.name || "";
+    if (match?.name) return match.name;
+
+    const forMatch = prompt.match(/\bfor\s+([a-zA-Z][a-zA-Z0-9 .&'-]{1,40}?)(?:\s+to\s+|\s+-\s+|,|\.|$)/i);
+    return forMatch?.[1]?.trim() || "";
+  }
+
+  function buildAiQuoteLines(prompt: string): TransactionLine[] {
+    let workText = prompt
+      .replace(/create|make|generate|prepare|draft/gi, " ")
+      .replace(/quote|estimate/gi, " ")
+      .replace(/for\s+[a-zA-Z][a-zA-Z0-9 .&'-]{1,40}?\s+to\s+/i, " ")
+      .replace(/customer\s*:/gi, " ")
+      .replace(/work\s*:/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const parts = workText
+      .split(/\n|,|;|\band\b|\+/i)
+      .map((x) => x.trim())
+      .filter((x) => x.length > 2)
+      .slice(0, 12);
+
+    const lines = parts.length ? parts : [workText || "Service labor and materials"];
+    return lines.map((description) => ({
+      description,
+      qty: "1",
+      unit_price: "",
+      discount: "0",
+      tax_rate: String(getDefaultTaxRate(company) || ""),
+    }));
+  }
+
+  function openAiQuoteDraft() {
+    const prompt = aashanAiPrompt.trim();
+    if (!prompt) {
+      setAashanAiResponse("Type the quote request first. Example: create quote for Roy to install ceiling fan and repair drywall.");
+      return;
+    }
+
+    const customerName = findCustomerNameFromPrompt(prompt);
+    const lines = buildAiQuoteLines(prompt);
+    const today = new Date().toISOString().slice(0, 10);
+
+    setQuote({
+      ...emptyQuote,
+      quote_no: nextQuoteNo(),
+      customer: customerName,
+      quote_date: today,
+      status: "Draft",
+      notes: "Prepared by Aashan AI. Please review pricing, tax, scope, and terms before sending.",
+    });
+    setQuoteLines(lines);
+    setEditingQuoteId(null);
+    setAashanAiResponse(`Draft quote opened in Quotes. Review the customer, pricing, tax, and notes before saving.\n\nLines created:\n${lines.map((line) => `• ${line.description}`).join("\n")}`);
+    openTab("quotes");
+  }
+
+  function copyAiResponse() {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(aashanAiResponse);
+      alert("Aashan AI response copied.");
+    }
   }
 
   function runAashanAI(customPrompt?: string) {
@@ -8784,6 +8845,8 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
                       <ButtonRow>
                         <button style={styles.primaryBtn} onClick={() => runAashanAI()}>Ask Aashan AI</button>
+                        <button style={styles.greenBtn} onClick={openAiQuoteDraft}>Create Draft Quote</button>
+                        <button style={styles.grayBtn} onClick={copyAiResponse}>Copy Response</button>
                         <button style={styles.grayBtn} onClick={() => { setAashanAiPrompt(""); setAashanAiResponse("Ask Aashan AI to find records, draft emails, create quote wording, or summarize the business."); }}>Clear</button>
                       </ButtonRow>
 
