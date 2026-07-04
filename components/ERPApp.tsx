@@ -5080,6 +5080,84 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     }
   }
 
+  function getCompanySignature() {
+    return `Best Regards,\n${company.company_name || "Aashan & Co LLC"}\nPhone: ${company.phone || "(832) 210-4248"}\nEmail: ${company.email || "support@aashan.co"}${company.website ? `\nWebsite: ${company.website}` : ""}`;
+  }
+
+  function findAiCustomerRecord(prompt: string) {
+    const name = findCustomerNameFromPrompt(prompt);
+    const term = (name || prompt).toLowerCase();
+    return customers.find((c) =>
+      String(c.name || "").toLowerCase().includes(term) ||
+      String(c.phone || "").toLowerCase().includes(term) ||
+      String(c.email || "").toLowerCase().includes(term)
+    );
+  }
+
+  function getRecentAiQuote(customerName?: string) {
+    const target = String(customerName || "").toLowerCase();
+    return [...quotes]
+      .filter((q: any) => !target || String(q.customer || "").toLowerCase().includes(target))
+      .sort((a: any, b: any) => String(b.quote_date || b.created_at || "").localeCompare(String(a.quote_date || a.created_at || "")))[0];
+  }
+
+  function getRecentAiInvoice(customerName?: string, unpaidOnly = false) {
+    const target = String(customerName || "").toLowerCase();
+    return [...invoices]
+      .filter((inv: any) => {
+        const matchesCustomer = !target || String(inv.customer || "").toLowerCase().includes(target);
+        const balance = Number(inv.balance_due || inv.total_amount || inv.amount || inv.total || 0);
+        const isPaid = String(inv.status || "").toLowerCase().includes("paid");
+        return matchesCustomer && (!unpaidOnly || (balance > 0 && !isPaid));
+      })
+      .sort((a: any, b: any) => String(b.invoice_date || b.created_at || "").localeCompare(String(a.invoice_date || a.created_at || "")))[0];
+  }
+
+  function getRecentAiReceipt(customerName?: string) {
+    const target = String(customerName || "").toLowerCase();
+    return [...receipts]
+      .filter((r: any) => !target || String(r.customer || "").toLowerCase().includes(target))
+      .sort((a: any, b: any) => String(b.receipt_date || b.created_at || "").localeCompare(String(a.receipt_date || a.created_at || "")))[0];
+  }
+
+  function buildAashanAIEmail(kind: "quote" | "invoice" | "receipt" | "reminder" | "followup", promptText?: string) {
+    const prompt = (promptText || aashanAiPrompt || "").trim();
+    const customer = findAiCustomerRecord(prompt);
+    const customerName = customer?.name || findCustomerNameFromPrompt(prompt) || "Customer";
+    const signature = getCompanySignature();
+
+    if (kind === "quote") {
+      const q = getRecentAiQuote(customerName);
+      const subject = `Quote ${q?.quote_no || ""} from ${company.company_name || "Aashan & Co LLC"}`.replace(/\s+/g, " ").trim();
+      return `Subject: ${subject}\n\nHi ${customerName},\n\nThank you for giving ${company.company_name || "Aashan & Co LLC"} the opportunity to provide this quote. Please review the attached quote${q?.quote_no ? ` ${q.quote_no}` : ""}${q ? ` for ${money((q as any).total_amount || (q as any).amount || (q as any).total || 0)}` : ""}.\n\nIf you have any questions or would like to make any changes, please let us know. We will be happy to assist.\n\n${signature}`;
+    }
+
+    if (kind === "invoice") {
+      const inv = getRecentAiInvoice(customerName);
+      const subject = `Invoice ${inv?.invoice_no || ""} from ${company.company_name || "Aashan & Co LLC"}`.replace(/\s+/g, " ").trim();
+      return `Subject: ${subject}\n\nHi ${customerName},\n\nThank you for choosing ${company.company_name || "Aashan & Co LLC"}. Please find your invoice${inv?.invoice_no ? ` ${inv.invoice_no}` : ""} attached for the services provided.\n\nInvoice Amount: ${money((inv as any)?.total_amount || (inv as any)?.amount || (inv as any)?.total || 0)}\nBalance Due: ${money((inv as any)?.balance_due || (inv as any)?.total_amount || (inv as any)?.amount || (inv as any)?.total || 0)}${inv?.due_date ? `\nDue Date: ${inv.due_date}` : ""}\n\nPlease review the invoice and let us know if you have any questions.\n\nZelle Payment: 832-210-4248\n\n${signature}`;
+    }
+
+    if (kind === "receipt") {
+      const r = getRecentAiReceipt(customerName);
+      const subject = `Payment Receipt ${r?.receipt_no || ""} from ${company.company_name || "Aashan & Co LLC"}`.replace(/\s+/g, " ").trim();
+      return `Subject: ${subject}\n\nHi ${customerName},\n\nThank you for your payment. This email confirms that we have received your payment${r?.receipt_no ? ` under receipt ${r.receipt_no}` : ""}${r ? ` in the amount of ${money(r.amount || 0)}` : ""}.\n\nWe appreciate your business and the opportunity to serve you. Please keep this receipt for your records.\n\nWe would also greatly appreciate your feedback. Please leave us a review on Facebook:\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\n${signature}`;
+    }
+
+    if (kind === "reminder") {
+      const inv = getRecentAiInvoice(customerName, true);
+      const subject = `Friendly Payment Reminder${inv?.invoice_no ? ` - ${inv.invoice_no}` : ""}`;
+      return `Subject: ${subject}\n\nHi ${customerName},\n\nThis is a friendly reminder regarding your outstanding invoice${inv?.invoice_no ? ` ${inv.invoice_no}` : ""}.\n\nBalance Due: ${money((inv as any)?.balance_due || (inv as any)?.total_amount || (inv as any)?.amount || (inv as any)?.total || 0)}${inv?.due_date ? `\nDue Date: ${inv.due_date}` : ""}\n\nPlease let us know if you have already sent the payment or if you have any questions.\n\nZelle Payment: 832-210-4248\n\nThank you,\n${signature}`;
+    }
+
+    return `Subject: Follow-up from ${company.company_name || "Aashan & Co LLC"}\n\nHi ${customerName},\n\nThank you for choosing ${company.company_name || "Aashan & Co LLC"}. I am following up to check if you have any questions or need any updates regarding your quote, invoice, or service request.\n\nPlease let us know how we can help.\n\n${signature}`;
+  }
+
+  function openAiEmailWriter(kind: "quote" | "invoice" | "receipt" | "reminder" | "followup") {
+    const email = buildAashanAIEmail(kind);
+    setAashanAiResponse(email);
+  }
+
 
   function formatAiRecordSearch(term: string) {
     const q = term.toLowerCase().trim();
@@ -5165,8 +5243,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     }
 
     if (lower.includes("email") || lower.includes("reminder") || lower.includes("follow up") || lower.includes("follow-up")) {
-      const name = customerName || "Customer";
-      setAashanAiResponse(`Subject: Follow-up from Aashan & Co LLC\n\nHi ${name},\n\nThank you for choosing Aashan & Co LLC. I am following up regarding your quote/invoice. Please review it when you have a chance.\n\nIf you have any questions or need any changes, please let us know.\n\nBest Regards,\nAashan & Co LLC\nPhone: (832) 210-4248\nEmail: support@aashan.co`);
+      let kind: "quote" | "invoice" | "receipt" | "reminder" | "followup" = "followup";
+      if (lower.includes("quote")) kind = "quote";
+      else if (lower.includes("invoice")) kind = "invoice";
+      else if (lower.includes("receipt") || lower.includes("payment received")) kind = "receipt";
+      else if (lower.includes("reminder") || lower.includes("overdue") || lower.includes("unpaid")) kind = "reminder";
+      setAashanAiResponse(buildAashanAIEmail(kind, prompt));
       return;
     }
 
@@ -8894,6 +8976,10 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         <button style={styles.grayBtn} onClick={() => runAashanAI("find customer")}>🔎 Smart Search</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("create quote")}>📝 Quote Helper</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("write follow up email")}>📧 Email Writer</button>
+                        <button style={styles.grayBtn} onClick={() => openAiEmailWriter("quote")}>Quote Email</button>
+                        <button style={styles.grayBtn} onClick={() => openAiEmailWriter("invoice")}>Invoice Email</button>
+                        <button style={styles.grayBtn} onClick={() => openAiEmailWriter("receipt")}>Receipt Email</button>
+                        <button style={styles.grayBtn} onClick={() => openAiEmailWriter("reminder")}>Payment Reminder</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("show today jobs")}>🛠 Today / Open Work</button>
                       </div>
 
