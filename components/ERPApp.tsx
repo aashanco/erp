@@ -2026,42 +2026,44 @@ export default function ERPApp() {
       .replace(/^-+|-+$/g, "") || "document";
   }
 
+  async function prepareAttachmentFile(file: File) {
+    const isImage = file.type.startsWith("image/") || /\.(heic|heif|png|jpg|jpeg|webp)$/i.test(file.name || "");
+    if (isImage) return await compressImageForMobile(file);
+    return {
+      dataUrl: "",
+      blob: file,
+      fileName: file.name || `attachment-${Date.now()}`,
+      mimeType: file.type || "application/octet-stream",
+      sizeBytes: file.size || 0,
+    };
+  }
+
   async function uploadAttachmentFile(documentType: string, documentNo: string, file: File) {
-    const compressed = await compressImageForMobile(file);
+    const prepared = await prepareAttachmentFile(file);
     const typeSegment = cleanStorageSegment(documentType.toLowerCase());
     const noSegment = cleanStorageSegment(documentNo);
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${cleanStorageSegment(compressed.fileName)}`;
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${cleanStorageSegment(prepared.fileName)}`;
     const storagePath = `${typeSegment}/${noSegment}/${uniqueName}`;
 
     const upload = await supabase.storage
       .from(ATTACHMENT_BUCKET)
-      .upload(storagePath, compressed.blob, {
-        contentType: compressed.mimeType,
+      .upload(storagePath, prepared.blob, {
+        contentType: prepared.mimeType,
         upsert: false,
       });
 
     if (upload.error) {
-      // If storage was not configured, keep the small compressed image in the database so the user does not lose the photo.
-      if (/bucket|storage|not found|row-level security|policy/i.test(upload.error.message || "")) {
-        return {
-          document_type: documentType,
-          document_no: documentNo,
-          file_name: compressed.fileName,
-          mime_type: compressed.mimeType,
-          size_bytes: compressed.sizeBytes,
-          data_url: compressed.dataUrl,
-        } as DocumentAttachment;
-      }
-      throw upload.error;
+      throw new Error(`Attachment upload failed. Run the v3.4 SQL first and confirm Supabase Storage bucket ${ATTACHMENT_BUCKET} exists. ${upload.error.message || ""}`);
     }
 
     const { data } = supabase.storage.from(ATTACHMENT_BUCKET).getPublicUrl(storagePath);
     return {
       document_type: documentType,
       document_no: documentNo,
-      file_name: compressed.fileName,
-      mime_type: compressed.mimeType,
-      size_bytes: compressed.sizeBytes,
+      file_name: prepared.fileName,
+      mime_type: prepared.mimeType,
+      size_bytes: prepared.sizeBytes,
+      data_url: null,
       storage_path: storagePath,
       file_url: data.publicUrl || "",
     } as DocumentAttachment;
@@ -2080,8 +2082,9 @@ export default function ERPApp() {
 
     try {
       for (const file of Array.from(files)) {
-        if (!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name || "")) {
-          alert(`${file.name} skipped. Only image files are supported.`);
+        const allowed = file.type.startsWith("image/") || /\.(heic|heif|pdf|doc|docx|xls|xlsx|txt|csv)$/i.test(file.name || "");
+        if (!allowed) {
+          alert(`${file.name} skipped. Please attach images, PDF, Word, Excel, TXT, or CSV files.`);
           continue;
         }
         if (file.size > maxSize) {
@@ -2094,15 +2097,9 @@ export default function ERPApp() {
           const { error } = await supabase.from("document_attachments").insert(row);
           if (error) throw error;
         } else {
-          const compressed = await compressImageForMobile(file);
-          next.push({
-            document_type: documentType,
-            document_no: documentNo,
-            file_name: compressed.fileName,
-            mime_type: compressed.mimeType,
-            size_bytes: compressed.sizeBytes,
-            data_url: compressed.dataUrl,
-          });
+          // Upload immediately even before Save. The row is inserted only after Save, but the file is already safe in Supabase Storage.
+          const row = await uploadAttachmentFile(documentType, documentNo, file);
+          next.push(row);
         }
       }
 
@@ -2126,9 +2123,9 @@ export default function ERPApp() {
       file_name: a.file_name,
       mime_type: a.mime_type,
       size_bytes: a.size_bytes || 0,
-      data_url: a.data_url || null,
+      data_url: null,
       storage_path: a.storage_path || null,
-      file_url: a.file_url || null,
+      file_url: a.file_url || attachmentUrl(a) || null,
     }));
 
     const { error } = await supabase.from("document_attachments").insert(rowsToInsert);
@@ -2173,11 +2170,11 @@ export default function ERPApp() {
                 onChange={async (e) => { await addDocumentFiles(documentType, documentNo, e.target.files, autoSave); e.currentTarget.value = ""; }}
               />
             </label>
-            <label className="doc-photo-upload secondary" title="Upload photos from gallery">
-              🖼️ Gallery
+            <label className="doc-photo-upload secondary" title="Upload photos or documents">
+              📎 Files
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                 multiple
                 onChange={async (e) => { await addDocumentFiles(documentType, documentNo, e.target.files, autoSave); e.currentTarget.value = ""; }}
               />
@@ -2188,7 +2185,11 @@ export default function ERPApp() {
           <div className="doc-photo-grid">
             {all.map((a, idx) => (
               <div className="doc-photo-card" key={`${a.id || 'new'}-${idx}-${a.file_name}`}>
-                <img src={attachmentUrl(a)} alt={a.file_name} />
+                {String(a.mime_type || "").startsWith("image/") ? (
+                  <img src={attachmentUrl(a)} alt={a.file_name} />
+                ) : (
+                  <a className="doc-file-preview" href={attachmentUrl(a)} target="_blank" rel="noreferrer">📄 Open</a>
+                )}
                 <div>
                   <b>{a.file_name}</b>
                   <small>{a.id ? "Saved" : "Pending save"}</small>
@@ -4752,6 +4753,20 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 }
 
 .tax-clear-btn { min-height: 40px; font-size: 14px; }
+
+.doc-file-preview {
+  min-height: 118px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  color: #0f4c5c;
+  font-weight: 900;
+}
+
 }
 
 </style></head><body><h1>Aashan & Co LLC - Bank Register</h1><p>${bankRegisterAccount} • ${bankRegisterShow}</p><div class="summary"><div>Opening: <b>${bankBalanceText(selectedBankOpeningBalance)}</b></div><div>Debits: <b>${money(bankRegisterDebits)}</b></div><div>Credits: <b>${money(bankRegisterCredits)}</b></div><div>Closing: <b>${bankBalanceText(bankRegisterClosing)}</b></div></div><table><thead><tr><th>Date</th><th>Transaction</th><th>Bank or Cash Account</th><th>Customer</th><th>Supplier</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
