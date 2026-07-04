@@ -5000,6 +5000,13 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function openDashboardDrillDown(report: string, bankAccount?: string, show?: string) {
+    if (bankAccount) setBankRegisterAccount(bankAccount);
+    if (show) setBankRegisterShow(show);
+    setReportTab(report);
+    openTab("reports");
+  }
+
   function pageLabel(tab: typeof activeTab) {
     const labels: Record<string, string> = {
       dashboard: "Dashboard",
@@ -5856,12 +5863,13 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         title="Assets"
                         amount={balanceSheetAssets}
                         tone="#059669"
+                        onClick={() => openDashboardDrillDown("balance_sheet")}
                         rows={[
-                          { label: "Accounts receivable", amount: accountsReceivable, bold: true },
-                          { label: "Accounts receivable", amount: accountsReceivable, indent: true },
-                          { label: "Cash & Bank", amount: bankBalance, bold: true },
-                          { label: "Bank", amount: banks.filter((b) => String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true },
-                          { label: "Cash on hand", amount: banks.filter((b) => !String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true },
+                          { label: "Accounts receivable", amount: accountsReceivable, bold: true, onClick: () => openDashboardDrillDown("customer_statement") },
+                          { label: "Accounts receivable", amount: accountsReceivable, indent: true, onClick: () => openDashboardDrillDown("customer_statement") },
+                          { label: "Cash & Bank", amount: bankBalance, bold: true, onClick: () => openDashboardDrillDown("bank_register", "All Accounts", "All Transactions") },
+                          { label: "Bank", amount: banks.filter((b) => String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true, onClick: () => openDashboardDrillDown("bank_register", "All Accounts", "All Transactions") },
+                          { label: "Cash on hand", amount: banks.filter((b) => !String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true, onClick: () => openDashboardDrillDown("bank_register", "All Accounts", "All Transactions") },
                         ]}
                       />
 
@@ -5869,11 +5877,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         title="Liabilities"
                         amount={balanceSheetLiabilities}
                         tone="#dc2626"
+                        onClick={() => openDashboardDrillDown("balance_sheet")}
                         rows={[
-                          { label: "Accounts payable", amount: accountsPayable, bold: true },
-                          { label: "Accounts Payable", amount: accountsPayable, indent: true },
-                          { label: "Tax Payable", amount: taxPayable, bold: true },
-                          { label: "Tax payable", amount: taxPayable, indent: true },
+                          { label: "Accounts payable", amount: accountsPayable, bold: true, onClick: () => openDashboardDrillDown("vendor_statement") },
+                          { label: "Accounts Payable", amount: accountsPayable, indent: true, onClick: () => openDashboardDrillDown("vendor_statement") },
+                          { label: "Tax Payable", amount: taxPayable, bold: true, onClick: () => openDashboardDrillDown("general_ledger") },
+                          { label: "Tax payable", amount: taxPayable, indent: true, onClick: () => openDashboardDrillDown("general_ledger") },
                         ]}
                       />
 
@@ -5881,9 +5890,10 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         title="Equity"
                         amount={balanceSheetEquity}
                         tone="#7c3aed"
+                        onClick={() => openDashboardDrillDown("balance_sheet")}
                         rows={[
-                          { label: "Owner's Capital / Opening Balance", amount: ownerCapital },
-                          { label: "Current Year Profit", amount: netProfit },
+                          { label: "Owner's Capital / Opening Balance", amount: ownerCapital, onClick: () => openDashboardDrillDown("balance_sheet") },
+                          { label: "Current Year Profit", amount: netProfit, onClick: () => openDashboardDrillDown("profit_loss") },
                         ]}
                       />
                     </div>
@@ -5901,14 +5911,16 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         title="Income"
                         amount={paidRevenue}
                         tone="#059669"
-                        rows={dashboardIncomeRows}
+                        onClick={() => openDashboardDrillDown("profit_loss")}
+                        rows={dashboardIncomeRows.map((row: any) => ({ ...row, onClick: () => openDashboardDrillDown("profit_loss") }))}
                       />
 
                       <FinancialBlock
                         title="Less Expenses"
                         amount={totalVendorPaymentAmount + totalDiscounts}
                         tone="#dc2626"
-                        rows={dashboardExpenseRows.length ? dashboardExpenseRows : [{ label: "No expenses recorded", amount: 0 }]}
+                        onClick={() => openDashboardDrillDown("profit_loss")}
+                        rows={(dashboardExpenseRows.length ? dashboardExpenseRows : [{ label: "No expenses recorded", amount: 0 }]).map((row: any) => ({ ...row, onClick: () => openDashboardDrillDown("profit_loss") }))}
                       />
 
                       <div style={styles.netProfitCard}>
@@ -10655,31 +10667,50 @@ function formatDashboardMoney(value: any) {
   return `$ ${amount.toFixed(2)}`;
 }
 
-function FinancialBlock({ title, amount, tone, rows }: any) {
+function FinancialBlock({ title, amount, tone, rows, onClick }: any) {
   return (
     <div style={styles.financialBlock}>
-      <div style={styles.financialBlockHeader}>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{ ...styles.financialBlockHeader, ...(onClick ? styles.financialDrillButton : {}) }}
+        title={onClick ? `Open ${title} report` : undefined}
+      >
         <h3 style={styles.financialBlockTitle}>{title}</h3>
         <strong style={{ ...styles.financialBlockAmount, color: tone }}>
           {formatDashboardMoney(amount)}
         </strong>
-      </div>
+      </button>
       <div style={styles.financialRows}>
-        {rows.map((row: any, idx: number) => (
-          <div
-            key={`${title}-${row.label}-${idx}`}
-            style={{
-              ...styles.financialRow,
-              paddingLeft: row.indent ? 26 : 0,
-              fontWeight: row.bold ? 800 : 500,
-            }}
-          >
-            <span>{row.label}</span>
-            <span style={Number(row.amount || 0) ? styles.financialRowAmount : styles.financialRowZero}>
-              {formatDashboardMoney(row.amount)}
-            </span>
-          </div>
-        ))}
+        {rows.map((row: any, idx: number) => {
+          const rowStyle = {
+            ...styles.financialRow,
+            ...(row.onClick ? styles.financialDrillRow : {}),
+            paddingLeft: row.indent ? 26 : 0,
+            fontWeight: row.bold ? 800 : 500,
+          };
+          return row.onClick ? (
+            <button
+              type="button"
+              key={`${title}-${row.label}-${idx}`}
+              onClick={row.onClick}
+              style={rowStyle}
+              title={`Open ${row.label} details`}
+            >
+              <span>{row.label}</span>
+              <span style={Number(row.amount || 0) ? styles.financialRowAmount : styles.financialRowZero}>
+                {formatDashboardMoney(row.amount)}
+              </span>
+            </button>
+          ) : (
+            <div key={`${title}-${row.label}-${idx}`} style={rowStyle}>
+              <span>{row.label}</span>
+              <span style={Number(row.amount || 0) ? styles.financialRowAmount : styles.financialRowZero}>
+                {formatDashboardMoney(row.amount)}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -11121,6 +11152,12 @@ const styles: Record<string, any> = {
   },
   financialBlockTitle: { margin: 0, fontSize: 19, color: "#0f172a" },
   financialBlockAmount: { fontSize: 20, whiteSpace: "nowrap" },
+  financialDrillButton: {
+    width: "100%",
+    border: 0,
+    cursor: "pointer",
+    textAlign: "left",
+  },
   financialRows: { padding: "16px 18px", display: "grid", gap: 12 },
   financialRow: {
     display: "flex",
@@ -11128,6 +11165,14 @@ const styles: Record<string, any> = {
     gap: 16,
     color: "#0f172a",
     lineHeight: 1.25,
+  },
+  financialDrillRow: {
+    width: "100%",
+    border: 0,
+    background: "transparent",
+    cursor: "pointer",
+    textAlign: "left",
+    font: "inherit",
   },
   financialRowAmount: { color: "#2563eb", fontWeight: 800, whiteSpace: "nowrap" },
   financialRowZero: { color: "#94a3b8", fontWeight: 700, whiteSpace: "nowrap" },
