@@ -5219,6 +5219,109 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     return `${greetingText()} Anil, here is your Aashan ERP business summary:\n\nFinancials\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n• Accounts Receivable: ${money(accountsReceivable)}\n• Bank/Cash Balance: ${money(bankBalance)}\n• Receipts Today: ${money(todayReceiptAmount)}\n\nWork\n• Jobs Today: ${todayJobs.length}\n• Open Work Orders: ${openWorkOrders.length}\n• Pending Quotes: ${pendingQuoteList.length}\n• Unpaid Invoices: ${overdueInvoices.length}\n\nRecommended Actions\n• Follow up top pending quotes\n• Review unpaid invoices and send reminders\n• Check open work orders before end of day\n• Review Bank Register for latest cash movement`;
   }
 
+
+  function getAiAmount(record: any) {
+    return Number(record?.balance_due || record?.total_amount || record?.amount || record?.total || 0);
+  }
+
+  function getOpenInvoicesForAi() {
+    return [...invoices]
+      .filter((inv: any) => getAiAmount(inv) > 0 && !String(inv.status || "").toLowerCase().includes("paid"))
+      .sort((a: any, b: any) => getAiAmount(b) - getAiAmount(a));
+  }
+
+  function formatAiDailyBrief() {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayJobs = jobs.filter((j: any) => String(j.job_date || j.date || "").slice(0, 10) === today);
+    const todayWorkOrders = workOrders.filter((wo: any) => String(wo.scheduled_date || wo.work_date || wo.date || "").slice(0, 10) === today);
+    const openInvoices = getOpenInvoicesForAi();
+    const openWorkOrders = workOrders.filter((wo: any) => {
+      const status = String(wo.status || "").toLowerCase();
+      return !status.includes("complete") && !status.includes("closed") && !status.includes("cancel");
+    });
+    const pendingQuotes = quotes.filter((q: any) => {
+      const status = String(q.status || "").toLowerCase();
+      return !status.includes("accepted") && !status.includes("converted") && !status.includes("rejected") && !status.includes("cancel");
+    });
+    const todayReceipts = receipts.filter((r: any) => String(r.receipt_date || r.date || "").slice(0, 10) === today);
+    const todayCash = todayReceipts.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+
+    const topActions = [
+      openInvoices.length ? `Send payment reminders for ${openInvoices.slice(0, 3).map((inv: any) => inv.customer || inv.invoice_no || "Invoice").join(", ")}.` : "No unpaid invoice reminder needed from loaded records.",
+      pendingQuotes.length ? `Follow up ${pendingQuotes.length} pending quote${pendingQuotes.length === 1 ? "" : "s"}.` : "No pending quote follow-up found.",
+      openWorkOrders.length ? `Review ${openWorkOrders.length} open work order${openWorkOrders.length === 1 ? "" : "s"}.` : "No open work order found.",
+    ];
+
+    return `${greetingText()} Anil, here is today's Aashan AI brief:\n\nToday\n• Jobs scheduled: ${todayJobs.length}\n• Work orders scheduled: ${todayWorkOrders.length}\n• Receipts today: ${money(todayCash)}\n\nBusiness Position\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n• Bank/Cash Balance: ${money(bankBalance)}\n• Accounts Receivable: ${money(accountsReceivable)}\n\nAttention Needed\n• Unpaid invoices: ${openInvoices.length}\n• Pending quotes: ${pendingQuotes.length}\n• Open work orders: ${openWorkOrders.length}\n\nRecommended Actions\n${topActions.map((x) => `• ${x}`).join("\n")}`;
+  }
+
+  function formatAiAccountingAssistant(promptText?: string) {
+    const prompt = String(promptText || aashanAiPrompt || "").toLowerCase();
+    const openInvoices = getOpenInvoicesForAi();
+    const openInvoiceTotal = openInvoices.reduce((sum: number, inv: any) => sum + getAiAmount(inv), 0);
+    const margin = paidRevenue ? (netProfit / paidRevenue) * 100 : 0;
+
+    if (prompt.includes("owner") || prompt.includes("equity")) {
+      return `Owner's Equity is the owner's value in the business after liabilities are removed from assets.\n\nSimple formula:\nAssets - Liabilities = Owner's Equity\n\nIn Aashan ERP, Owner's Equity is affected by:\n• Business profit or loss\n• Owner investments\n• Owner draws / withdrawals\n• Opening balances\n\nCurrent loaded summary:\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n\nIf Owner's Equity looks wrong, review opening balances, journal entries, and whether all income/expense transactions are posted to the correct ledger accounts.`;
+    }
+
+    if (prompt.includes("profit") || prompt.includes("margin")) {
+      return `Profit Analysis\n\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n• Profit Margin: ${margin.toFixed(1)}%\n\nAashan AI recommendation:\n• Review high material and vendor payment entries.\n• Compare job profitability before discounting new quotes.\n• Use payment reminders to convert outstanding A/R into cash.`;
+    }
+
+    if (prompt.includes("receivable") || prompt.includes("ar") || prompt.includes("unpaid") || prompt.includes("owe")) {
+      const top = openInvoices.slice(0, 8).map((inv: any) => `• ${inv.customer || "Customer"} — ${inv.invoice_no || "Invoice"} — ${money(getAiAmount(inv))}`).join("\n");
+      return `Accounts Receivable Review\n\n• Open invoice count: ${openInvoices.length}\n• Open invoice total: ${money(openInvoiceTotal)}\n\n${top || "No open invoices found."}\n\nAashan AI recommendation:\nSend reminders for the oldest and highest-balance invoices first.`;
+    }
+
+    return `Accounting Assistant\n\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n• Bank/Cash Balance: ${money(bankBalance)}\n• Accounts Receivable: ${money(accountsReceivable)}\n\nAsk examples:\n• Explain owner's equity\n• Why did profit drop?\n• Show unpaid invoices\n• Explain accounts receivable`;
+  }
+
+  function formatAiJobProfitability() {
+    const jobCards = jobs.slice(0, 12).map((j: any) => {
+      const customerName = j.customer || j.customer_name || "Customer";
+      const relatedInvoices = invoices.filter((inv: any) => String(inv.customer || "").toLowerCase().includes(String(customerName).toLowerCase()));
+      const revenue = relatedInvoices.reduce((sum: number, inv: any) => sum + Number(inv.total_amount || inv.amount || inv.total || 0), 0);
+      const relatedExpenses = expenses.filter((exp: any) => String(exp.customer || exp.job || exp.description || "").toLowerCase().includes(String(customerName).toLowerCase()));
+      const cost = relatedExpenses.reduce((sum: number, exp: any) => sum + Number(exp.amount || 0), 0);
+      const profit = revenue - cost;
+      const margin = revenue ? (profit / revenue) * 100 : 0;
+      return `• ${customerName} — Revenue ${money(revenue)} — Cost ${money(cost)} — Profit ${money(profit)} — Margin ${margin.toFixed(1)}%`;
+    });
+
+    return `Job Profitability Snapshot\n\n${jobCards.length ? jobCards.join("\n") : "No job records loaded yet."}\n\nAashan AI recommendation:\nTrack labor, materials, travel, and vendor costs against each job so future quotes can be priced from real profit history.`;
+  }
+
+  function formatAiReportExplainer(promptText?: string) {
+    const prompt = String(promptText || aashanAiPrompt || "").toLowerCase();
+    if (prompt.includes("balance sheet")) {
+      return `Balance Sheet Explainer\n\nThe Balance Sheet shows what the business owns, owes, and the owner's equity.\n\nMain sections:\n• Assets: cash, bank, receivables, equipment\n• Liabilities: payables, loans, taxes due\n• Equity: owner's value in the business\n\nUse drill-down from each amount to verify the transactions behind the balance.`;
+    }
+    if (prompt.includes("profit") || prompt.includes("p&l") || prompt.includes("income")) {
+      return `Profit & Loss Explainer\n\nThe P&L shows revenue minus expenses for a selected period.\n\nCurrent loaded view:\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n\nUse this report to understand if pricing, materials, labor, or overhead are affecting profit.`;
+    }
+    if (prompt.includes("trial")) {
+      return `Trial Balance Explainer\n\nThe Trial Balance lists debit and credit balances for ledger accounts. Total debits should equal total credits.\n\nIf it does not balance, check manual journals, posting profiles, and incomplete transaction posting.`;
+    }
+    return `Report Assistant\n\nI can explain Balance Sheet, Profit & Loss, Trial Balance, General Ledger, Bank Register, Customer Ledger, and Vendor Ledger.\n\nAsk: explain profit and loss, explain owner equity, explain trial balance, or why is AR high.`;
+  }
+
+  function formatAiNextBestActions() {
+    const openInvoices = getOpenInvoicesForAi();
+    const pendingQuotes = quotes.filter((q: any) => {
+      const status = String(q.status || "").toLowerCase();
+      return !status.includes("accepted") && !status.includes("converted") && !status.includes("rejected") && !status.includes("cancel");
+    });
+    const actions = [
+      openInvoices.length ? `Send payment reminders for ${openInvoices.slice(0, 3).map((inv: any) => inv.customer || inv.invoice_no || "Invoice").join(", ")}.` : "Review today's new receipts and bank balance.",
+      pendingQuotes.length ? `Follow up pending quotes: ${pendingQuotes.slice(0, 3).map((q: any) => q.quote_no || q.customer || "Quote").join(", ")}.` : "Create new quotes from recent job requests.",
+      "Check document attachments before emailing customer-facing documents.",
+      "Review Bank Register and confirm cash/receipt posting.",
+      "Use Job Profitability to identify which services are making the most margin.",
+    ];
+    return `Aashan AI Next Best Actions\n\n${actions.map((x) => `• ${x}`).join("\n")}`;
+  }
+
   function runAashanAI(customPrompt?: string) {
     const prompt = (customPrompt ?? aashanAiPrompt).trim();
     const lower = prompt.toLowerCase();
@@ -5237,8 +5340,33 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       return;
     }
 
+    if (lower.includes("daily") || lower.includes("brief") || lower.includes("today")) {
+      setAashanAiResponse(formatAiDailyBrief());
+      return;
+    }
+
     if (lower.includes("summary") || lower.includes("business") || lower.includes("dashboard") || lower.includes("how is")) {
-      setAashanAiResponse(`${greetingText()} Anil, here is the current ERP summary:\n\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n• Accounts Receivable: ${money(accountsReceivable)}\n• Bank/Cash Balance: ${money(bankBalance)}\n• Pending Quotes: ${pendingQuoteList.length}\n• Unpaid Invoices: ${overdueInvoices.length}\n\nRecommended actions:\n• Follow up pending quotes\n• Review unpaid invoices\n• Check Bank Register for latest cash movement`);
+      setAashanAiResponse(formatAiBusinessSummary());
+      return;
+    }
+
+    if (lower.includes("job profit") || lower.includes("profitability") || lower.includes("job margin")) {
+      setAashanAiResponse(formatAiJobProfitability());
+      return;
+    }
+
+    if (lower.includes("explain report") || lower.includes("balance sheet") || lower.includes("trial balance") || lower.includes("p&l") || lower.includes("general ledger")) {
+      setAashanAiResponse(formatAiReportExplainer(prompt));
+      return;
+    }
+
+    if (lower.includes("accounting") || lower.includes("owner") || lower.includes("equity") || lower.includes("profit") || lower.includes("margin") || lower.includes("receivable") || lower.includes("ar")) {
+      setAashanAiResponse(formatAiAccountingAssistant(prompt));
+      return;
+    }
+
+    if (lower.includes("next action") || lower.includes("what next") || lower.includes("recommend")) {
+      setAashanAiResponse(formatAiNextBestActions());
       return;
     }
 
@@ -8971,11 +9099,16 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                       </div>
 
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                        <button style={styles.blueBtn} onClick={() => runAashanAI("daily business brief")}>🌅 Daily Brief</button>
                         <button style={styles.blueBtn} onClick={() => runAashanAI("summarize business")}>📊 Business Summary</button>
                         <button style={styles.greenBtn} onClick={() => runAashanAI("show unpaid invoices")}>💰 Unpaid Invoices</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("find customer")}>🔎 Smart Search</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("create quote")}>📝 Quote Helper</button>
                         <button style={styles.grayBtn} onClick={() => runAashanAI("write follow up email")}>📧 Email Writer</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("accounting assistant")}>🧾 Accounting Assistant</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("explain report")}>📈 Report Explainer</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("job profitability")}>👷 Job Profitability</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("next best actions")}>✅ Next Actions</button>
                         <button style={styles.grayBtn} onClick={() => openAiEmailWriter("quote")}>Quote Email</button>
                         <button style={styles.grayBtn} onClick={() => openAiEmailWriter("invoice")}>Invoice Email</button>
                         <button style={styles.grayBtn} onClick={() => openAiEmailWriter("receipt")}>Receipt Email</button>
@@ -8987,7 +9120,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         <textarea
                           value={aashanAiPrompt}
                           onChange={(e) => setAashanAiPrompt(e.target.value)}
-                          placeholder="Example: find Roy, show unpaid invoices, summarize business, or create quote for Roy to install ceiling fan"
+                          placeholder="Example: daily brief, explain owner equity, job profitability, find Roy, unpaid invoices, or create quote for Roy to install ceiling fan"
                           style={{ ...styles.input, minHeight: 110, resize: "vertical", lineHeight: 1.5 }}
                         />
                       </Field>
