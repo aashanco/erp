@@ -5048,6 +5048,61 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     }));
   }
 
+
+  function aashanAiPolishDescription(description: string, documentType: "quote" | "invoice" | "workorder") {
+    const text = cleanDocumentDescription(description || "").trim();
+    if (!text) return "Professional service labor, materials, preparation, installation, cleanup, and finishing as required.";
+    const lower = text.toLowerCase();
+    const suffixes: string[] = [];
+    if (lower.includes("paint")) suffixes.push("surface preparation, masking, touch-up, and cleanup included");
+    if (lower.includes("drywall") || lower.includes("sheetrock")) suffixes.push("patching, joint compound, sanding, texture match, and finish preparation included");
+    if (lower.includes("fan") || lower.includes("light") || lower.includes("fixture")) suffixes.push("safe removal, installation, testing, and area cleanup included");
+    if (lower.includes("toilet") || lower.includes("faucet") || lower.includes("plumb")) suffixes.push("installation, leak check, and basic function testing included");
+    if (lower.includes("door") || lower.includes("trim")) suffixes.push("alignment, fastening, caulking, and paint-ready finish included");
+    const base = text.charAt(0).toUpperCase() + text.slice(1);
+    const detail = suffixes.length ? ` Includes ${Array.from(new Set(suffixes)).join("; ")}.` : " Includes labor, standard preparation, installation/service, and cleanup.";
+    if (documentType === "invoice") return `${base}.${base.endsWith(".") ? "" : detail} Work completed as agreed.`.replace("..", ".");
+    if (documentType === "workorder") return `${base}. Technician checklist: verify site condition, complete work safely, take before/after photos, test completed work, and collect customer confirmation.`;
+    return `${base}.${base.endsWith(".") ? "" : detail}`.replace("..", ".");
+  }
+
+  function applyAashanCopilotToQuote() {
+    const updated = quoteLines.map((line) => ({ ...line, description: aashanAiPolishDescription(line.description, "quote") }));
+    setQuoteLines(updated);
+    setQuote({
+      ...quote,
+      notes: quote.notes || "Prepared with Aashan AI Copilot. Price includes listed labor and standard materials unless otherwise noted. Customer-provided materials will be noted separately.",
+    });
+    setAashanAiResponse(`Aashan AI Copilot improved the quote descriptions. Review pricing, tax, and customer notes before saving.\n\n${updated.map((line, idx) => `${idx + 1}. ${line.description}`).join("\n")}`);
+  }
+
+  function applyAashanCopilotToInvoice() {
+    const updated = invoiceLines.map((line) => ({ ...line, description: aashanAiPolishDescription(line.description, "invoice") }));
+    setInvoiceLines(updated);
+    setInvoice({
+      ...invoice,
+      notes: invoice.notes || "Services completed by Aashan & Co LLC. Please review the invoice and contact us with any questions.",
+    });
+    setAashanAiResponse(`Aashan AI Copilot improved the invoice descriptions and prepared customer-ready wording.\n\n${updated.map((line, idx) => `${idx + 1}. ${line.description}`).join("\n")}`);
+  }
+
+  function applyAashanCopilotToWorkOrder() {
+    const service = cleanDocumentDescription(workOrder.service || workOrder.notes || "Service work");
+    const checklist = `Aashan AI Work Order Checklist:\n• Confirm customer name, address, and scope before starting.\n• Take before photos.\n• Complete: ${aashanAiPolishDescription(service, "workorder")}\n• Take after photos.\n• Test/inspect completed work.\n• Clean work area.\n• Add completion notes before converting to invoice.`;
+    setWorkOrder({
+      ...workOrder,
+      notes: workOrder.notes ? `${workOrder.notes}\n\n${checklist}` : checklist,
+    });
+    setAashanAiResponse(checklist);
+  }
+
+  function openAashanCopilotEmail(kind: "quote" | "invoice" | "receipt" | "reminder" | "followup") {
+    const customerContext = activeTab === "quotes" ? quote.customer : activeTab === "invoices" ? invoice.customer : activeTab === "workorders" ? workOrder.customer : "";
+    const prompt = customerContext ? `${kind} email for ${customerContext}` : `${kind} email`;
+    setAashanAiResponse(buildAashanAIEmail(kind, prompt));
+    openTab("aashan_ai");
+  }
+
   function openAiQuoteDraft() {
     const prompt = aashanAiPrompt.trim();
     if (!prompt) {
@@ -6608,6 +6663,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                       <button onClick={addQuoteLine} className="bc-action">
                         ＋ New Line
                       </button>
+                      <button type="button" onClick={applyAashanCopilotToQuote} className="bc-action">
+                        ✨ Improve Lines
+                      </button>
+                      <button type="button" onClick={() => openAashanCopilotEmail("quote")} className="bc-action">
+                        📧 AI Email
+                      </button>
                       {editingQuoteId && (
                         <button onClick={resetQuoteForm} className="bc-action">
                           Cancel
@@ -7192,6 +7253,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                       <DocumentPhotoBox documentType="Work Order" documentNo={workOrder.work_order_no || nextWorkOrderNo()} autoSave={!!editingWorkOrderId} />
                     </div>
                     <ButtonRow>
+                      <button type="button" onClick={applyAashanCopilotToWorkOrder} style={styles.grayBtn}>
+                        ✨ AI Checklist
+                      </button>
+                      <button type="button" onClick={() => openAashanCopilotEmail("followup")} style={styles.grayBtn}>
+                        📧 AI Message
+                      </button>
                       <button onClick={saveWorkOrder} style={styles.primaryBtn}>
                         {editingWorkOrderId
                           ? "Update Work Order"
@@ -7541,6 +7608,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                       </button>
                       <button onClick={addInvoiceLine} className="bc-action">
                         ＋ New Line
+                      </button>
+                      <button type="button" onClick={applyAashanCopilotToInvoice} className="bc-action">
+                        ✨ Improve Lines
+                      </button>
+                      <button type="button" onClick={() => openAashanCopilotEmail("invoice")} className="bc-action">
+                        📧 AI Email
                       </button>
                       {editingInvoiceId && (
                         <button
