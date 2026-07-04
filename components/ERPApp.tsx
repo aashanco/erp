@@ -5116,7 +5116,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .bc-lines { width: 100%; min-width: 900px; border-collapse: collapse; background: white; }
 .bc-lines th { text-align: left; font-size: 12px; color: #475569; background: #f8fafc; padding: 10px; border-bottom: 1px solid #d7dee8; }
 .bc-lines td { padding: 7px; border-bottom: 1px solid #e5e7eb; }
-.bc-lines input { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 6px; padding: 9px; font-size: 14px; }
+.bc-lines input, .bc-lines textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 6px; padding: 9px; font-size: 14px; }
+.bc-lines textarea.bc-line-description { min-height: 64px; max-height: none; resize: vertical; line-height: 1.35; white-space: pre-wrap; overflow: hidden; }
+.bc-lines .bc-description-cell { min-width: 300px; width: 38%; white-space: normal; vertical-align: top; }
+.bc-lines th:first-child { min-width: 300px; width: 38%; }
+.bc-lines td { vertical-align: top; }
 .bc-amount { text-align: right; font-weight: 900; white-space: nowrap; color: #0f172a; }
 .bc-delete { border: 0; background: #fee2e2; color: #991b1b; border-radius: 7px; padding: 8px 10px; cursor: pointer; font-weight: 800; }
 .bc-footer-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(260px, 360px); gap: 24px; align-items: start; margin-top: 18px; }
@@ -5172,7 +5176,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   .email-modal { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 600px) {
-  .bc-lines { min-width: 680px; }
+  .bc-lines { min-width: 780px; }
+  .bc-lines .bc-description-cell, .bc-lines th:first-child { min-width: 260px; width: 42%; }
+  .bc-lines textarea.bc-line-description { min-height: 92px; }
   .bc-primary, .bc-action { flex: 1 1 100%; }
   .app-screen section { padding: 8px !important; }
   header h1 { font-size: 20px !important; }
@@ -6268,8 +6274,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                             const c = lineCalc(line);
                             return (
                               <tr key={index}>
-                                <td>
-                                  <input
+                                <td className="bc-description-cell">
+                                  <textarea
+                                    className="bc-line-description"
                                     value={line.description}
                                     onChange={(e) =>
                                       updateQuoteLine(
@@ -6279,6 +6286,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                       )
                                     }
                                     placeholder="Service / item description"
+                                    rows={2}
                                   />
                                 </td>
                                 <td>
@@ -7263,8 +7271,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                             const c = lineCalc(line);
                             return (
                               <tr key={index}>
-                                <td>
-                                  <input
+                                <td className="bc-description-cell">
+                                  <textarea
+                                    className="bc-line-description"
                                     value={line.description}
                                     onChange={(e) =>
                                       updateInvoiceLine(
@@ -7274,6 +7283,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                       )
                                     }
                                     placeholder="Service / item description"
+                                    rows={2}
                                   />
                                 </td>
                                 <td>
