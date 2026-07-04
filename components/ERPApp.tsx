@@ -551,6 +551,7 @@ export default function ERPApp() {
     | "journals"
     | "banks"
     | "reports"
+    | "aashan_ai"
     | "masters"
     | "import"
   >("dashboard");
@@ -649,6 +650,8 @@ export default function ERPApp() {
     number | null
   >(null);
   const [search, setSearch] = useState("");
+  const [aashanAiPrompt, setAashanAiPrompt] = useState("");
+  const [aashanAiResponse, setAashanAiResponse] = useState("Ask Aashan AI to find records, draft emails, create quote wording, or summarize the business.");
   const [bankRegisterAccount, setBankRegisterAccount] = useState("All Accounts");
   const [bankRegisterShow, setBankRegisterShow] = useState("All Transactions");
   const [reportTab, setReportTab] = useState("bank_register");
@@ -688,6 +691,7 @@ export default function ERPApp() {
         "invoices",
         "receipts",
         "reports",
+        "aashan_ai",
       ];
     return [
       "dashboard",
@@ -707,6 +711,7 @@ export default function ERPApp() {
       "journals",
       "banks",
       "reports",
+      "aashan_ai",
       "masters",
       "import",
     ];
@@ -5007,6 +5012,59 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     openTab("reports");
   }
 
+
+  function findCustomerNameFromPrompt(prompt: string) {
+    const text = prompt.toLowerCase();
+    const match = customers.find((c) => c.name && text.includes(String(c.name).toLowerCase()));
+    return match?.name || "";
+  }
+
+  function runAashanAI(customPrompt?: string) {
+    const prompt = (customPrompt ?? aashanAiPrompt).trim();
+    const lower = prompt.toLowerCase();
+    const overdueInvoices = invoices.filter((inv: any) => Number(inv.balance_due || inv.total || 0) > 0 && !String(inv.status || "").toLowerCase().includes("paid"));
+    const pendingQuoteList = quotes.filter((q: any) => !String(q.status || "").toLowerCase().includes("accepted") && !String(q.status || "").toLowerCase().includes("converted"));
+    const customerName = findCustomerNameFromPrompt(prompt);
+
+    if (!prompt) {
+      setAashanAiResponse("Type what you need, for example: create quote for Roy, find unpaid invoices, write invoice email, or summarize business.");
+      return;
+    }
+
+    if (lower.includes("unpaid") || lower.includes("owe") || lower.includes("outstanding")) {
+      const top = overdueInvoices.slice(0, 8).map((inv: any) => `• ${inv.customer || "Customer"} — ${inv.invoice_no || "Invoice"} — ${money(inv.balance_due || inv.total || 0)}`).join("\n");
+      setAashanAiResponse(top ? `Outstanding invoices:\n${top}\n\nOpen Sales Invoices to review or send reminders.` : "No unpaid invoices found from the loaded invoice list.");
+      return;
+    }
+
+    if (lower.includes("summary") || lower.includes("business") || lower.includes("dashboard") || lower.includes("how is")) {
+      setAashanAiResponse(`${greetingText()} Anil, here is the current ERP summary:\n\n• Revenue: ${money(paidRevenue)}\n• Expenses: ${money(totalVendorPaymentAmount)}\n• Net Profit: ${money(netProfit)}\n• Accounts Receivable: ${money(accountsReceivable)}\n• Bank/Cash Balance: ${money(bankBalance)}\n• Pending Quotes: ${pendingQuoteList.length}\n• Unpaid Invoices: ${overdueInvoices.length}\n\nRecommended actions:\n• Follow up pending quotes\n• Review unpaid invoices\n• Check Bank Register for latest cash movement`);
+      return;
+    }
+
+    if (lower.includes("email") || lower.includes("reminder") || lower.includes("follow up") || lower.includes("follow-up")) {
+      const name = customerName || "Customer";
+      setAashanAiResponse(`Subject: Follow-up from Aashan & Co LLC\n\nHi ${name},\n\nThank you for choosing Aashan & Co LLC. I am following up regarding your quote/invoice. Please review it when you have a chance.\n\nIf you have any questions or need any changes, please let us know.\n\nBest Regards,\nAashan & Co LLC\nPhone: (832) 210-4248\nEmail: support@aashan.co`);
+      return;
+    }
+
+    if (lower.includes("quote") || lower.includes("estimate")) {
+      const workText = prompt.replace(/create|make|generate|quote|estimate|for/gi, " ").replace(/\s+/g, " ").trim();
+      setAashanAiResponse(`Draft quote wording:\n\nScope of Work:\n${workText || "Enter service description here"}\n\nSuggested line items:\n• Labor and installation service\n• Materials and supplies\n• Cleanup and finishing\n• Transportation / convenience charge if applicable\n\nCustomer note:\nPaint will be provided by the customer when applicable. Other standard materials, fasteners, caulk, masking, and preparation materials can be provided by Aashan & Co LLC unless stated otherwise.\n\nClick Quotes and paste this into the transaction description.`);
+      return;
+    }
+
+    const matchedCustomers = customers.filter((c) => String(c.name || "").toLowerCase().includes(lower) || String(c.phone || "").toLowerCase().includes(lower) || String(c.email || "").toLowerCase().includes(lower)).slice(0, 5);
+    const matchedInvoices = invoices.filter((inv: any) => String(inv.invoice_no || "").toLowerCase().includes(lower) || String(inv.customer || "").toLowerCase().includes(lower)).slice(0, 5);
+    const matchedQuotes = quotes.filter((q: any) => String(q.quote_no || "").toLowerCase().includes(lower) || String(q.customer || "").toLowerCase().includes(lower)).slice(0, 5);
+    const resultLines = [
+      ...matchedCustomers.map((c) => `• Customer: ${c.name} ${c.phone ? `(${c.phone})` : ""}`),
+      ...matchedInvoices.map((inv: any) => `• Invoice: ${inv.invoice_no || "Invoice"} — ${inv.customer || "Customer"} — ${money(inv.total || 0)}`),
+      ...matchedQuotes.map((q: any) => `• Quote: ${q.quote_no || "Quote"} — ${q.customer || "Customer"} — ${money(q.total || 0)}`),
+    ];
+    setAashanAiResponse(resultLines.length ? `I found these records:\n${resultLines.join("\n")}` : "I did not find an exact loaded record. Try a customer name, invoice number, quote number, or ask for a quote/email/business summary.");
+  }
+
   function pageLabel(tab: typeof activeTab) {
     const labels: Record<string, string> = {
       dashboard: "Dashboard",
@@ -5026,6 +5084,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       journals: "Journal Entries",
       banks: "Banks",
       reports: "Reports",
+      aashan_ai: "Aashan AI",
       masters: "Masters",
       import: "Import / Export",
     };
@@ -5819,6 +5878,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                 />
               </SidebarGroup>
 
+              <SidebarGroup title="AI Assistant">
+                <SideButton
+                  label="Aashan AI"
+                  active={activeTab === "aashan_ai"}
+                  onClick={() => openTab("aashan_ai")}
+                />
+              </SidebarGroup>
+
               {canAdmin && (
                 <SidebarGroup title="Administration">
                   <SideButton
@@ -5852,6 +5919,16 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
               {/* Quick action tiles are kept only on the Dashboard page under Quick Actions. */}
 
               {loading && <p>Loading...</p>}
+
+              {activeTab !== "aashan_ai" && (
+                <button
+                  className="aashan-ai-floating-button"
+                  onClick={() => openTab("aashan_ai")}
+                  style={{ position: "fixed", right: 22, bottom: 84, zIndex: 30, border: 0, borderRadius: 999, padding: "13px 18px", background: "#0f2742", color: "white", fontWeight: 900, boxShadow: "0 16px 40px rgba(15,39,66,.28)", cursor: "pointer" }}
+                >
+                  ✨ Aashan AI
+                </button>
+              )}
 
               {activeTab === "dashboard" && (
                 <>
@@ -8675,6 +8752,53 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                       </div>
                     </SectionCard>
                   )}
+                </>
+              )}
+
+
+
+              {activeTab === "aashan_ai" && (
+                <>
+                  <SectionCard title="Aashan AI">
+                    <div style={{ display: "grid", gap: 16 }}>
+                      <div style={{ background: "linear-gradient(135deg,#0f2742,#047e89)", color: "white", borderRadius: 18, padding: 20 }}>
+                        <h2 style={{ margin: 0, fontSize: 26 }}>Aashan AI</h2>
+                        <p style={{ margin: "8px 0 0", opacity: .92 }}>Your intelligent business assistant for quotes, invoices, customers, reports, and emails.</p>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                        <button style={styles.blueBtn} onClick={() => runAashanAI("summarize business")}>📊 Business Summary</button>
+                        <button style={styles.greenBtn} onClick={() => runAashanAI("show unpaid invoices")}>💰 Unpaid Invoices</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("create quote")}>📝 Quote Helper</button>
+                        <button style={styles.grayBtn} onClick={() => runAashanAI("write follow up email")}>📧 Email Writer</button>
+                      </div>
+
+                      <Field label="Ask Aashan AI">
+                        <textarea
+                          value={aashanAiPrompt}
+                          onChange={(e) => setAashanAiPrompt(e.target.value)}
+                          placeholder="Example: create quote for Roy to install ceiling fan and repair drywall"
+                          style={{ ...styles.input, minHeight: 110, resize: "vertical", lineHeight: 1.5 }}
+                        />
+                      </Field>
+
+                      <ButtonRow>
+                        <button style={styles.primaryBtn} onClick={() => runAashanAI()}>Ask Aashan AI</button>
+                        <button style={styles.grayBtn} onClick={() => { setAashanAiPrompt(""); setAashanAiResponse("Ask Aashan AI to find records, draft emails, create quote wording, or summarize the business."); }}>Clear</button>
+                      </ButtonRow>
+
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 16, padding: 16, whiteSpace: "pre-wrap", lineHeight: 1.55, color: "#0f172a", fontWeight: 600 }}>
+                        {aashanAiResponse}
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
+                        <Card title="Revenue" value={money(paidRevenue)} />
+                        <Card title="Net Profit" value={money(netProfit)} />
+                        <Card title="A/R" value={money(accountsReceivable)} />
+                        <Card title="Pending Quotes" value={String(quotes.filter((q: any) => !String(q.status || "").toLowerCase().includes("accepted") && !String(q.status || "").toLowerCase().includes("converted")).length)} />
+                      </div>
+                    </div>
+                  </SectionCard>
                 </>
               )}
 
