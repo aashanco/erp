@@ -6405,6 +6405,27 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                     </div>
                   </div>
 
+                  <SectionCard title="Aashan AI Command Center">
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+                      <div style={{ background: "linear-gradient(135deg,#0f2742,#047e89)", color: "white", borderRadius: 18, padding: 18 }}>
+                        <h2 style={{ margin: 0, fontSize: 24 }}>Good day, Anil 👋</h2>
+                        <p style={{ margin: "8px 0 0", opacity: .92, lineHeight: 1.45 }}>Aashan AI is ready to help with quotes, collections, jobs, emails, and accounting questions.</p>
+                      </div>
+                      <button style={{ textAlign: "left", padding: 18, border: "1px solid #e2e8f0", borderRadius: 18, background: "#ffffff", color: "#0f172a", cursor: "pointer", boxShadow: "0 8px 22px rgba(15,23,42,.06)" }} onClick={() => { runAashanAI("daily business brief"); openTab("aashan_ai"); }}>
+                        <b>🌅 Daily Brief</b><br />
+                        <span style={styles.helpText}>Today&apos;s work, cash, receivables, and recommended actions.</span>
+                      </button>
+                      <button style={{ textAlign: "left", padding: 18, border: "1px solid #e2e8f0", borderRadius: 18, background: "#ffffff", color: "#0f172a", cursor: "pointer", boxShadow: "0 8px 22px rgba(15,23,42,.06)" }} onClick={() => { runAashanAI("show unpaid invoices"); openTab("aashan_ai"); }}>
+                        <b>💰 Collect Payments</b><br />
+                        <span style={styles.helpText}>{invoices.filter((inv: any) => String(inv.status || "").toLowerCase() !== "paid").length} unpaid invoice records loaded.</span>
+                      </button>
+                      <button style={{ textAlign: "left", padding: 18, border: "1px solid #e2e8f0", borderRadius: 18, background: "#ffffff", color: "#0f172a", cursor: "pointer", boxShadow: "0 8px 22px rgba(15,23,42,.06)" }} onClick={() => { runAashanAI("next best actions"); openTab("aashan_ai"); }}>
+                        <b>✅ Next Best Actions</b><br />
+                        <span style={styles.helpText}>Follow-ups, open work, quote pipeline, and cash tasks.</span>
+                      </button>
+                    </div>
+                  </SectionCard>
+
                   <div style={styles.dashboardSummaryStrip}>
                     <MiniMetric title="Total Invoices" value={money(totalInvoiceAmount)} note={`${invoices.length} Invoices`} icon="🧾" />
                     <MiniMetric title="Total Receipts" value={money(totalReceiptAmount)} note={`${receipts.length} Receipts`} icon="💵" />
