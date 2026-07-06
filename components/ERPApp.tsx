@@ -1951,6 +1951,22 @@ export default function ERPApp() {
     setInvoiceLines((prev) => [...prev, { ...emptyTransactionLine }]);
   }
 
+  function duplicateQuoteLine(index: number) {
+    setQuoteLines((prev) => {
+      const source = prev[index] || emptyTransactionLine;
+      const copy = { ...source };
+      return [...prev.slice(0, index + 1), copy, ...prev.slice(index + 1)];
+    });
+  }
+
+  function duplicateInvoiceLine(index: number) {
+    setInvoiceLines((prev) => {
+      const source = prev[index] || emptyTransactionLine;
+      const copy = { ...source };
+      return [...prev.slice(0, index + 1), copy, ...prev.slice(index + 1)];
+    });
+  }
+
   function deleteQuoteLine(index: number) {
     setQuoteLines((prev) =>
       prev.length === 1
@@ -5690,6 +5706,9 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .bc-action-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; border-bottom: 1px solid #d7dee8; padding-bottom: 12px; }
 .bc-primary { background: #008b96; color: white; border: 0; border-radius: 9px; padding: 10px 18px; font-weight: 800; cursor: pointer; }
 .bc-action { background: #f8fafc; color: #0f6270; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px 14px; font-weight: 800; cursor: pointer; }
+.bc-line-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.bc-copy { background: #eef6ff; color: #0f4c81; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 10px; font-weight: 900; cursor: pointer; }
+.mobile-transaction-sticky { display: none; }
 .bc-general-grid { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 14px 38px; margin-bottom: 24px; }
 .bc-lines-title { font-size: 17px; font-weight: 900; color: #0f3f56; border-bottom: 2px solid #0f3f56; padding-bottom: 8px; margin: 6px 0 10px; }
 .bc-lines-wrap { width: 100%; overflow-x: auto; border: 1px solid #d7dee8; border-radius: 12px; }
@@ -6989,12 +7008,22 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                   ${c.total.toFixed(2)}
                                 </td>
                                 <td>
-                                  <button
-                                    onClick={() => deleteQuoteLine(index)}
-                                    className="bc-delete"
-                                  >
-                                    Delete
-                                  </button>
+                                  <div className="bc-line-actions">
+                                    <button
+                                      type="button"
+                                      onClick={() => duplicateQuoteLine(index)}
+                                      className="bc-copy"
+                                    >
+                                      Copy
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteQuoteLine(index)}
+                                      className="bc-delete"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -7026,6 +7055,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                           <b>${documentTotals(quoteLines).total.toFixed(2)}</b>
                         </div>
                       </div>
+                    </div>
+                    <div className="mobile-transaction-sticky">
+                      <div>
+                        <span>Quote Total</span>
+                        <strong>${documentTotals(quoteLines).total.toFixed(2)}</strong>
+                      </div>
+                      <button type="button" onClick={saveQuote}>Save</button>
+                      <button type="button" onClick={addQuoteLine}>+ Line</button>
                     </div>
                     <DocumentPhotoBox documentType="Quote" documentNo={quote.quote_no || nextQuoteNo()} autoSave={!!editingQuoteId} />
                   </SectionCard>
@@ -7998,12 +8035,22 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                                   ${c.total.toFixed(2)}
                                 </td>
                                 <td>
-                                  <button
-                                    onClick={() => deleteInvoiceLine(index)}
-                                    className="bc-delete"
-                                  >
-                                    Delete
-                                  </button>
+                                  <div className="bc-line-actions">
+                                    <button
+                                      type="button"
+                                      onClick={() => duplicateInvoiceLine(index)}
+                                      className="bc-copy"
+                                    >
+                                      Copy
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteInvoiceLine(index)}
+                                      className="bc-delete"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -8037,6 +8084,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                           </b>
                         </div>
                       </div>
+                    </div>
+                    <div className="mobile-transaction-sticky">
+                      <div>
+                        <span>Invoice Total</span>
+                        <strong>${documentTotals(invoiceLines).total.toFixed(2)}</strong>
+                      </div>
+                      <button type="button" onClick={saveInvoice}>Save</button>
+                      <button type="button" onClick={addInvoiceLine}>+ Line</button>
                     </div>
                     <DocumentPhotoBox documentType="Invoice" documentNo={invoice.invoice_no || nextInvoiceNo()} autoSave={!!editingInvoiceId} />
                   </SectionCard>
