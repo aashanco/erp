@@ -650,6 +650,8 @@ export default function ERPApp() {
     number | null
   >(null);
   const [search, setSearch] = useState("");
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const [aashanAiPrompt, setAashanAiPrompt] = useState("");
   const [aashanAiResponse, setAashanAiResponse] = useState("Ask Aashan AI to find records, draft emails, create quote wording, or summarize the business.");
   const [bankRegisterAccount, setBankRegisterAccount] = useState("All Accounts");
@@ -1247,7 +1249,7 @@ export default function ERPApp() {
       "dashboard", "customers", "vendors", "accounting", "quotes", "jobs",
       "workorders", "technician", "calendar", "invoices", "payments",
       "receipts", "expenses", "purchases", "journals", "banks",
-      "reports", "masters", "import",
+      "reports", "aashan_ai", "masters", "import",
     ];
     if (savedTab && allowedTabs.includes(savedTab)) {
       setActiveTab(savedTab as typeof activeTab);
@@ -1258,6 +1260,34 @@ export default function ERPApp() {
     if (typeof window === "undefined") return;
     localStorage.setItem("aashan_last_mobile_tab", activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleCommandShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTyping = ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName || "");
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandPaletteOpen(true);
+        setCommandQuery("");
+        return;
+      }
+
+      if (event.key === "Escape") {
+        setCommandPaletteOpen(false);
+      }
+
+      if (event.key === "/" && !isTyping) {
+        event.preventDefault();
+        setCommandPaletteOpen(true);
+        setCommandQuery("");
+      }
+    };
+
+    window.addEventListener("keydown", handleCommandShortcut);
+    return () => window.removeEventListener("keydown", handleCommandShortcut);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -4745,6 +4775,10 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   cursor: pointer;
 }
 @media (max-width: 760px) {
+  .command-open-button { width: 100%; justify-content: center; }
+  .command-backdrop { padding-top: 4vh; }
+  .command-palette { border-radius: 18px; }
+  .command-input { font-size: 16px; }
   
 .email-file-attach {
   display: flex;
@@ -5452,6 +5486,59 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     setAashanAiResponse(resultLines.length ? `I found these records:\n${resultLines.join("\n")}` : "I did not find an exact loaded record. Try a customer name, invoice number, quote number, or ask for a quote/email/business summary.");
   }
 
+  type CommandAction = {
+    title: string;
+    subtitle: string;
+    keywords: string;
+    run: () => void;
+  };
+
+  function openCommandTarget(tab: typeof activeTab) {
+    setCommandPaletteOpen(false);
+    setCommandQuery("");
+    openTab(tab);
+  }
+
+  function startNewQuoteFromCommand() {
+    setQuote({ ...emptyQuote, quote_no: nextQuoteNo(), quote_date: new Date().toISOString().slice(0, 10), status: "Draft" });
+    setQuoteLines([{ ...emptyTransactionLine }]);
+    setEditingQuoteId(null);
+    openCommandTarget("quotes");
+  }
+
+  function startNewInvoiceFromCommand() {
+    setInvoice({ ...emptyInvoice, invoice_no: nextInvoiceNo(), invoice_date: new Date().toISOString().slice(0, 10), status: "Draft" });
+    setInvoiceLines([{ ...emptyTransactionLine }]);
+    setEditingInvoiceId(null);
+    openCommandTarget("invoices");
+  }
+
+  function buildCommandActions(): CommandAction[] {
+    const actions: CommandAction[] = [
+      { title: "Open Dashboard", subtitle: "Go to business overview and KPIs", keywords: "dashboard home kpi revenue profit", run: () => openCommandTarget("dashboard") },
+      { title: "Create Quote", subtitle: "Open a new sales quote", keywords: "new quote estimate sales create", run: startNewQuoteFromCommand },
+      { title: "Create Invoice", subtitle: "Open a new sales invoice", keywords: "new invoice bill customer create", run: startNewInvoiceFromCommand },
+      { title: "Create Customer", subtitle: "Open customer master entry", keywords: "new customer client add", run: () => { setCustomer(emptyCustomer); setEditingCustomerId(null); openCommandTarget("customers"); } },
+      { title: "Create Work Order", subtitle: "Open work order entry", keywords: "new work order job technician service", run: () => { setWorkOrder(emptyWorkOrder); setEditingWorkOrderId(null); openCommandTarget("workorders"); } },
+      { title: "Receive Customer Payment", subtitle: "Open customer receipts", keywords: "receipt payment receive paid cash bank", run: () => { setReceipt(emptyReceipt); setEditingReceiptId(null); openCommandTarget("receipts"); } },
+      { title: "Open Reports", subtitle: "Bank Register, P&L, Balance Sheet, GL", keywords: "reports bank register profit loss balance sheet general ledger", run: () => openCommandTarget("reports") },
+      { title: "Open Accounting", subtitle: "Chart of accounts and accounting tools", keywords: "accounting accounts ledger posting", run: () => openCommandTarget("accounting") },
+      { title: "Aashan AI Daily Brief", subtitle: "Show today's jobs, cash, profit, AR, and actions", keywords: "ai daily brief summary business actions", run: () => { setAashanAiResponse(formatAiDailyBrief()); openCommandTarget("aashan_ai"); } },
+      { title: "Aashan AI Search", subtitle: "Ask AI to find records or write emails", keywords: "ai search ask email quote business", run: () => openCommandTarget("aashan_ai") },
+    ];
+
+    return actions.filter((action) => {
+      const q = commandQuery.trim().toLowerCase();
+      if (!q) return true;
+      return `${action.title} ${action.subtitle} ${action.keywords}`.toLowerCase().includes(q);
+    });
+  }
+
+  function runFirstCommand() {
+    const first = buildCommandActions()[0];
+    if (first) first.run();
+  }
+
   function pageLabel(tab: typeof activeTab) {
     const labels: Record<string, string> = {
       dashboard: "Dashboard",
@@ -5551,7 +5638,54 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
   return (
     <main style={styles.page}>
+      {commandPaletteOpen && (
+        <div className="command-backdrop" onClick={() => setCommandPaletteOpen(false)}>
+          <div className="command-palette" onClick={(event) => event.stopPropagation()}>
+            <div className="command-header">
+              <strong>Command Palette</strong>
+              <button type="button" onClick={() => setCommandPaletteOpen(false)}>×</button>
+            </div>
+            <input
+              autoFocus
+              className="command-input"
+              placeholder="Type a command: quote, invoice, receipt, reports, AI..."
+              value={commandQuery}
+              onChange={(event) => setCommandQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") runFirstCommand();
+                if (event.key === "Escape") setCommandPaletteOpen(false);
+              }}
+            />
+            <div className="command-results">
+              {buildCommandActions().map((action, index) => (
+                <button key={action.title} type="button" className="command-result" onClick={action.run}>
+                  <span className="command-title">{action.title}</span>
+                  <span className="command-subtitle">{action.subtitle}</span>
+                  {index === 0 && <span className="command-enter">Enter</span>}
+                </button>
+              ))}
+              {buildCommandActions().length === 0 && (
+                <div className="command-empty">No command found. Try quote, invoice, receipt, reports, customer, or AI.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <style>{`${printCss}
+
+.command-open-button { border: 1px solid #cbd5e1; background: #f8fafc; color: #0f2742; border-radius: 999px; padding: 10px 14px; font-weight: 900; cursor: pointer; white-space: nowrap; }
+.command-backdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(15,23,42,.45); display: grid; place-items: start center; padding: 7vh 16px 16px; }
+.command-palette { width: min(760px, 100%); background: white; border-radius: 22px; box-shadow: 0 28px 90px rgba(15,23,42,.35); overflow: hidden; border: 1px solid rgba(203,213,225,.9); }
+.command-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; }
+.command-header button { border: 0; background: #f1f5f9; color: #0f172a; border-radius: 999px; width: 34px; height: 34px; font-size: 22px; cursor: pointer; }
+.command-input { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid #e2e8f0; padding: 18px; font-size: 18px; outline: none; }
+.command-results { max-height: min(62vh, 560px); overflow-y: auto; padding: 10px; }
+.command-result { position: relative; width: 100%; text-align: left; border: 1px solid transparent; background: white; border-radius: 14px; padding: 13px 100px 13px 14px; cursor: pointer; display: grid; gap: 4px; }
+.command-result:hover, .command-result:focus { background: #f8fafc; border-color: #cbd5e1; outline: none; }
+.command-title { color: #0f172a; font-weight: 900; font-size: 15px; }
+.command-subtitle { color: #64748b; font-size: 13px; }
+.command-enter { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: #e0f2fe; color: #075985; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 900; }
+.command-empty { padding: 18px; color: #64748b; font-weight: 700; }
 
 .bc-action-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; border-bottom: 1px solid #d7dee8; padding-bottom: 12px; }
 .bc-primary { background: #008b96; color: white; border: 0; border-radius: 9px; padding: 10px 18px; font-weight: 800; cursor: pointer; }
@@ -6301,6 +6435,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   onChange={(e) => setSearch(e.target.value)}
                   style={styles.search}
                 />
+                <button
+                  type="button"
+                  className="command-open-button"
+                  onClick={() => { setCommandPaletteOpen(true); setCommandQuery(""); }}
+                  title="Open command palette"
+                >
+                  ⌘K / Ctrl+K
+                </button>
               </div>
 
               {/* Quick action tiles are kept only on the Dashboard page under Quick Actions. */}
