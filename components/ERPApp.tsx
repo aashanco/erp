@@ -234,6 +234,30 @@ type Account = {
   normal_balance: string;
   is_active: boolean;
 };
+
+type GLTransactionHeader = {
+  id?: number;
+  transaction_no?: string;
+  transaction_date?: string;
+  source_type?: string;
+  source_no?: string;
+  description?: string;
+  status?: string;
+  total_debit?: number | string;
+  total_credit?: number | string;
+  created_at?: string;
+};
+
+type GLTransactionLine = {
+  id?: number;
+  header_id?: number;
+  line_no?: number;
+  account_code?: string;
+  account_name?: string;
+  debit?: number | string;
+  credit?: number | string;
+  description?: string;
+};
 type EmailSettings = {
   id?: number;
   from_name: string;
@@ -608,6 +632,8 @@ export default function ERPApp() {
   const [sequences, setSequences] = useState<NumberSequence[]>([]);
   const [sequence, setSequence] = useState<NumberSequence>(emptySequence);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [glHeaders, setGlHeaders] = useState<GLTransactionHeader[]>([]);
+  const [glLines, setGlLines] = useState<GLTransactionLine[]>([]);
   const [account, setAccount] = useState<Account>(emptyAccount);
   const [emailSettings, setEmailSettings] =
     useState<EmailSettings>(emptyEmailSettings);
@@ -1042,6 +1068,8 @@ export default function ERPApp() {
         companyResult,
         sequenceResult,
         accountResult,
+        glHeaderResult,
+        glLineResult,
         emailSettingsResult,
         templateResult,
         printTemplateResult,
@@ -1064,6 +1092,8 @@ export default function ERPApp() {
         supabase.from("company_settings").select("*").limit(1),
         supabase.from("number_sequences").select("*").order("id", { ascending: true }),
         supabase.from("gl_accounts").select("*").order("account_code", { ascending: true }),
+        supabase.from("gl_transaction_headers").select("*").order("transaction_date", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("gl_transaction_lines").select("*").order("header_id", { ascending: false }).order("line_no", { ascending: true }),
         supabase.from("email_settings").select("*").limit(1),
         supabase.from("email_templates").select("*").order("template_name", { ascending: true }),
         supabase.from("print_templates").select("*").order("document_type", { ascending: true }),
@@ -1087,6 +1117,8 @@ export default function ERPApp() {
       const { data: companyData } = companyResult;
       const { data: sequenceData } = sequenceResult;
       const { data: accountData } = accountResult;
+      const { data: glHeaderData, error: glHeaderError } = glHeaderResult;
+      const { data: glLineData, error: glLineError } = glLineResult;
       const { data: emailSettingsData } = emailSettingsResult;
       const { data: templateData } = templateResult;
       const { data: printTemplateData } = printTemplateResult;
@@ -1105,6 +1137,8 @@ export default function ERPApp() {
       if (vendorError) alert(vendorError.message);
       if (expenseError) alert(expenseError.message);
       if (vendorPaymentError) console.warn(vendorPaymentError.message);
+      if (glHeaderError) console.warn(glHeaderError.message);
+      if (glLineError) console.warn(glLineError.message);
       if (attachmentError) console.warn(attachmentError.message);
 
     setCustomers(customerData || []);
@@ -1195,6 +1229,8 @@ export default function ERPApp() {
         })),
       );
       setAccounts(accountData || []);
+    setGlHeaders((glHeaderData || []) as GLTransactionHeader[]);
+    setGlLines((glLineData || []) as GLTransactionLine[]);
     if (emailSettingsData && emailSettingsData.length > 0)
       setEmailSettings({ ...emptyEmailSettings, ...emailSettingsData[0] });
     setTemplates(templateData || []);
@@ -4609,12 +4645,84 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     return String(value || "").trim().toLowerCase();
   }
 
+  function accountKey(value: any) {
+    return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function canonicalAccountName(value: any) {
+    const raw = String(value || "").trim().replace(/\s+/g, " ");
+    if (!raw) return "Cash on hand";
+    const fromBank = banks.find((b) =>
+      accountKey(b.bank_name) === accountKey(raw) || accountKey(b.account_name) === accountKey(raw),
+    );
+    if (fromBank?.bank_name) return String(fromBank.bank_name).trim();
+    if (fromBank?.account_name) return String(fromBank.account_name).trim();
+    const fromAccount = accounts.find((a) => accountKey(a.account_name) === accountKey(raw));
+    if (fromAccount?.account_name) return String(fromAccount.account_name).trim();
+    if (accountKey(raw) === "cash on hand") return "Cash on hand";
+    return raw;
+  }
+
+  function accountMeta(accountName: any) {
+    const key = accountKey(accountName);
+    return accounts.find((a) => accountKey(a.account_name) === key || accountKey(a.account_code) === key);
+  }
+
+  function isCashBankAccountName(accountName: any) {
+    const name = String(accountName || "").toLowerCase();
+    const meta = accountMeta(accountName);
+    const type = String(meta?.account_type || "").toLowerCase();
+    return (
+      type.includes("bank") ||
+      type.includes("cash") ||
+      type.includes("credit card") ||
+      type.includes("petty") ||
+      name.includes("cash") ||
+      name.includes("bank") ||
+      name.includes("checking") ||
+      name.includes("credit card") ||
+      name.includes("visa") ||
+      name.includes("mastercard")
+    );
+  }
+
+  function isIncomeAccountName(accountName: any) {
+    const type = String(accountMeta(accountName)?.account_type || "").toLowerCase();
+    const name = String(accountName || "").toLowerCase();
+    return type.includes("income") || type.includes("revenue") || name.includes("revenue") || name === "sales";
+  }
+
+  function isExpenseAccountName(accountName: any) {
+    const type = String(accountMeta(accountName)?.account_type || "").toLowerCase();
+    return type.includes("expense") || type.includes("cost of goods") || type.includes("cogs");
+  }
+
+  function isLiabilityAccountName(accountName: any) {
+    const type = String(accountMeta(accountName)?.account_type || "").toLowerCase();
+    const name = String(accountName || "").toLowerCase();
+    return type.includes("liability") || name.includes("payable") || name.includes("tax payable");
+  }
+
+  function isEquityAccountName(accountName: any) {
+    const type = String(accountMeta(accountName)?.account_type || "").toLowerCase();
+    const name = String(accountName || "").toLowerCase();
+    return type.includes("equity") || name.includes("capital") || name.includes("owner");
+  }
+
+  function amountByAccount(rows: { account: string; debit: number; credit: number }[], predicate: (account: string) => boolean, normal: "Debit" | "Credit" = "Debit") {
+    return rows.filter((r) => predicate(r.account)).reduce((sum, r) => {
+      const debit = Number(r.debit || 0);
+      const credit = Number(r.credit || 0);
+      return sum + (normal === "Debit" ? debit - credit : credit - debit);
+    }, 0);
+  }
+
   function expenseAccountName(row: Partial<Expense> & Record<string, any>) {
-    return String(row.bank_name || row.paid_from || row.bank_account || row.payment_account || row.payment_method || "Cash on hand").trim();
+    return canonicalAccountName(row.bank_name || row.paid_from || row.bank_account || row.payment_account || row.payment_method || "Cash on hand");
   }
 
   function vendorPaymentAccountName(row: Partial<VendorPayment> & Record<string, any>) {
-    return String(row.paid_from || row.bank_name || row.bank_account || row.payment_method || "Cash on hand").trim();
+    return canonicalAccountName(row.paid_from || row.bank_name || row.bank_account || row.payment_method || "Cash on hand");
   }
 
   function expenseMatchesVendorPayment(e: any, vp: any) {
@@ -4629,45 +4737,32 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     return vendorPayments.filter((vp) => !expenses.some((e: any) => expenseMatchesVendorPayment(e, vp)));
   }
 
-  const bankAccountOptions = Array.from(
-    new Set(
-      [
-        ...banks.map((b) => b.bank_name || b.account_name).filter(Boolean),
-        ...banks.map((b) => b.account_name || b.bank_name).filter(Boolean),
-        ...receipts.map((r) => r.bank_name).filter(Boolean),
-        ...payments.map((p) => p.bank_name).filter(Boolean),
-        ...expenses.map((e: any) => expenseAccountName(e)).filter(Boolean),
-        ...vendorPaymentsForRegister().map((v: any) => vendorPaymentAccountName(v)).filter(Boolean),
-      ].map((value) => String(value).trim()).filter(Boolean),
-    ),
-  ).sort();
+  const bankAccountOptionMap = new Map<string, string>();
+  [
+    ...banks.map((b) => b.bank_name || b.account_name).filter(Boolean),
+    ...banks.map((b) => b.account_name || b.bank_name).filter(Boolean),
+    ...accounts.filter((a) => a.is_active !== false && isCashBankAccountName(a.account_name)).map((a) => a.account_name),
+    ...receipts.map((r) => r.bank_name).filter(Boolean),
+    ...payments.map((p) => p.bank_name).filter(Boolean),
+    ...expenses.map((e: any) => expenseAccountName(e)).filter(Boolean),
+    ...vendorPaymentsForRegister().map((v: any) => vendorPaymentAccountName(v)).filter(Boolean),
+  ].forEach((value) => {
+    const canonical = canonicalAccountName(value);
+    if (canonical && isCashBankAccountName(canonical)) bankAccountOptionMap.set(accountKey(canonical), canonical);
+  });
+  const bankAccountOptions = Array.from(bankAccountOptionMap.values()).sort();
 
-  const paymentAccountOptions = Array.from(
-    new Set(
-      [
-        ...banks.map((b) => b.bank_name || b.account_name).filter(Boolean),
-        ...banks.map((b) => b.account_name || b.bank_name).filter(Boolean),
-        ...accounts
-          .filter((a) => {
-            const type = String(a.account_type || "").toLowerCase();
-            const name = String(a.account_name || "").toLowerCase();
-            return a.is_active !== false && (
-              type.includes("bank") ||
-              type.includes("cash") ||
-              name.includes("cash") ||
-              name.includes("bank") ||
-              name.includes("checking") ||
-              name.includes("credit card") ||
-              name.includes("visa") ||
-              name.includes("mastercard")
-            );
-          })
-          .map((a) => a.account_name)
-          .filter(Boolean),
-        "Cash on hand",
-      ].map((value) => String(value).trim()).filter(Boolean),
-    ),
-  ).sort();
+  const paymentAccountMap = new Map<string, string>();
+  [
+    ...banks.map((b) => b.bank_name || b.account_name).filter(Boolean),
+    ...banks.map((b) => b.account_name || b.bank_name).filter(Boolean),
+    ...accounts.filter((a) => a.is_active !== false && isCashBankAccountName(a.account_name)).map((a) => a.account_name),
+    "Cash on hand",
+  ].forEach((value) => {
+    const canonical = canonicalAccountName(value);
+    if (canonical && isCashBankAccountName(canonical)) paymentAccountMap.set(accountKey(canonical), canonical);
+  });
+  const paymentAccountOptions = Array.from(paymentAccountMap.values()).sort();
 
   function formatReportDate(value: any) {
     if (!value) return "";
@@ -4693,7 +4788,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       rawDate: r.receipt_date || "",
       date: formatReportDate(r.receipt_date),
       transaction: `Receipt — ${r.receipt_no || r.id || ""}`,
-      account: r.bank_name || "Cash on hand",
+      account: canonicalAccountName(r.bank_name || "Cash on hand"),
       customer: r.customer || "",
       supplier: "",
       description: cleanDocumentDescription(r.notes || `Payment received from ${r.customer || "customer"}`),
@@ -4708,7 +4803,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       rawDate: p.payment_date || "",
       date: formatReportDate(p.payment_date),
       transaction: `Receipt — ${p.payment_no || p.id || ""}`,
-      account: p.bank_name || "Cash on hand",
+      account: canonicalAccountName(p.bank_name || "Cash on hand"),
       customer: p.customer || "",
       supplier: "",
       description: cleanDocumentDescription(p.notes || `Payment received from ${p.customer || "customer"}`),
@@ -4749,7 +4844,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     }));
 
     return [...receiptRows, ...legacyPaymentRows, ...expenseRows, ...vendorPaymentRows].filter((row) => {
-      const accountOk = selectedAccount === "All Accounts" || row.account === selectedAccount;
+      const accountOk = selectedAccount === "All Accounts" || accountKey(row.account) === accountKey(selectedAccount);
       const showOk = selectedShow === "All Transactions" || row.kind === selectedShow;
       const searchOk = !q || [row.date, row.transaction, row.account, row.customer, row.supplier, row.description, row.debit, row.credit]
         .join(" ")
@@ -4788,8 +4883,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     return bankOpeningBalanceFor(accountName) + rows.reduce((sum, row) => sum + Number(row.debit || 0) - Number(row.credit || 0), 0);
   }
 
-  const bankBalance = bankAccountOptions.length
-    ? bankAccountOptions.reduce((sum, accountName) => sum + bankBalanceForAccount(accountName), 0)
+  const bankAccountBalanceRows = bankAccountOptions
+    .map((accountName) => ({ label: accountName, amount: bankBalanceForAccount(accountName) }))
+    .filter((row) => Math.abs(Number(row.amount || 0)) > 0.004);
+
+  const bankBalance = bankAccountBalanceRows.length
+    ? bankAccountBalanceRows.reduce((sum, row) => sum + Number(row.amount || 0), 0)
     : bankOpeningBalanceFor("All Accounts");
 
   function bankBalanceText(value: number) {
@@ -5038,42 +5137,67 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   const trialDebitTotal = reportTrialRows.reduce((sum, r) => sum + Number(r.debit || 0), 0);
   const trialCreditTotal = reportTrialRows.reduce((sum, r) => sum + Number(r.credit || 0), 0);
 
-  const reportGeneralLedgerRows = [
+  const postedGeneralLedgerRows = glLines
+    .map((line) => {
+      const header = glHeaders.find((h) => Number(h.id || 0) === Number(line.header_id || 0));
+      const sourceNo = header?.source_no || header?.transaction_no || line.header_id || "";
+      const sourceType = header?.source_type || "GL";
+      return {
+        rawDate: header?.transaction_date || header?.created_at || "",
+        date: formatReportDate(header?.transaction_date || header?.created_at || ""),
+        source: `${sourceType} — ${sourceNo}`,
+        account: canonicalAccountName(line.account_name || line.account_code || "Unassigned"),
+        description: line.description || header?.description || "Posted ledger entry",
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0),
+        sortId: Number(line.id || line.line_no || 0),
+      };
+    })
+    .filter((row) => Math.abs(row.debit) > 0.004 || Math.abs(row.credit) > 0.004);
+
+  const fallbackGeneralLedgerRows = [
     ...invoices.filter((i) => i.status !== "Cancelled").flatMap((i) => {
       const total = invoiceTotal(i);
       const tax = Number(i.tax_amount || 0);
       const revenue = Math.max(0, total - tax);
       return [
-        { date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Accounts Receivable", description: i.customer || "Customer invoice", debit: total, credit: 0 },
-        { date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Repair & Maintenance Revenue", description: i.customer || "Sales revenue", debit: 0, credit: revenue },
-        ...(tax ? [{ date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Tax Payable", description: i.customer || "Sales tax", debit: 0, credit: tax }] : []),
+        { rawDate: i.invoice_date || "", date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Accounts Receivable", description: i.customer || "Customer invoice", debit: total, credit: 0, sortId: Number(i.id || 0) },
+        { rawDate: i.invoice_date || "", date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Repair & Maintenance Revenue", description: i.customer || "Sales revenue", debit: 0, credit: revenue, sortId: Number(i.id || 0) },
+        ...(tax ? [{ rawDate: i.invoice_date || "", date: formatReportDate(i.invoice_date), source: `Invoice — ${i.invoice_no}`, account: "Tax Payable", description: i.customer || "Sales tax", debit: 0, credit: tax, sortId: Number(i.id || 0) }] : []),
       ];
     }),
     ...receipts.flatMap((r) => [
-      { date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: r.bank_name || "Cash on hand", description: r.notes || r.customer, debit: Number(r.amount || 0), credit: 0 },
-      { date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: "Accounts Receivable", description: r.customer || "Customer receipt", debit: 0, credit: Number(r.amount || 0) },
+      { rawDate: r.receipt_date || "", date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: canonicalAccountName(r.bank_name || "Cash on hand"), description: r.notes || r.customer, debit: Number(r.amount || 0), credit: 0, sortId: Number(r.id || 0) },
+      { rawDate: r.receipt_date || "", date: formatReportDate(r.receipt_date), source: `Receipt — ${r.receipt_no}`, account: "Accounts Receivable", description: r.customer || "Customer receipt", debit: 0, credit: Number(r.amount || 0), sortId: Number(r.id || 0) },
     ]),
     ...payments.flatMap((p) => [
-      { date: formatReportDate(p.payment_date), source: `Receipt — ${p.invoice_no || p.id}`, account: p.bank_name || "Cash on hand", description: p.notes || p.customer, debit: Number(p.amount || 0), credit: 0 },
-      { date: formatReportDate(p.payment_date), source: `Receipt — ${p.invoice_no || p.id}`, account: "Accounts Receivable", description: p.customer || "Customer receipt", debit: 0, credit: Number(p.amount || 0) },
+      { rawDate: p.payment_date || "", date: formatReportDate(p.payment_date), source: `Receipt — ${p.invoice_no || p.id}`, account: canonicalAccountName(p.bank_name || "Cash on hand"), description: p.notes || p.customer, debit: Number(p.amount || 0), credit: 0, sortId: Number(p.id || 0) },
+      { rawDate: p.payment_date || "", date: formatReportDate(p.payment_date), source: `Receipt — ${p.invoice_no || p.id}`, account: "Accounts Receivable", description: p.customer || "Customer receipt", debit: 0, credit: Number(p.amount || 0), sortId: Number(p.id || 0) },
     ]),
     ...purchaseInvoices.flatMap((pi) => [
-      { date: formatReportDate(pi.invoice_date), source: `Bill — ${pi.purchase_invoice_no}`, account: pi.category || "Expense", description: pi.description || pi.vendor, debit: Number(pi.amount || 0), credit: 0 },
-      { date: formatReportDate(pi.invoice_date), source: `Bill — ${pi.purchase_invoice_no}`, account: "Accounts Payable", description: pi.vendor || "Vendor bill", debit: 0, credit: Number(pi.amount || 0) },
+      { rawDate: pi.invoice_date || "", date: formatReportDate(pi.invoice_date), source: `Bill — ${pi.purchase_invoice_no}`, account: pi.category || "Expense", description: pi.description || pi.vendor, debit: Number(pi.amount || 0), credit: 0, sortId: Number(pi.id || 0) },
+      { rawDate: pi.invoice_date || "", date: formatReportDate(pi.invoice_date), source: `Bill — ${pi.purchase_invoice_no}`, account: "Accounts Payable", description: pi.vendor || "Vendor bill", debit: 0, credit: Number(pi.amount || 0), sortId: Number(pi.id || 0) },
     ]),
     ...expenses.filter((e: any) => isActiveStatus(e.status || "Paid")).flatMap((e) => [
-      { date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: e.category || "Expense", description: e.description || e.vendor, debit: Number(e.amount || 0), credit: 0 },
-      { date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: expenseAccountName(e), description: e.description || e.vendor, debit: 0, credit: Number(e.amount || 0) },
+      { rawDate: e.expense_date || "", date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: e.category || "Expense", description: e.description || e.vendor, debit: Number(e.amount || 0), credit: 0, sortId: Number(e.id || 0) },
+      { rawDate: e.expense_date || "", date: formatReportDate(e.expense_date), source: `Payment — ${e.expense_no}`, account: expenseAccountName(e), description: e.description || e.vendor, debit: 0, credit: Number(e.amount || 0), sortId: Number(e.id || 0) },
     ]),
     ...vendorPaymentsForRegister().flatMap((vp) => [
-      { date: formatReportDate(vp.payment_date), source: `Payment — ${vp.payment_no}`, account: "Accounts Payable", description: vp.description || vp.vendor, debit: Number(vp.amount || 0), credit: 0 },
-      { date: formatReportDate(vp.payment_date), source: `Payment — ${vp.payment_no}`, account: vendorPaymentAccountName(vp), description: vp.description || vp.vendor, debit: 0, credit: Number(vp.amount || 0) },
+      { rawDate: vp.payment_date || "", date: formatReportDate(vp.payment_date), source: `Payment — ${vp.payment_no}`, account: "Accounts Payable", description: vp.description || vp.vendor, debit: Number(vp.amount || 0), credit: 0, sortId: Number(vp.id || 0) },
+      { rawDate: vp.payment_date || "", date: formatReportDate(vp.payment_date), source: `Payment — ${vp.payment_no}`, account: vendorPaymentAccountName(vp), description: vp.description || vp.vendor, debit: 0, credit: Number(vp.amount || 0), sortId: Number(vp.id || 0) },
     ]),
     ...journalEntries.flatMap((je) => [
-      { date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: je.debit_account, description: je.description, debit: Number(je.amount || 0), credit: 0 },
-      { date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: je.credit_account, description: je.description, debit: 0, credit: Number(je.amount || 0) },
+      { rawDate: je.journal_date || "", date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: canonicalAccountName(je.debit_account), description: je.description, debit: Number(je.amount || 0), credit: 0, sortId: Number(je.id || 0) },
+      { rawDate: je.journal_date || "", date: formatReportDate(je.journal_date), source: `Journal — ${je.journal_no}`, account: canonicalAccountName(je.credit_account), description: je.description, debit: 0, credit: Number(je.amount || 0), sortId: Number(je.id || 0) },
     ]),
-  ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  ];
+
+  const reportGeneralLedgerRows = (postedGeneralLedgerRows.length ? postedGeneralLedgerRows : fallbackGeneralLedgerRows)
+    .sort((a, b) => {
+      const dateCompare = String(b.rawDate || "").localeCompare(String(a.rawDate || ""));
+      if (dateCompare !== 0) return dateCompare;
+      return Number(b.sortId || 0) - Number(a.sortId || 0);
+    });
 
   const reportCustomerStatementRows = [
     ...invoices.map((i) => ({ date: formatReportDate(i.invoice_date), transaction: `Invoice — ${i.invoice_no}`, customer: i.customer, debit: invoiceTotal(i), credit: 0, balance: invoiceBalance(i) })),
@@ -6553,8 +6677,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                           { label: "Accounts receivable", amount: accountsReceivable, bold: true, onClick: () => openDashboardDrillDown("customer_statement") },
                           { label: "Accounts receivable", amount: accountsReceivable, indent: true, onClick: () => openDashboardDrillDown("customer_statement") },
                           { label: "Cash & Bank", amount: bankBalance, bold: true, onClick: () => openDashboardDrillDown("bank_register", "All Accounts", "All Transactions") },
-                          { label: "Bank", amount: banks.filter((b) => String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true, onClick: () => openDashboardDrillDown("bank_register", "All Accounts", "All Transactions") },
-                          { label: "Cash on hand", amount: banks.filter((b) => !String(b.account_name || '').toLowerCase().includes('bank')).reduce((sum, b) => sum + Number(b.current_balance || 0), 0), indent: true, onClick: () => openDashboardDrillDown("bank_register", "All Accounts", "All Transactions") },
+                          ...bankAccountBalanceRows.map((row) => ({
+                            label: row.label,
+                            amount: row.amount,
+                            indent: true,
+                            onClick: () => openDashboardDrillDown("bank_register", row.label, "All Transactions"),
+                          })),
                         ]}
                       />
 
