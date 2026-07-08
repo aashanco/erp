@@ -33,6 +33,14 @@ function escapeHtml(value: string) {
     .replaceAll('"', '&quot;');
 }
 
+
+function parseEmailList(value: string) {
+  return String(value || '')
+    .split(/[\n;,]+/)
+    .map((email) => email.trim())
+    .filter(Boolean);
+}
+
 function makeViewUrl(requestUrl: string, body: any) {
   if (body.viewUrl || body.view_url) return String(body.viewUrl || body.view_url);
 
@@ -111,13 +119,14 @@ export async function onRequestPost(context: any) {
     const body = await context.request.json();
 
     const to = String(body.to || '').trim();
+    const toList = parseEmailList(to);
     const subject = String(body.subject || '').trim();
     const text = String(body.text || '').trim();
     const rawHtml = String(body.html || text).trim();
     const documentType = String(body.documentType || 'Document').trim();
     const viewUrl = makeViewUrl(context.request.url, body);
 
-    if (!to) return jsonResponse({ error: 'Recipient email is missing.' }, 400);
+    if (!toList.length) return jsonResponse({ error: 'Recipient email is missing.' }, 400);
     if (!subject) return jsonResponse({ error: 'Email subject is missing.' }, 400);
     if (!rawHtml && !text) return jsonResponse({ error: 'Email body is missing.' }, 400);
 
@@ -129,7 +138,7 @@ export async function onRequestPost(context: any) {
 
     const resendBody: any = {
       from: env.EMAIL_FROM || 'Aashan & Co LLC <support@aashan.co>',
-      to: [to],
+      to: toList,
       subject,
       html,
       text: text || rawHtml.replace(/<[^>]+>/g, ''),
