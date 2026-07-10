@@ -499,6 +499,16 @@ const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
     subject: "Invoice {{invoice_no}} from Aashan & Co LLC",
     body: "Hi {{customer_name}},\n\nThank you for choosing Aashan & Co LLC.\n\nPlease find your invoice attached for the services provided. We kindly request that you review the invoice.\n\nIf you have any questions regarding this invoice or require additional information, please do not hesitate to contact us. We are happy to assist you.\n\nWe appreciate your business and look forward to serving you again in the future.\n\nWe would also greatly appreciate your feedback. Please leave us a review on Facebook:\n\nhttps://www.facebook.com/profile.php?id=61584788072935&sk=reviews\n\nYour review helps us improve our services and assists other customers in making informed decisions.\n\nThank you for choosing Aashan & Co LLC.\n\nBest Regards,\n\nAashan & Co LLC\n\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co",
   },
+  "Payment Reminder Email": {
+    template_name: "Payment Reminder Email",
+    subject: "Payment Reminder – Outstanding Balance {{balance_due}}",
+    body: "Hi {{customer_name}},\n\nThis is a friendly reminder regarding the outstanding balance on your account.\n\nInvoice Number: {{invoice_no}}\nInvoice Date: {{invoice_date}}\nDue Date: {{due_date}}\nOriginal Amount: {{invoice_amount}}\nAmount Paid: {{amount_paid}}\nBalance Due: {{balance_due}}\nDays Overdue: {{days_overdue}}\n\nPlease disregard this message if payment has already been sent.\n\nZelle Payment: 832-210-4248\n\nPlease contact us if you have any questions or need additional information.\n\nThank you,\n\nAashan & Co LLC\nPhone: (832) 210-4248\nEmail: support@aashan.co\nWebsite: www.aashan.co",
+  },
+  "Customer Statement Email": {
+    template_name: "Customer Statement Email",
+    subject: "Statement of Account – {{customer_name}}",
+    body: "Hi {{customer_name}},\n\nPlease find your statement of account for {{statement_period}} below.\n\nOpening Balance: {{opening_balance}}\nTotal Invoices: {{total_invoices}}\nTotal Payments: {{total_payments}}\nClosing Balance: {{closing_balance}}\n\nPlease contact us if you have any questions regarding this statement.\n\nThank you,\nAashan & Co LLC\nPhone: (832) 210-4248\nEmail: support@aashan.co",
+  },
   "Payment Receipt Email": {
     template_name: "Payment Receipt Email",
     subject: "Payment Receipt {{receipt_no}} from Aashan & Co LLC",
@@ -687,6 +697,10 @@ export default function ERPApp() {
   const [bankRegisterAccount, setBankRegisterAccount] = useState("All Accounts");
   const [bankRegisterShow, setBankRegisterShow] = useState("All Transactions");
   const [reportTab, setReportTab] = useState("bank_register");
+  const [statementCustomer, setStatementCustomer] = useState("All Customers");
+  const [statementFromDate, setStatementFromDate] = useState("");
+  const [statementToDate, setStatementToDate] = useState("");
+  const [statementOutstandingOnly, setStatementOutstandingOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -3248,11 +3262,12 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
   function emailTemplateName(type: string) {
     const clean = String(type || "").toLowerCase();
+    if (clean.includes("statement")) return "Customer Statement Email";
+    if (clean.includes("reminder") || clean.includes("overdue")) return "Payment Reminder Email";
     if (clean.includes("invoice")) return "Invoice Email";
     if (clean.includes("quote")) return "Quote Email";
     if (clean.includes("receipt") || clean.includes("payment"))
       return "Payment Receipt Email";
-    if (clean.includes("overdue")) return "Overdue Reminder Email";
     return type;
   }
 
@@ -3497,6 +3512,82 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     );
     showLocalNotification("Aashan ERP email sent", `${emailDraft.type} sent to ${emailDraft.to}`);
     setEmailDraft(emptyEmailDraft);
+  }
+
+  function reminderDaysOverdue(inv: Invoice) {
+    if (!inv.due_date) return 0;
+    const due = new Date(`${String(inv.due_date).slice(0, 10)}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.floor((today.getTime() - due.getTime()) / 86400000));
+  }
+
+  function sendInvoiceReminder(inv: Invoice) {
+    const customerRecord = getCustomerByName(inv.customer);
+    const total = invoiceTotal(inv);
+    const paid = invoicePaidAmount(inv.id, inv.invoice_no);
+    const balance = invoiceBalance(inv);
+    if (balance <= 0) return alert("This invoice has no outstanding balance.");
+    emailDocument(
+      "Payment Reminder",
+      inv.customer_email || customerRecord?.email || "",
+      `Payment Reminder – Invoice ${inv.invoice_no}`,
+      DEFAULT_EMAIL_TEMPLATES["Payment Reminder Email"].body,
+      {
+        customer: inv.customer,
+        customer_name: inv.customer,
+        invoice_no: inv.invoice_no,
+        document_no: inv.invoice_no,
+        invoice_date: inv.invoice_date,
+        due_date: inv.due_date,
+        invoice_amount: money(total),
+        amount_paid: money(paid),
+        balance_due: money(balance),
+        balance,
+        days_overdue: reminderDaysOverdue(inv),
+        total_amount: total,
+        customer_email: inv.customer_email || customerRecord?.email || "",
+        customer_phone: inv.customer_phone || customerRecord?.phone || "",
+        customer_address: inv.customer_address || customerRecord?.address || "",
+        notes: `Outstanding payment reminder for invoice ${inv.invoice_no}`,
+        document_date: inv.invoice_date,
+      },
+    );
+  }
+
+  function statementRowsFor(customerName = statementCustomer) {
+    const rows = [
+      ...invoices.filter((i) => i.status !== "Cancelled").map((i) => ({ rawDate: i.invoice_date || "", date: formatReportDate(i.invoice_date), transaction: `Invoice — ${i.invoice_no}`, customer: i.customer, debit: invoiceTotal(i), credit: 0, open: invoiceBalance(i) })),
+      ...receipts.filter((r) => isActiveStatus(r.status || "Posted")).map((r) => ({ rawDate: r.receipt_date || "", date: formatReportDate(r.receipt_date), transaction: `Receipt — ${r.receipt_no}`, customer: r.customer, debit: 0, credit: Number(r.amount || 0), open: 0 })),
+      ...payments.filter((p) => isActiveStatus(p.status || "Posted")).map((p) => ({ rawDate: p.payment_date || "", date: formatReportDate(p.payment_date), transaction: `Receipt — ${p.invoice_no || p.id}`, customer: p.customer, debit: 0, credit: Number(p.amount || 0), open: 0 })),
+    ].filter((r) => (customerName === "All Customers" || r.customer === customerName) && (!statementFromDate || r.rawDate >= statementFromDate) && (!statementToDate || r.rawDate <= statementToDate));
+    rows.sort((a, b) => String(a.rawDate).localeCompare(String(b.rawDate)));
+    let running = 0;
+    return rows.map((r) => ({ ...r, balance: (running += Number(r.debit || 0) - Number(r.credit || 0)) }));
+  }
+
+  function emailCustomerStatement() {
+    if (statementCustomer === "All Customers") return alert("Select one customer to email a statement.");
+    const customerRecord = getCustomerByName(statementCustomer);
+    const rows = statementRowsFor(statementCustomer);
+    const totalInvoices = rows.reduce((s, r) => s + Number(r.debit || 0), 0);
+    const totalPayments = rows.reduce((s, r) => s + Number(r.credit || 0), 0);
+    const closing = totalInvoices - totalPayments;
+    const lines = rows.map((r) => ({ description: `${r.date}  ${r.transaction}`, qty: 1, unit_price: Number(r.debit || 0) - Number(r.credit || 0), total: Number(r.debit || 0) - Number(r.credit || 0) }));
+    emailDocument("Customer Statement", customerRecord?.email || "", `Statement of Account – ${statementCustomer}`, DEFAULT_EMAIL_TEMPLATES["Customer Statement Email"].body, {
+      customer: statementCustomer, customer_name: statementCustomer, document_no: `STATEMENT-${new Date().toISOString().slice(0,10)}`,
+      statement_period: `${statementFromDate || "Beginning"} to ${statementToDate || "Today"}`,
+      opening_balance: money(0), total_invoices: money(totalInvoices), total_payments: money(totalPayments), closing_balance: money(closing),
+      balance: closing, total_amount: closing, lines, customer_email: customerRecord?.email || "", customer_phone: customerRecord?.phone || "", customer_address: customerRecord?.address || "",
+      notes: "Customer Statement of Account",
+    });
+  }
+
+  function printCustomerStatement() {
+    const rows = statementRowsFor();
+    const title = statementCustomer === "All Customers" ? "Customer Statement" : `Statement of Account – ${statementCustomer}`;
+    const html = `<html><head><title>${title}</title><style>body{font-family:Arial;padding:28px;color:#172033}h1{margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ccd5e0;padding:8px;text-align:left}th{background:#eef3f8}.num{text-align:right}</style></head><body><h1>${company.company_name || "Aashan & Co LLC"}</h1><h2>${title}</h2><p>${statementFromDate || "Beginning"} to ${statementToDate || "Today"}</p><table><thead><tr><th>Date</th><th>Transaction</th><th>Debit</th><th>Credit</th><th>Running Balance</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.date}</td><td>${r.transaction}</td><td class="num">${r.debit ? money(r.debit) : "-"}</td><td class="num">${r.credit ? money(r.credit) : "-"}</td><td class="num">${money(r.balance)}</td></tr>`).join("")}</tbody></table></body></html>`;
+    const w = window.open("", "_blank"); if (!w) return alert("Please allow pop-ups to print the statement."); w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 250);
   }
 
   function openInvoicePrint(inv: Invoice) {
@@ -5253,11 +5344,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       return Number(b.sortId || 0) - Number(a.sortId || 0);
     });
 
-  const reportCustomerStatementRows = [
-    ...invoices.map((i) => ({ date: formatReportDate(i.invoice_date), transaction: `Invoice — ${i.invoice_no}`, customer: i.customer, debit: invoiceTotal(i), credit: 0, balance: invoiceBalance(i) })),
-    ...receipts.map((r) => ({ date: formatReportDate(r.receipt_date), transaction: `Receipt — ${r.receipt_no}`, customer: r.customer, debit: 0, credit: Number(r.amount || 0), balance: 0 })),
-    ...payments.map((p) => ({ date: formatReportDate(p.payment_date), transaction: `Receipt — ${p.invoice_no || p.id}`, customer: p.customer, debit: 0, credit: Number(p.amount || 0), balance: 0 })),
-  ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const reportCustomerStatementRows = statementRowsFor().filter((r) => !statementOutstandingOnly || r.balance > 0);
 
   const reportVendorStatementRows = [
     ...purchaseInvoices.map((pi) => ({ date: formatReportDate(pi.invoice_date), transaction: `Bill — ${pi.purchase_invoice_no}`, vendor: pi.vendor, debit: 0, credit: Number(pi.amount || 0), description: pi.description || pi.category })),
@@ -8409,6 +8496,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                           >
                             Email
                           </button>
+                          {invoiceBalance(i) > 0 && i.status !== "Cancelled" && (
+                            <button style={styles.greenBtn} onClick={() => sendInvoiceReminder(i)}>
+                              Reminder
+                            </button>
+                          )}
                           <button
                             style={styles.smallBtn}
                             onClick={() => editInvoice(i)}
@@ -9655,11 +9747,18 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                   )}
 
                   {reportTab === "customer_statement" && (
-                    <SectionCard title="Customer Statement">
+                    <SectionCard title="Customer Statement of Account">
+                      <div className="form-grid" style={{ marginBottom: 14 }}>
+                        <Field label="Customer"><select value={statementCustomer} onChange={(e) => setStatementCustomer(e.target.value)} style={styles.input}><option>All Customers</option>{customers.map(c => <option key={c.id || c.customer_no} value={c.name}>{c.name}</option>)}</select></Field>
+                        <Input label="From Date" type="date" value={statementFromDate} onChange={setStatementFromDate} />
+                        <Input label="To Date" type="date" value={statementToDate} onChange={setStatementToDate} />
+                        <Field label="Display"><label style={{display:"flex",gap:8,alignItems:"center",paddingTop:10}}><input type="checkbox" checked={statementOutstandingOnly} onChange={(e)=>setStatementOutstandingOnly(e.target.checked)} /> Outstanding only</label></Field>
+                      </div>
+                      <ButtonRow><button style={styles.printBtn} onClick={printCustomerStatement}>Print / PDF</button><button style={styles.greenBtn} onClick={emailCustomerStatement}>Email Statement</button><button style={styles.grayBtn} onClick={() => exportCsv("customer-statement.csv", [["Date","Transaction","Customer","Debit","Credit","Running Balance"], ...reportCustomerStatementRows.map(r => [r.date,r.transaction,r.customer,r.debit,r.credit,r.balance])])}>Export CSV</button></ButtonRow>
                       <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
-                          <thead><tr><th>Date</th><th>Transaction</th><th>Customer</th><th>Invoice/Debit</th><th>Payment/Credit</th><th>Open Balance</th></tr></thead>
-                          <tbody>{reportCustomerStatementRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.transaction}</td><td>{r.customer}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.balance ? money(r.balance) : "-"}</td></tr>))}</tbody>
+                          <thead><tr><th>Date</th><th>Transaction</th><th>Customer</th><th>Invoice/Debit</th><th>Payment/Credit</th><th>Running Balance</th></tr></thead>
+                          <tbody>{reportCustomerStatementRows.map((r, idx) => (<tr key={idx}><td>{r.date}</td><td>{r.transaction}</td><td>{r.customer}</td><td style={styles.bankRegisterNumber}>{r.debit ? money(r.debit) : "-"}</td><td style={styles.bankRegisterNumber}>{r.credit ? money(r.credit) : "-"}</td><td style={styles.bankRegisterNumber}>{money(r.balance)}</td></tr>))}</tbody>
                         </table>
                       </div>
                     </SectionCard>
