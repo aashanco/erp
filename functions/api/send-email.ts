@@ -34,6 +34,16 @@ function escapeHtml(value: string) {
 }
 
 
+
+function normalizeEmailText(value: unknown) {
+  return String(value ?? '')
+    .replaceAll('%0D%0A', '\n')
+    .replaceAll('%0A', '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n');
+}
+
 function parseEmailList(value: string) {
   return String(value || '')
     .split(/[\n;,]+/)
@@ -77,9 +87,10 @@ async function fileAttachmentToResend(item: any) {
 }
 
 function htmlShell(rawBody: string, viewUrl: string, documentType: string) {
-  const bodyHtml = String(rawBody || '').includes('<br')
-    ? String(rawBody || '')
-    : escapeHtml(String(rawBody || '')).replaceAll('\n', '<br />');
+  const normalizedBody = normalizeEmailText(rawBody);
+  const bodyHtml = normalizedBody.includes('<br')
+    ? normalizedBody
+    : escapeHtml(normalizedBody).replaceAll('\n', '<br />');
 
   const button = viewUrl
     ? `
@@ -121,8 +132,8 @@ export async function onRequestPost(context: any) {
     const to = String(body.to || '').trim();
     const toList = parseEmailList(to);
     const subject = String(body.subject || '').trim();
-    const text = String(body.text || '').trim();
-    const rawHtml = String(body.html || text).trim();
+    const text = normalizeEmailText(body.text).trim();
+    const rawHtml = normalizeEmailText(body.html || text).trim();
     const documentType = String(body.documentType || 'Document').trim();
     const viewUrl = makeViewUrl(context.request.url, body);
 

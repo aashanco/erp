@@ -3279,8 +3279,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     );
   }
 
+  function normalizeEmailTemplateText(value: unknown) {
+    return String(value ?? "")
+      .replaceAll("%0D%0A", "\n")
+      .replaceAll("%0A", "\n")
+      .replace(/\\r\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\n");
+  }
+
   function replaceTemplateVariables(text: string, data: Record<string, any>) {
-    let output = String(text || "");
+    let output = normalizeEmailTemplateText(text);
 
     const merged = {
       company_name: company.company_name || "Aashan & Co LLC",
@@ -3322,9 +3331,8 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       data,
     );
 
-    const htmlBody = String(body || "")
-      .replaceAll("%0D%0A", "<br />")
-      .replaceAll("\n", "<br />");
+    const normalizedBody = normalizeEmailTemplateText(body);
+    const htmlBody = normalizedBody.replaceAll("\n", "<br />");
 
     const documentLines = getDocumentLines(data);
     const documentTotalsValue = documentTotals(documentLines);
@@ -3348,7 +3356,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       type,
       to,
       subject,
-      body: String(body || "").replaceAll("%0D%0A", "\n"),
+      body: normalizedBody,
       html: htmlBody,
       data: {
         ...data,
@@ -3452,8 +3460,8 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
         subject: emailDraft.subject,
         html:
           emailDraft.html ||
-          String(emailDraft.body || "").replaceAll("\n", "<br />"),
-        text: emailDraft.body,
+          normalizeEmailTemplateText(emailDraft.body).replaceAll("\n", "<br />"),
+        text: normalizeEmailTemplateText(emailDraft.body),
         documentType: emailDraft.type,
         templateName: emailTemplateName(emailDraft.type),
         customer:
