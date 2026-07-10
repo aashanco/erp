@@ -1330,41 +1330,95 @@ export default function ERPApp() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      setSession(data.session);
-      if (data.session?.user) await loadUserProfile(data.session.user);
-      await loadData();
-      setInitialDataLoaded(true);
-      setAuthLoading(false);
-    });
+    let mounted = true;
+
+    // A browser, network, or stale Supabase auth lock must never leave the ERP
+    // permanently on the splash screen.
+    const startupGuard = window.setTimeout(() => {
+      if (mounted) {
+        console.warn("ERP startup timed out; opening the login/app shell.");
+        setAuthLoading(false);
+      }
+    }, 6000);
+
+    async function safeStartup() {
+      try {
+        const sessionResult: any = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((resolve) =>
+            window.setTimeout(() => resolve({ data: { session: null }, error: new Error("Session lookup timed out") }), 4500),
+          ),
+        ]);
+        if (!mounted) return;
+
+        const currentSession = sessionResult?.data?.session || null;
+        setSession(currentSession);
+
+        // Database records are private ERP data. Load them only after a valid
+        // login, and never block the login screen if a table is slow.
+        if (currentSession?.user) {
+          await Promise.race([
+            loadUserProfile(currentSession.user),
+            new Promise((resolve) => window.setTimeout(resolve, 4000)),
+          ]);
+          await Promise.race([
+            loadData(),
+            new Promise((resolve) => window.setTimeout(resolve, 10000)),
+          ]);
+          if (mounted) setInitialDataLoaded(true);
+        }
+      } catch (error) {
+        console.error("ERP startup warning", error);
+      } finally {
+        window.clearTimeout(startupGuard);
+        if (mounted) setAuthLoading(false);
+      }
+    }
+
+    void safeStartup();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      (_event, newSession) => {
+        if (!mounted) return;
         setSession(newSession);
-        if (newSession?.user) {
-          await loadUserProfile(newSession.user);
-          await loadData();
-          setInitialDataLoaded(true);
+        setAuthLoading(false);
+
+        if (!newSession) {
+          setProfile(null);
+          setInitialDataLoaded(false);
+          return;
         }
-        if (!newSession) setProfile(null);
+
+        // Run Supabase queries outside the auth callback. Awaiting other
+        // Supabase calls inside onAuthStateChange can lock auth initialization.
+        window.setTimeout(() => {
+          if (!mounted || !newSession?.user) return;
+          void (async () => {
+            try {
+              await loadUserProfile(newSession.user);
+              await loadData();
+              if (mounted) setInitialDataLoaded(true);
+            } catch (error) {
+              console.error("ERP auth refresh warning", error);
+            }
+          })();
+        }, 0);
       },
     );
 
     return () => {
+      mounted = false;
+      window.clearTimeout(startupGuard);
       listener.subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    if (session && !initialDataLoaded) {
-      loadData().then(() => setInitialDataLoaded(true));
-    }
+    if (!session || initialDataLoaded) return;
+    void loadData()
+      .then(() => setInitialDataLoaded(true))
+      .catch((error) => console.error("ERP data load warning", error));
   }, [session, initialDataLoaded]);
-
-  // Phase 31: load existing ERP data automatically on startup so the user does not need to click Sync.
-  useEffect(() => {
-    loadData().then(() => setInitialDataLoaded(true));
-  }, []);
 
   useEffect(() => {
     if (!session) return;

@@ -1,4 +1,4 @@
-const CACHE_NAME = "aashan-erp-pwa-v325";
+const CACHE_NAME = "aashan-erp-pwa-v553-startup-fix";
 const APP_SHELL = [
   "/",
   "/offline.html",
@@ -80,15 +80,9 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("/offline.html")))
-    );
+    // Network-first for app pages so Cloudflare deployments do not get stuck
+    // on an old cached Next.js shell. Offline page is only used when network fails.
+    event.respondWith(fetch(request).catch(() => caches.match("/offline.html")));
     return;
   }
 
