@@ -90,7 +90,9 @@ export default function PublicDocumentView() {
   }];
   const totals = displayLines.reduce((a, l) => { const c = lineCalc(l); a.gross += c.gross; a.discount += c.discount; a.subtotal += c.taxable; a.tax += c.tax; a.total += c.total; return a; }, { gross: 0, discount: 0, subtotal: 0, tax: 0, total: 0 });
   const total = isReceipt ? Number(doc.amount || 0) : Number(doc.total_amount ?? doc.amount ?? totals.total);
-  const subtotal = isReceipt ? Number(doc.amount || 0) : Number(doc.subtotal ?? totals.subtotal);
+  // Subtotal must be the gross value before line discounts. Older records may store
+  // the net-after-discount amount in doc.subtotal, so line calculations take priority.
+  const subtotal = isReceipt ? Number(doc.amount || 0) : (displayLines.length ? totals.gross : Number(doc.subtotal ?? totals.gross));
   const tax = isReceipt ? 0 : Number(doc.tax_amount ?? totals.tax);
 
   return (
@@ -113,12 +115,32 @@ export default function PublicDocumentView() {
         {isReceipt ? (
           <table style={styles.table}><thead><tr><th style={styles.th}>Description</th><th style={styles.thRight}>Amount Received</th></tr></thead><tbody><tr><td style={styles.td}>Payment received for invoice {doc.invoice_no}</td><td style={styles.tdRight}>{money(doc.amount)}</td></tr></tbody></table>
         ) : (
-          <table style={styles.table}><thead><tr><th style={styles.th}>Description</th><th style={styles.thRight}>Qty</th><th style={styles.thRight}>Unit Price</th><th style={styles.thRight}>Discount</th><th style={styles.thRight}>Tax</th><th style={styles.thRight}>Amount</th></tr></thead><tbody>{displayLines.map((l, idx) => { const c = lineCalc(l); return <tr key={idx}><td style={styles.td}>{visibleNotes(l.description)}</td><td style={styles.tdRight}>{l.qty || '1'}</td><td style={styles.tdRight}>{money(l.unit_price)}</td><td style={styles.tdRight}>{money(l.discount)}</td><td style={styles.tdRight}>{l.tax_rate === '' ? 'No tax' : `${l.tax_rate || 0}%`}</td><td style={styles.tdRight}>{money(c.total)}</td></tr>; })}</tbody></table>
+          <div className="document-table-scroll"><table className="document-table" style={styles.table}><thead><tr><th style={styles.th}>Description</th><th style={styles.thRight}>Qty</th><th style={styles.thRight}>Unit Price</th><th style={styles.thRight}>Discount</th><th style={styles.thRight}>Tax</th><th style={styles.thRight}>Amount</th></tr></thead><tbody>{displayLines.map((l, idx) => { const c = lineCalc(l); return <tr key={idx}><td className="description-cell" style={styles.td}>{visibleNotes(l.description)}</td><td style={styles.tdRight}>{l.qty || '1'}</td><td style={styles.tdRight}>{money(l.unit_price)}</td><td style={styles.tdRight}>{money(l.discount)}</td><td style={styles.tdRight}>{l.tax_rate === '' ? 'No tax' : `${l.tax_rate || 0}%`}</td><td style={styles.tdRight}>{money(c.total)}</td></tr>; })}</tbody></table></div>
         )}
-        <div style={styles.totals}><p><span>Subtotal</span><b>{money(subtotal)}</b></p>{totals.discount > 0 && <p><span>Discount</span><b>-{money(totals.discount)}</b></p>}<p><span>Tax</span><b>{money(tax)}</b></p><p style={styles.grand}><span>Total</span><b>{money(total)}</b></p>{!isQuote && !isReceipt && <p><span>Balance due</span><b>{money(doc.balance ?? total)}</b></p>}</div>
+        <div className="public-totals" style={styles.totals}><p><span>Subtotal</span><b>{money(subtotal)}</b></p>{totals.discount > 0 && <p><span>Discount</span><b>-{money(totals.discount)}</b></p>}<p><span>Tax</span><b>{money(tax)}</b></p><p style={styles.grand}><span>Total</span><b>{money(total)}</b></p>{!isQuote && !isReceipt && <p><span>Balance due</span><b>{money(doc.balance ?? total)}</b></p>}</div>
         {visibleNotes(doc.notes) && <div style={styles.notes}><b>Notes</b><p>{visibleNotes(doc.notes)}</p></div>}
         <footer style={styles.footer}>Thank you for choosing {company.company_name || 'Aashan & Co LLC'}.</footer>
       </section>
+      <style jsx global>{`
+        .public-totals p { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin: 0; padding: 9px 12px; }
+        .public-totals p span { flex: 1; }
+        .public-totals p b { white-space: nowrap; text-align: right; }
+        .document-table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .document-table { min-width: 720px; table-layout: fixed; }
+        .document-table th:first-child, .document-table td:first-child { width: 42%; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+        .document-table th:not(:first-child), .document-table td:not(:first-child) { white-space: nowrap; }
+        @media (max-width: 640px) {
+          body { margin: 0; }
+          main { padding: 0 !important; }
+          section { min-height: auto !important; padding: 18px !important; box-shadow: none !important; }
+          .document-table { min-width: 680px; font-size: 13px !important; }
+          .document-table th, .document-table td { padding: 8px !important; }
+        }
+        @media print {
+          .document-table-scroll { overflow: visible; }
+          .document-table { min-width: 0; width: 100%; }
+        }
+      `}</style>
     </main>
   );
 }
@@ -146,7 +168,7 @@ const styles: Record<string, any> = {
   thRight: { background: '#0f172a', color: 'white', padding: 10, border: '1px solid #334155', textAlign: 'right' },
   td: { padding: 11, border: '1px solid #94a3b8', verticalAlign: 'top' },
   tdRight: { padding: 11, border: '1px solid #94a3b8', textAlign: 'right', verticalAlign: 'top' },
-  totals: { width: 280, marginLeft: 'auto', marginTop: 14, border: '1px solid #94a3b8' },
+  totals: { width: 'min(100%, 320px)', marginLeft: 'auto', marginTop: 14, border: '1px solid #94a3b8' },
   grand: { background: '#0f172a', color: 'white', fontWeight: 900 },
   notes: { marginTop: 24, border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, background: '#f8fafc' },
   footer: { marginTop: 36, borderTop: '1px solid #cbd5e1', paddingTop: 18, textAlign: 'center', fontWeight: 800 },
