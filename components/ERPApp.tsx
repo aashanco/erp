@@ -3312,6 +3312,72 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     return output;
   }
 
+  function normalizeWhatsAppPhone(value: unknown) {
+    let digits = String(value ?? "").replace(/\D/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.length === 10) digits = `1${digits}`;
+    return digits;
+  }
+
+  function whatsAppViewUrl(type: string, documentNo: string) {
+    return `${window.location.origin}/view?type=${encodeURIComponent(type.toLowerCase())}&no=${encodeURIComponent(documentNo)}`;
+  }
+
+  function openWhatsAppMessage(phone: string, message: string) {
+    const normalized = normalizeWhatsAppPhone(phone);
+    if (!normalized) {
+      return alert("Customer mobile number is missing. Add a phone number in Customer Master first.");
+    }
+    if (normalized.length < 10) {
+      return alert("Customer mobile number does not look valid. Please update it in Customer Master.");
+    }
+
+    const url = `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) window.location.href = url;
+  }
+
+  function whatsAppDocument(
+    type: "Quote" | "Invoice" | "Receipt" | "Payment Reminder" | "Customer Statement",
+    phone: string,
+    data: Record<string, any> = {},
+  ) {
+    const customerName = data.customer_name || data.customer || "Customer";
+    const companyName = company.company_name || "Aashan & Co LLC";
+    const documentNo = String(
+      data.document_no || data.quote_no || data.invoice_no || data.receipt_no || "",
+    );
+    const amount = Number(data.total_amount ?? data.amount ?? 0);
+    const balance = Number(data.balance ?? amount ?? 0);
+    const viewUrl = documentNo ? whatsAppViewUrl(type === "Payment Reminder" ? "Invoice" : type, documentNo) : "";
+
+    let message = `Hi ${customerName},\n\n`;
+
+    if (type === "Quote") {
+      message += `Thank you for considering ${companyName}. Please find Quote ${documentNo} for ${money(amount)}.\n\nView quote: ${viewUrl}`;
+    } else if (type === "Invoice") {
+      message += `Thank you for choosing ${companyName}. Please find Invoice ${documentNo} for ${money(amount)}.`;
+      if (data.due_date) message += `\nDue date: ${data.due_date}`;
+      message += `\n\nView invoice: ${viewUrl}`;
+    } else if (type === "Receipt") {
+      message += `Thank you. We received your payment of ${money(amount)}.`;
+      if (data.invoice_no) message += `\nInvoice: ${data.invoice_no}`;
+      if (documentNo) message += `\nReceipt: ${documentNo}`;
+      if (viewUrl) message += `\n\nView receipt: ${viewUrl}`;
+    } else if (type === "Payment Reminder") {
+      message += `This is a friendly reminder regarding Invoice ${documentNo}.\nBalance due: ${money(balance)}`;
+      if (data.due_date) message += `\nDue date: ${data.due_date}`;
+      message += `\n\nView invoice: ${viewUrl}\n\nPlease disregard this message if payment has already been sent.`;
+    } else {
+      message += `Please find your statement of account from ${companyName}.`;
+      if (data.closing_balance !== undefined) message += `\nClosing balance: ${money(Number(data.closing_balance || 0))}`;
+      if (viewUrl) message += `\n\nView statement: ${viewUrl}`;
+    }
+
+    message += `\n\nThank you,\n${companyName}`;
+    openWhatsAppMessage(phone, message);
+  }
+
   async function emailDocument(
     type: string,
     to: string,
@@ -3589,6 +3655,24 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       balance: closing, total_amount: closing, lines, customer_email: customerRecord?.email || "", customer_phone: customerRecord?.phone || "", customer_address: customerRecord?.address || "",
       notes: "Customer Statement of Account",
     });
+  }
+
+  function whatsAppCustomerStatement() {
+    if (statementCustomer === "All Customers")
+      return alert("Select one customer to send a WhatsApp statement.");
+    const customerRecord = getCustomerByName(statementCustomer);
+    const rows = statementRowsFor(statementCustomer);
+    const closingBalance = rows.length ? rows[rows.length - 1].balance : 0;
+    const fromLabel = statementFromDate || "Beginning";
+    const toLabel = statementToDate || new Date().toISOString().slice(0, 10);
+    const message =
+      `Hi ${statementCustomer},\n\n` +
+      `Please find your statement summary from ${company.company_name || "Aashan & Co LLC"}.\n` +
+      `Period: ${fromLabel} to ${toLabel}\n` +
+      `Closing balance: ${money(Number(closingBalance || 0))}\n\n` +
+      `Please contact us if you need a detailed PDF statement.\n\n` +
+      `Thank you,\n${company.company_name || "Aashan & Co LLC"}`;
+    openWhatsAppMessage(customerRecord?.phone || "", message);
   }
 
   function printCustomerStatement() {
@@ -7492,6 +7576,25 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                             Email
                           </button>
                           <button
+                            style={styles.greenBtn}
+                            onClick={() => {
+                              const customerRecord = getCustomerByName(qt.customer);
+                              whatsAppDocument(
+                                "Quote",
+                                customerRecord?.phone || "",
+                                {
+                                  customer: qt.customer,
+                                  customer_name: qt.customer,
+                                  quote_no: qt.quote_no,
+                                  document_no: qt.quote_no,
+                                  total_amount: qt.total_amount || qt.amount,
+                                },
+                              );
+                            }}
+                          >
+                            WhatsApp
+                          </button>
+                          <button
                             style={styles.printBtn}
                             onClick={() => convertQuoteToInvoice(qt)}
                           >
@@ -8504,10 +8607,54 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                           >
                             Email
                           </button>
+                          <button
+                            style={styles.greenBtn}
+                            onClick={() => {
+                              const customerRecord = getCustomerByName(i.customer);
+                              whatsAppDocument(
+                                "Invoice",
+                                i.customer_phone || customerRecord?.phone || "",
+                                {
+                                  customer: i.customer,
+                                  customer_name: i.customer,
+                                  invoice_no: i.invoice_no,
+                                  document_no: i.invoice_no,
+                                  total_amount: i.total_amount || i.amount,
+                                  balance: invoiceBalance(i),
+                                  due_date: i.due_date,
+                                },
+                              );
+                            }}
+                          >
+                            WhatsApp
+                          </button>
                           {invoiceBalance(i) > 0 && i.status !== "Cancelled" && (
-                            <button style={styles.greenBtn} onClick={() => sendInvoiceReminder(i)}>
-                              Reminder
-                            </button>
+                            <>
+                              <button style={styles.greenBtn} onClick={() => sendInvoiceReminder(i)}>
+                                Reminder
+                              </button>
+                              <button
+                                style={styles.greenBtn}
+                                onClick={() => {
+                                  const customerRecord = getCustomerByName(i.customer);
+                                  whatsAppDocument(
+                                    "Payment Reminder",
+                                    i.customer_phone || customerRecord?.phone || "",
+                                    {
+                                      customer: i.customer,
+                                      customer_name: i.customer,
+                                      invoice_no: i.invoice_no,
+                                      document_no: i.invoice_no,
+                                      total_amount: i.total_amount || i.amount,
+                                      balance: invoiceBalance(i),
+                                      due_date: i.due_date,
+                                    },
+                                  );
+                                }}
+                              >
+                                WA Reminder
+                              </button>
+                            </>
                           )}
                           <button
                             style={styles.smallBtn}
@@ -8937,6 +9084,27 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                             }
                           >
                             Email
+                          </button>
+                          <button
+                            style={styles.greenBtn}
+                            onClick={() => {
+                              const customerRecord = getCustomerByName(r.customer);
+                              whatsAppDocument(
+                                "Receipt",
+                                customerRecord?.phone || "",
+                                {
+                                  customer: r.customer,
+                                  customer_name: r.customer,
+                                  receipt_no: r.receipt_no,
+                                  document_no: r.receipt_no,
+                                  invoice_no: r.invoice_no,
+                                  amount: r.amount,
+                                  total_amount: r.amount,
+                                },
+                              );
+                            }}
+                          >
+                            WhatsApp
                           </button>
                           <button
                             style={styles.smallBtn}
@@ -9762,7 +9930,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                         <Input label="To Date" type="date" value={statementToDate} onChange={setStatementToDate} />
                         <Field label="Display"><label style={{display:"flex",gap:8,alignItems:"center",paddingTop:10}}><input type="checkbox" checked={statementOutstandingOnly} onChange={(e)=>setStatementOutstandingOnly(e.target.checked)} /> Outstanding only</label></Field>
                       </div>
-                      <ButtonRow><button style={styles.printBtn} onClick={printCustomerStatement}>Print / PDF</button><button style={styles.greenBtn} onClick={emailCustomerStatement}>Email Statement</button><button style={styles.grayBtn} onClick={() => exportCsv("customer-statement.csv", [["Date","Transaction","Customer","Debit","Credit","Running Balance"], ...reportCustomerStatementRows.map(r => [r.date,r.transaction,r.customer,r.debit,r.credit,r.balance])])}>Export CSV</button></ButtonRow>
+                      <ButtonRow><button style={styles.printBtn} onClick={printCustomerStatement}>Print / PDF</button><button style={styles.greenBtn} onClick={emailCustomerStatement}>Email Statement</button><button style={styles.greenBtn} onClick={whatsAppCustomerStatement}>WhatsApp Statement</button><button style={styles.grayBtn} onClick={() => exportCsv("customer-statement.csv", [["Date","Transaction","Customer","Debit","Credit","Running Balance"], ...reportCustomerStatementRows.map(r => [r.date,r.transaction,r.customer,r.debit,r.credit,r.balance])])}>Export CSV</button></ButtonRow>
                       <div className="report-table-wrap bank-register-table-wrap" style={styles.bankRegisterTableWrap}>
                         <table className="bankRegisterTable" style={styles.bankRegisterTable}>
                           <thead><tr><th>Date</th><th>Transaction</th><th>Customer</th><th>Invoice/Debit</th><th>Payment/Credit</th><th>Running Balance</th></tr></thead>
