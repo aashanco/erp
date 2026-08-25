@@ -13285,9 +13285,21 @@ const printCss = `
   .quote-page .quote-col-discount { width: 10% !important; }
   .quote-page .quote-col-amount { width: 11% !important; }
   .quote-page .doc-items th { padding: 5px 6px !important; font-size: 8.5pt !important; }
-  .quote-page .doc-items td { padding: 6px !important; font-size: 8.5pt !important; line-height: 1.25 !important; overflow-wrap: anywhere !important; }
+  .quote-page .doc-items th,
+  .quote-page .doc-items td {
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .quote-page .doc-items td { padding: 6px !important; font-size: 8.5pt !important; line-height: 1.25 !important; }
   .quote-page .doc-items th:first-child,
   .quote-page .doc-items td:first-child { text-align: left !important; }
+  .quote-page .doc-items th:not(:first-child),
+  .quote-page .doc-items td:not(:first-child) {
+    white-space: nowrap !important;
+  }
 
   .quote-page .doc-totals { width: 2.05in !important; margin-top: 0.08in !important; font-size: 9pt !important; }
   .quote-page .doc-totals p { padding: 5px 7px !important; }
