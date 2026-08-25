@@ -11311,7 +11311,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 
       {printQuote && (
         <div className="invoice-print">
-          <div className="quote-page quote-print-page">
+          <div className="quote-page">
             <div className="doc-header">
               <div className="doc-brand">
                 <img
@@ -11375,9 +11375,14 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
               <p>{getCustomerByName(printQuote.customer)?.email}</p>
             </div>
 
-            <h3 className="doc-service-title">Scope of Work</h3>
-
             <table className="doc-items quote-items">
+              <colgroup>
+                <col className="quote-col-description" />
+                <col className="quote-col-qty" />
+                <col className="quote-col-rate" />
+                <col className="quote-col-discount" />
+                <col className="quote-col-amount" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Description</th>
@@ -11389,22 +11394,32 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
               </thead>
               <tbody>
                 <tr>
-                  <td>{printQuote.service}</td>
+                  <td>{printQuote.service || "Quotation"}</td>
                   <td>{Number(printQuote.qty || 1).toFixed(0)}</td>
                   <td>
                     ${Number(
-                      printQuote.unit_price || printQuote.amount || 0,
+                      printQuote.unit_price ||
+                        (Number(printQuote.qty || 1)
+                          ? Number(printQuote.subtotal || printQuote.amount || 0) /
+                            Number(printQuote.qty || 1)
+                          : Number(printQuote.amount || 0)),
                     ).toFixed(2)}
                   </td>
                   <td>
-                    ${Number(printQuote.discount || 0).toFixed(2)}
+                    {Number(printQuote.discount || 0) > 0
+                      ? `-$${Number(printQuote.discount || 0).toFixed(2)}`
+                      : "$0.00"}
                   </td>
                   <td>
                     ${Number(
-                      (Number(printQuote.subtotal || 0) ||
-                        Number(printQuote.qty || 1) *
-                          Number(printQuote.unit_price || printQuote.amount || 0)) -
-                        Number(printQuote.discount || 0),
+                      Math.max(
+                        0,
+                        Number(
+                          printQuote.subtotal ||
+                            Number(printQuote.qty || 1) *
+                              Number(printQuote.unit_price || printQuote.amount || 0),
+                        ) - Number(printQuote.discount || 0),
+                      ),
                     ).toFixed(2)}
                   </td>
                 </tr>
@@ -11416,7 +11431,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                 <span>Sub-total</span>
                 <b>
                   ${Number(
-                    Number(printQuote.subtotal || 0) ||
+                    printQuote.subtotal ||
                       Number(printQuote.qty || 1) *
                         Number(printQuote.unit_price || printQuote.amount || 0),
                   ).toFixed(2)}
@@ -13170,22 +13185,6 @@ const printCss = `
   }
 }
 
-/* Quote-specific layout keeps the printed PDF readable and prevents browser shrink-to-fit. */
-.quote-items {
-  table-layout: fixed;
-}
-
-.quote-items th:first-child,
-.quote-items td:first-child { width: 58%; }
-.quote-items th:nth-child(2),
-.quote-items td:nth-child(2) { width: 7%; }
-.quote-items th:nth-child(3),
-.quote-items td:nth-child(3) { width: 12%; }
-.quote-items th:nth-child(4),
-.quote-items td:nth-child(4) { width: 11%; }
-.quote-items th:nth-child(5),
-.quote-items td:nth-child(5) { width: 12%; }
-
 @media print {
   @page {
     size: Letter;
@@ -13241,57 +13240,63 @@ const printCss = `
 
   .quote-page {
     display: block !important;
-    width: 100% !important;
-    min-height: 0 !important;
-    max-width: none !important;
-    margin: 0 !important;
+    width: 7.86in !important;
+    min-height: 10.36in !important;
+    max-width: 7.86in !important;
+    margin: 0 auto !important;
     padding: 0 !important;
+    box-sizing: border-box !important;
     box-shadow: none !important;
+    transform: none !important;
+    zoom: 1 !important;
     page-break-after: avoid !important;
     page-break-before: avoid !important;
     font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 10.5pt !important;
     color: #0f172a !important;
     background: white !important;
   }
 
-  .quote-print-page .doc-header { gap: 18px !important; }
-  .quote-print-page .doc-logo { width: 78px !important; height: 78px !important; }
-  .quote-print-page .doc-brand { gap: 14px !important; }
-  .quote-print-page .doc-brand h1 { font-size: 23px !important; }
-  .quote-print-page .doc-brand p { font-size: 12px !important; }
-  .quote-print-page .doc-contact { font-size: 10px !important; line-height: 1.3 !important; min-width: 190px !important; }
-  .quote-print-page .doc-contact p { margin: 0 0 4px !important; }
-  .quote-print-page .doc-line { border-top-width: 3px !important; margin: 14px 0 12px !important; }
-  .quote-print-page .doc-title-row { margin-bottom: 12px !important; }
-  .quote-print-page .doc-title-row h2 { font-size: 30px !important; margin-bottom: 5px !important; }
-  .quote-print-page .doc-title-row p,
-  .quote-print-page .doc-date-box p { font-size: 10.5px !important; }
-  .quote-print-page .doc-date-box { min-width: 185px !important; padding-top: 3px !important; }
-  .quote-print-page .doc-date-box p { grid-template-columns: 78px 1fr !important; margin-bottom: 7px !important; }
-  .quote-print-page .doc-bill-box { width: 300px !important; padding: 9px 12px !important; margin: 5px 0 14px !important; }
-  .quote-print-page .doc-bill-box h3 { font-size: 12px !important; margin-bottom: 4px !important; }
-  .quote-print-page .doc-bill-box p { font-size: 10px !important; margin: 2px 0 !important; }
-  .quote-print-page .doc-service-title { font-size: 12px !important; margin: 0 0 6px !important; }
-  .quote-print-page .quote-items { table-layout: fixed !important; width: 100% !important; margin-top: 0 !important; font-size: 9.5px !important; }
-  .quote-print-page .quote-items th { font-size: 9.5px !important; padding: 6px 7px !important; white-space: nowrap !important; }
-  .quote-print-page .quote-items td { font-size: 9.5px !important; line-height: 1.35 !important; padding: 7px !important; overflow-wrap: break-word !important; word-break: normal !important; }
-  .quote-print-page .quote-items th:first-child,
-  .quote-print-page .quote-items td:first-child { width: 58% !important; text-align: left !important; }
-  .quote-print-page .quote-items th:nth-child(2),
-  .quote-print-page .quote-items td:nth-child(2) { width: 7% !important; }
-  .quote-print-page .quote-items th:nth-child(3),
-  .quote-print-page .quote-items td:nth-child(3) { width: 12% !important; }
-  .quote-print-page .quote-items th:nth-child(4),
-  .quote-print-page .quote-items td:nth-child(4) { width: 11% !important; }
-  .quote-print-page .quote-items th:nth-child(5),
-  .quote-print-page .quote-items td:nth-child(5) { width: 12% !important; }
-  .quote-print-page .doc-totals { width: 230px !important; margin-top: 8px !important; font-size: 10px !important; }
-  .quote-print-page .doc-totals p { padding: 6px 8px !important; }
-  .quote-print-page .doc-grand-total { font-size: 11px !important; }
-  .quote-print-page .doc-terms { margin-top: 14px !important; font-size: 8.5px !important; line-height: 1.28 !important; page-break-inside: auto !important; break-inside: auto !important; }
-  .quote-print-page .doc-terms p { margin-bottom: 5px !important; }
-  .quote-print-page .doc-footer { margin-top: 10px !important; padding-top: 7px !important; font-size: 10px !important; }
+  .quote-page .doc-header { gap: 0.22in !important; }
+  .quote-page .doc-logo { width: 0.82in !important; height: 0.82in !important; }
+  .quote-page .doc-brand h1 { font-size: 19pt !important; }
+  .quote-page .doc-brand p { font-size: 10pt !important; }
+  .quote-page .doc-contact { font-size: 8.5pt !important; min-width: 2.05in !important; }
+  .quote-page .doc-contact p { margin-bottom: 3px !important; }
+  .quote-page .doc-line { margin: 0.12in 0 0.13in !important; border-top-width: 3px !important; }
+  .quote-page .doc-title-row { margin-bottom: 0.14in !important; }
+  .quote-page .doc-title-row h2 { font-size: 26pt !important; margin-bottom: 4px !important; }
+  .quote-page .doc-title-row p { font-size: 9pt !important; margin: 2px 0 !important; }
+  .quote-page .doc-date-box { min-width: 1.85in !important; padding-top: 2px !important; }
+  .quote-page .doc-date-box p { grid-template-columns: 0.8in 1fr !important; gap: 0.08in !important; margin-bottom: 5px !important; font-size: 9pt !important; }
+  .quote-page .doc-bill-box { width: 2.65in !important; padding: 0.09in 0.11in !important; margin: 0.06in 0 0.16in !important; }
+  .quote-page .doc-bill-box h3 { font-size: 10.5pt !important; margin-bottom: 4px !important; }
+  .quote-page .doc-bill-box p { font-size: 9pt !important; margin: 1px 0 !important; }
+
+  .quote-page .doc-items {
+    width: 100% !important;
+    table-layout: fixed !important;
+    margin-top: 0 !important;
+    font-size: 9pt !important;
+  }
+  .quote-page .quote-col-description { width: 61% !important; }
+  .quote-page .quote-col-qty { width: 7% !important; }
+  .quote-page .quote-col-rate { width: 11% !important; }
+  .quote-page .quote-col-discount { width: 10% !important; }
+  .quote-page .quote-col-amount { width: 11% !important; }
+  .quote-page .doc-items th { padding: 5px 6px !important; font-size: 8.5pt !important; }
+  .quote-page .doc-items td { padding: 6px !important; font-size: 8.5pt !important; line-height: 1.25 !important; overflow-wrap: anywhere !important; }
+  .quote-page .doc-items th:first-child,
+  .quote-page .doc-items td:first-child { text-align: left !important; }
+
+  .quote-page .doc-totals { width: 2.05in !important; margin-top: 0.08in !important; font-size: 9pt !important; }
+  .quote-page .doc-totals p { padding: 5px 7px !important; }
+  .quote-page .doc-grand-total { font-size: 10pt !important; }
+  .quote-page .doc-terms { margin-top: 0.25in !important; font-size: 8.4pt !important; line-height: 1.28 !important; }
+  .quote-page .doc-terms p { margin-bottom: 0.07in !important; }
+  .quote-page .doc-footer { margin-top: 0.16in !important; padding-top: 0.08in !important; font-size: 9.5pt !important; }
 }
+
 
 .doc-header {
   display: flex;
