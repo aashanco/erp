@@ -2432,13 +2432,25 @@ export default function ERPApp() {
         // v5.8.1: persist the attachment row immediately after Storage upload.
         // This makes Camera/Files reliable on mobile/PWA and desktop even before the Quote/Invoice Save button is pressed.
         const row = await uploadAttachmentFile(documentType, documentNo, file);
+        // preview_url is a browser-only helper and is NOT a column in document_attachments.
+        // Sending it to Supabase causes the insert to fail after the Storage upload succeeds.
+        const dbRow = {
+          document_type: row.document_type,
+          document_no: row.document_no,
+          file_name: row.file_name,
+          mime_type: row.mime_type,
+          size_bytes: row.size_bytes || 0,
+          data_url: row.data_url || null,
+          storage_path: row.storage_path || null,
+          file_url: row.file_url || null,
+        };
         const { data: inserted, error } = await supabase
           .from("document_attachments")
-          .insert(row)
+          .insert(dbRow)
           .select("*")
           .single();
-        if (error) throw error;
-        next.push((inserted || row) as DocumentAttachment);
+        if (error) throw new Error(`Attachment database link failed: ${error.message}`);
+        next.push({ ...(inserted || dbRow), preview_url: row.preview_url } as DocumentAttachment);
       }
 
       if (next.length) await loadData();
@@ -2503,7 +2515,13 @@ export default function ERPApp() {
                 type="file"
                 accept="image/*"
                 capture="environment"
-                onChange={async (e) => { await addDocumentFiles(documentType, documentNo, e.target.files, autoSave); e.currentTarget.value = ""; }}
+                onChange={(e) => {
+                  // Capture FileList and reset the input synchronously for iOS/Safari reliability.
+                  const input = e.currentTarget;
+                  const selectedFiles = input.files;
+                  input.value = "";
+                  void addDocumentFiles(documentType, documentNo, selectedFiles, autoSave);
+                }}
               />
             </label>
             <label className="doc-photo-upload secondary" title="Upload photos or documents">
@@ -2512,7 +2530,13 @@ export default function ERPApp() {
                 type="file"
                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                 multiple
-                onChange={async (e) => { await addDocumentFiles(documentType, documentNo, e.target.files, autoSave); e.currentTarget.value = ""; }}
+                onChange={(e) => {
+                  // Capture FileList and reset the input synchronously for iOS/Safari reliability.
+                  const input = e.currentTarget;
+                  const selectedFiles = input.files;
+                  input.value = "";
+                  void addDocumentFiles(documentType, documentNo, selectedFiles, autoSave);
+                }}
               />
             </label>
           </div>
