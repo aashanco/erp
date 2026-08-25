@@ -3892,7 +3892,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   function openQuotePrint(qt: Quote) {
     setPrintInvoice(null);
     setPrintReceipt(null);
-    setPrintQuote({ ...qt, notes: visibleNotes(qt.notes) });
+    // Keep the full notes payload here because saved quote line details are
+    // stored after the LINES_JSON marker. The print renderer needs those
+    // original lines to preserve each description, quantity, rate, discount,
+    // and tax treatment instead of collapsing the quote into its first line.
+    setPrintQuote({ ...qt });
   }
 
   function openReceiptPrint(r: Receipt) {
@@ -11905,36 +11909,21 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>{printQuote.service || "Quotation"}</td>
-                  <td>{Number(printQuote.qty || 1).toFixed(0)}</td>
-                  <td>
-                    ${Number(
-                      printQuote.unit_price ||
-                        (Number(printQuote.qty || 1)
-                          ? Number(printQuote.subtotal || printQuote.amount || 0) /
-                            Number(printQuote.qty || 1)
-                          : Number(printQuote.amount || 0)),
-                    ).toFixed(2)}
-                  </td>
-                  <td>
-                    {Number(printQuote.discount || 0) > 0
-                      ? `-$${Number(printQuote.discount || 0).toFixed(2)}`
-                      : "$0.00"}
-                  </td>
-                  <td>
-                    ${Number(
-                      Math.max(
-                        0,
-                        Number(
-                          printQuote.subtotal ||
-                            Number(printQuote.qty || 1) *
-                              Number(printQuote.unit_price || printQuote.amount || 0),
-                        ) - Number(printQuote.discount || 0),
-                      ),
-                    ).toFixed(2)}
-                  </td>
-                </tr>
+                {getDocumentLines(printQuote as Record<string, any>).map((line, index) => {
+                  const qty = Number(line.qty || 0);
+                  const rate = Number(line.unit_price || 0);
+                  const discount = Number(line.discount || 0);
+                  const lineAmount = Math.max(qty * rate - discount, 0);
+                  return (
+                    <tr key={`quote-print-line-${index}`}>
+                      <td>{line.description || "Quotation"}</td>
+                      <td>{Number.isInteger(qty) ? qty.toFixed(0) : qty.toFixed(2)}</td>
+                      <td>${rate.toFixed(2)}</td>
+                      <td>{discount > 0 ? `-$${discount.toFixed(2)}` : "$0.00"}</td>
+                      <td>${lineAmount.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
@@ -13753,7 +13742,8 @@ const printCss = `
   .quote-page {
     display: block !important;
     width: 7.86in !important;
-    min-height: 10.36in !important;
+    min-height: 0 !important;
+    height: auto !important;
     max-width: 7.86in !important;
     margin: 0 auto !important;
     padding: 0 !important;
@@ -13816,9 +13806,17 @@ const printCss = `
   .quote-page .doc-totals { width: 2.05in !important; margin-top: 0.08in !important; font-size: 9pt !important; }
   .quote-page .doc-totals p { padding: 5px 7px !important; }
   .quote-page .doc-grand-total { font-size: 10pt !important; }
-  .quote-page .doc-terms { margin-top: 0.25in !important; font-size: 8.4pt !important; line-height: 1.28 !important; }
-  .quote-page .doc-terms p { margin-bottom: 0.07in !important; }
-  .quote-page .doc-footer { margin-top: 0.16in !important; padding-top: 0.08in !important; font-size: 9.5pt !important; }
+  .quote-page .doc-terms { margin-top: 0.18in !important; font-size: 8.2pt !important; line-height: 1.24 !important; break-inside: avoid !important; page-break-inside: avoid !important; }
+  .quote-page .doc-terms p { margin-bottom: 0.045in !important; }
+  .quote-page .doc-footer {
+    position: static !important;
+    margin-top: 0.10in !important;
+    padding-top: 0.06in !important;
+    font-size: 9.5pt !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    page-break-before: avoid !important;
+  }
 }
 
 
