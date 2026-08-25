@@ -615,6 +615,7 @@ export default function ERPApp() {
     | "reports"
     | "aashan_ai"
     | "masters"
+    | "backup"
     | "import"
   >("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -730,6 +731,11 @@ export default function ERPApp() {
   const [statementToDate, setStatementToDate] = useState("");
   const [statementOutstandingOnly, setStatementOutstandingOnly] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<any>(null);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restorePreview, setRestorePreview] = useState<any>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [pendingImportType, setPendingImportType] = useState<
@@ -787,6 +793,7 @@ export default function ERPApp() {
       "reports",
       "aashan_ai",
       "masters",
+      "backup",
       "import",
     ];
   }
@@ -1100,6 +1107,108 @@ export default function ERPApp() {
       window.localStorage.setItem("aashan_whatsapp_settings", JSON.stringify(whatsAppSettings));
     }
     alert("WhatsApp settings saved on this device. The actual sender is the WhatsApp Business account logged in to WhatsApp Web/app.");
+  }
+
+  async function backupAuthHeaders() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token || session?.access_token;
+    if (!token) throw new Error("Your session has expired. Please sign in again.");
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  async function loadBackupStatus() {
+    if (!canAdmin) return;
+    try {
+      const headers = await backupAuthHeaders();
+      const response = await fetch("/api/database-backup?mode=status", { headers });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to read backup status.");
+      setBackupStatus(result);
+    } catch (error: any) {
+      setBackupStatus({ error: error?.message || "Unable to read backup status." });
+    }
+  }
+
+  async function downloadDatabaseBackup() {
+    if (!canAdmin) return alert("Administrator access is required.");
+    setBackupBusy(true);
+    try {
+      const headers = await backupAuthHeaders();
+      const response = await fetch("/api/database-backup", { headers });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "Backup failed.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] || `AashanERP_PROD_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      await loadBackupStatus();
+      alert("Database backup downloaded successfully. Store a second copy outside Supabase.");
+    } catch (error: any) {
+      alert(error?.message || "Database backup failed.");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function inspectRestoreFile(file: File | null) {
+    setRestoreFile(file);
+    setRestorePreview(null);
+    setRestoreConfirm(false);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const tables = payload?.tables && typeof payload.tables === "object" ? payload.tables : {};
+      const counts = Object.fromEntries(Object.entries(tables).map(([name, rows]: any) => [name, Array.isArray(rows) ? rows.length : 0]));
+      setRestorePreview({
+        valid: payload?.format === "aashan-erp-backup-v1",
+        created_at: payload?.created_at,
+        database_size: payload?.database?.pretty_size,
+        counts,
+        tableCount: Object.keys(tables).length,
+      });
+    } catch (error: any) {
+      setRestorePreview({ valid: false, error: error?.message || "Invalid backup file." });
+    }
+  }
+
+  async function restoreDatabaseBackup() {
+    if (!canAdmin) return alert("Administrator access is required.");
+    if (!restoreFile || !restorePreview?.valid) return alert("Select a valid Aashan ERP backup file first.");
+    if (!restoreConfirm) return alert("Confirm that you understand this recovery will merge the backup into the current database.");
+    const confirmation = window.prompt('Type RESTORE to continue with safe merge recovery.');
+    if (confirmation !== 'RESTORE') return;
+    setBackupBusy(true);
+    try {
+      const payload = JSON.parse(await restoreFile.text());
+      const headers = await backupAuthHeaders();
+      const response = await fetch("/api/database-restore", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Recovery failed.");
+      alert(`Recovery completed. ${result.rows_restored || 0} rows were merged from the backup.`);
+      setRestoreFile(null);
+      setRestorePreview(null);
+      setRestoreConfirm(false);
+      await Promise.all([loadData(), loadBackupStatus()]);
+    } catch (error: any) {
+      alert(error?.message || "Recovery failed.");
+    } finally {
+      setBackupBusy(false);
+    }
   }
 
   async function loadData() {
@@ -6053,6 +6162,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       reports: "Reports",
       aashan_ai: "Aashan AI",
       masters: "Masters",
+      backup: "Backup & Recovery",
       import: "Import / Export",
     };
     return labels[tab] || "Aashan & Co LLC";
@@ -6909,6 +7019,11 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                     label="Masters"
                     active={activeTab === "masters"}
                     onClick={() => openTab("masters")}
+                  />
+                  <SideButton
+                    label="Backup & Recovery"
+                    active={activeTab === "backup"}
+                    onClick={() => { openTab("backup"); setTimeout(() => loadBackupStatus(), 0); }}
                   />
                   <SideButton
                     label="Import / Export"
@@ -10441,6 +10556,67 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                       >
                         Export Expenses
                       </button>
+                    </div>
+                  </SectionCard>
+                </>
+              )}
+
+              {activeTab === "backup" && canAdmin && (
+                <>
+                  <SectionCard title="Database Backup">
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12, marginBottom: 18 }}>
+                      <div style={{ padding: 16, border: "1px solid #dbe3ec", borderRadius: 12, background: "#f8fafc" }}>
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>LAST BACKUP</div>
+                        <div style={{ marginTop: 6, fontSize: 16, fontWeight: 800 }}>{backupStatus?.last_backup?.created_at ? new Date(backupStatus.last_backup.created_at).toLocaleString() : "No backup recorded"}</div>
+                      </div>
+                      <div style={{ padding: 16, border: "1px solid #dbe3ec", borderRadius: 12, background: "#f8fafc" }}>
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>STATUS</div>
+                        <div style={{ marginTop: 6, fontSize: 16, fontWeight: 800 }}>{backupStatus?.error ? "Setup Required" : backupStatus?.last_backup?.status || "Ready"}</div>
+                      </div>
+                      <div style={{ padding: 16, border: "1px solid #dbe3ec", borderRadius: 12, background: "#f8fafc" }}>
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>DATABASE SIZE</div>
+                        <div style={{ marginTop: 6, fontSize: 16, fontWeight: 800 }}>{backupStatus?.database?.pretty_size || "—"}</div>
+                      </div>
+                      <div style={{ padding: 16, border: "1px solid #dbe3ec", borderRadius: 12, background: "#f8fafc" }}>
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>BACKUP TYPE</div>
+                        <div style={{ marginTop: 6, fontSize: 16, fontWeight: 800 }}>Application Data</div>
+                      </div>
+                    </div>
+                    {backupStatus?.error && <div style={{ padding: 12, borderRadius: 10, background: "#fff7ed", color: "#9a3412", marginBottom: 14 }}>{backupStatus.error}<br/>Run the v5.8.0 Supabase SQL and configure the Cloudflare environment variables listed in the release notes.</div>}
+                    <p style={{ color: "#475569", marginTop: 0 }}>Creates a portable JSON backup of Aashan ERP database tables. Supabase service-role credentials stay only in the Cloudflare server function and are never exposed to the browser.</p>
+                    <ButtonRow>
+                      <button onClick={downloadDatabaseBackup} disabled={backupBusy} style={styles.primaryBtn}>{backupBusy ? "Preparing Backup..." : "Download Database Backup"}</button>
+                      <button onClick={loadBackupStatus} disabled={backupBusy} style={styles.grayBtn}>Refresh Status</button>
+                    </ButtonRow>
+                  </SectionCard>
+
+                  <SectionCard title="Recovery">
+                    <p style={{ color: "#475569", marginTop: 0 }}>Safe Merge Recovery restores rows from an Aashan ERP backup by primary key. It does not delete newer records that are not present in the backup.</p>
+                    <Field label="Backup File (.json)">
+                      <input type="file" accept="application/json,.json" onChange={(e) => inspectRestoreFile(e.target.files?.[0] || null)} style={styles.input} />
+                    </Field>
+                    {restorePreview && (
+                      <div style={{ marginTop: 14, padding: 14, border: `1px solid ${restorePreview.valid ? "#bbf7d0" : "#fecaca"}`, background: restorePreview.valid ? "#f0fdf4" : "#fef2f2", borderRadius: 12 }}>
+                        <b>{restorePreview.valid ? "Valid Aashan ERP backup" : "Invalid backup file"}</b>
+                        {restorePreview.valid ? (
+                          <div style={{ marginTop: 8, fontSize: 13, color: "#334155" }}>Created: {restorePreview.created_at ? new Date(restorePreview.created_at).toLocaleString() : "Unknown"} · Tables: {restorePreview.tableCount} · Rows: {Object.values(restorePreview.counts || {}).reduce((a: any,b: any) => Number(a)+Number(b),0)}</div>
+                        ) : <div style={{ marginTop: 8 }}>{restorePreview.error || "This file was not created by Aashan ERP v5.8.0 backup."}</div>}
+                      </div>
+                    )}
+                    {restorePreview?.valid && (
+                      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 14, fontSize: 13, color: "#334155" }}>
+                        <input type="checkbox" checked={restoreConfirm} onChange={(e) => setRestoreConfirm(e.target.checked)} />
+                        I understand this recovery will overwrite matching row IDs with the backup values and reinsert missing rows.
+                      </label>
+                    )}
+                    <ButtonRow>
+                      <button onClick={restoreDatabaseBackup} disabled={backupBusy || !restorePreview?.valid || !restoreConfirm} style={styles.greenBtn}>Run Safe Merge Recovery</button>
+                    </ButtonRow>
+                  </SectionCard>
+
+                  <SectionCard title="Backup Protection">
+                    <div style={{ lineHeight: 1.7, color: "#475569" }}>
+                      <b>Recommended:</b> keep at least one downloaded backup outside Supabase. This database backup includes ERP table data and attachment metadata, but not the binary files inside Supabase Storage. Storage files should be backed up separately. For full PostgreSQL disaster recovery, continue using <code>pg_dump</code> as the second backup layer.
                     </div>
                   </SectionCard>
                 </>
