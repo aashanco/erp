@@ -265,6 +265,18 @@ type EmailSettings = {
   reply_to_email: string;
   bcc_email: string;
 };
+type WhatsAppSettings = {
+  business_name: string;
+  sender_number: string;
+  default_country_code: string;
+};
+type WhatsAppDraft = {
+  open: boolean;
+  phone: string;
+  message: string;
+  customerName: string;
+  saveToCustomer: boolean;
+};
 type EmailTemplate = {
   id?: number;
   template_name: string;
@@ -482,6 +494,18 @@ const emptyEmailSettings: EmailSettings = {
   reply_to_email: "support@aashan.co",
   bcc_email: "",
 };
+const emptyWhatsAppSettings: WhatsAppSettings = {
+  business_name: "Aashan & Co LLC",
+  sender_number: "(832) 210-4248",
+  default_country_code: "1",
+};
+const emptyWhatsAppDraft: WhatsAppDraft = {
+  open: false,
+  phone: "",
+  message: "",
+  customerName: "",
+  saveToCustomer: false,
+};
 const emptyTemplate: EmailTemplate = {
   template_name: "",
   subject: "",
@@ -647,6 +671,10 @@ export default function ERPApp() {
   const [account, setAccount] = useState<Account>(emptyAccount);
   const [emailSettings, setEmailSettings] =
     useState<EmailSettings>(emptyEmailSettings);
+  const [whatsAppSettings, setWhatsAppSettings] =
+    useState<WhatsAppSettings>(emptyWhatsAppSettings);
+  const [whatsAppDraft, setWhatsAppDraft] =
+    useState<WhatsAppDraft>(emptyWhatsAppDraft);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [template, setTemplate] = useState<EmailTemplate>(emptyTemplate);
   const [emailDraft, setEmailDraft] = useState<EmailDraft>(emptyEmailDraft);
@@ -1056,6 +1084,23 @@ export default function ERPApp() {
     }
   }
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem("aashan_whatsapp_settings");
+      if (saved) setWhatsAppSettings({ ...emptyWhatsAppSettings, ...JSON.parse(saved) });
+    } catch (error) {
+      console.warn("WhatsApp settings could not be loaded", error);
+    }
+  }, []);
+
+  function saveWhatsAppSettings() {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("aashan_whatsapp_settings", JSON.stringify(whatsAppSettings));
+    }
+    alert("WhatsApp settings saved on this device. The actual sender is the WhatsApp Business account logged in to WhatsApp Web/app.");
+  }
 
   async function loadData() {
     if (dataLoadPromiseRef.current) {
@@ -3315,7 +3360,8 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
   function normalizeWhatsAppPhone(value: unknown) {
     let digits = String(value ?? "").replace(/\D/g, "");
     if (digits.startsWith("00")) digits = digits.slice(2);
-    if (digits.length === 10) digits = `1${digits}`;
+    const countryCode = String(whatsAppSettings.default_country_code || "1").replace(/\D/g, "") || "1";
+    if (digits.length === 10) digits = `${countryCode}${digits}`;
     return digits;
   }
 
@@ -3323,16 +3369,36 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     return `${window.location.origin}/view?type=${encodeURIComponent(type.toLowerCase())}&no=${encodeURIComponent(documentNo)}`;
   }
 
-  function openWhatsAppMessage(phone: string, message: string) {
-    const normalized = normalizeWhatsAppPhone(phone);
-    if (!normalized) {
-      return alert("Customer mobile number is missing. Add a phone number in Customer Master first.");
-    }
-    if (normalized.length < 10) {
-      return alert("Customer mobile number does not look valid. Please update it in Customer Master.");
+  function openWhatsAppMessage(phone: string, message: string, customerName = "") {
+    setWhatsAppDraft({
+      open: true,
+      phone: phone || "",
+      message,
+      customerName,
+      saveToCustomer: !phone,
+    });
+  }
+
+  async function launchWhatsAppDraft() {
+    const normalized = normalizeWhatsAppPhone(whatsAppDraft.phone);
+    if (!normalized || normalized.length < 10) {
+      return alert("Enter a valid customer WhatsApp number, including area code.");
     }
 
-    const url = `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+    if (whatsAppDraft.saveToCustomer && whatsAppDraft.customerName) {
+      const customerRecord = getCustomerByName(whatsAppDraft.customerName);
+      if (customerRecord?.id) {
+        const { error } = await supabase
+          .from("customers")
+          .update({ phone: whatsAppDraft.phone })
+          .eq("id", customerRecord.id);
+        if (error) return alert(`WhatsApp will not open because the customer number could not be saved: ${error.message}`);
+        setCustomers((current) => current.map((c) => c.id === customerRecord.id ? { ...c, phone: whatsAppDraft.phone } : c));
+      }
+    }
+
+    const url = `https://wa.me/${normalized}?text=${encodeURIComponent(whatsAppDraft.message)}`;
+    setWhatsAppDraft(emptyWhatsAppDraft);
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (!opened) window.location.href = url;
   }
@@ -3343,7 +3409,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     data: Record<string, any> = {},
   ) {
     const customerName = data.customer_name || data.customer || "Customer";
-    const companyName = company.company_name || "Aashan & Co LLC";
+    const companyName = whatsAppSettings.business_name || company.company_name || "Aashan & Co LLC";
     const documentNo = String(
       data.document_no || data.quote_no || data.invoice_no || data.receipt_no || "",
     );
@@ -3375,7 +3441,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
     }
 
     message += `\n\nThank you,\n${companyName}`;
-    openWhatsAppMessage(phone, message);
+    openWhatsAppMessage(phone, message, customerName);
   }
 
   async function emailDocument(
@@ -3672,7 +3738,7 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
       `Closing balance: ${money(Number(closingBalance || 0))}\n\n` +
       `Please contact us if you need a detailed PDF statement.\n\n` +
       `Thank you,\n${company.company_name || "Aashan & Co LLC"}`;
-    openWhatsAppMessage(customerRecord?.phone || "", message);
+    openWhatsAppMessage(customerRecord?.phone || "", message, statementCustomer);
   }
 
   function printCustomerStatement() {
@@ -10694,6 +10760,32 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
                     ))}
                   </DataTable>
 
+                  <SectionCard title="WhatsApp Setup">
+                    <div style={styles.formGrid2}>
+                      <Input
+                        label="Business Display Name"
+                        value={whatsAppSettings.business_name}
+                        onChange={(v: string) => setWhatsAppSettings({ ...whatsAppSettings, business_name: v })}
+                      />
+                      <Input
+                        label="Your WhatsApp Sender Number"
+                        value={whatsAppSettings.sender_number}
+                        onChange={(v: string) => setWhatsAppSettings({ ...whatsAppSettings, sender_number: v })}
+                      />
+                      <Input
+                        label="Default Country Code"
+                        value={whatsAppSettings.default_country_code}
+                        onChange={(v: string) => setWhatsAppSettings({ ...whatsAppSettings, default_country_code: v })}
+                      />
+                    </div>
+                    <div style={{fontSize: 13, color: "#475569", marginTop: 8}}>
+                      The sender number above is for reference. With the free WhatsApp Web/app method, the message is sent from whichever WhatsApp or WhatsApp Business account is currently logged in. Configure that account's business profile as <b>{whatsAppSettings.business_name || "Aashan & Co LLC"}</b>.
+                    </div>
+                    <ButtonRow>
+                      <button onClick={saveWhatsAppSettings} style={styles.primaryBtn}>Save WhatsApp Setup</button>
+                    </ButtonRow>
+                  </SectionCard>
+
                   <SectionCard title="Email Setup">
                     <div style={styles.formGrid2}>
                       <Input
@@ -11212,6 +11304,45 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
           ☰<span>More</span>
         </button>
       </nav>
+      {whatsAppDraft.open && (
+        <div style={{position:"fixed", inset:0, background:"rgba(15,23,42,0.68)", zIndex:100001, display:"flex", alignItems:"center", justifyContent:"center", padding:18}}>
+          <div style={{width:"min(620px, 100%)", maxHeight:"calc(100vh - 36px)", overflow:"auto", background:"white", borderRadius:16, padding:24, boxShadow:"0 24px 80px rgba(0,0,0,0.35)"}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginBottom:18}}>
+              <div>
+                <h2 style={{margin:0}}>Send via WhatsApp</h2>
+                <div style={{fontSize:13, color:"#64748b", marginTop:4}}>Sending as {whatsAppSettings.business_name || company.company_name || "Aashan & Co LLC"} from your logged-in WhatsApp Business account</div>
+              </div>
+              <button type="button" style={styles.grayBtn} onClick={() => setWhatsAppDraft(emptyWhatsAppDraft)}>×</button>
+            </div>
+            <Field label="Customer WhatsApp Number">
+              <input
+                style={styles.input}
+                placeholder="e.g. (469) 555-1234"
+                value={whatsAppDraft.phone}
+                onChange={(e) => setWhatsAppDraft({ ...whatsAppDraft, phone:e.target.value })}
+              />
+            </Field>
+            {whatsAppDraft.customerName && (
+              <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, margin:"10px 0 16px"}}>
+                <input type="checkbox" checked={whatsAppDraft.saveToCustomer} onChange={(e) => setWhatsAppDraft({ ...whatsAppDraft, saveToCustomer:e.target.checked })}/>
+                Save this number to Customer Master for {whatsAppDraft.customerName}
+              </label>
+            )}
+            <Field label="Message">
+              <textarea
+                style={{...styles.input, minHeight:220, resize:"vertical", whiteSpace:"pre-wrap"}}
+                value={whatsAppDraft.message}
+                onChange={(e) => setWhatsAppDraft({ ...whatsAppDraft, message:e.target.value })}
+              />
+            </Field>
+            <div style={{fontSize:12, color:"#64748b", marginTop:10}}>WhatsApp Web/app will open with this message prepared. Review it there and press Send.</div>
+            <ButtonRow>
+              <button style={styles.greenBtn} onClick={launchWhatsAppDraft}>Open WhatsApp</button>
+              <button style={styles.grayBtn} onClick={() => setWhatsAppDraft(emptyWhatsAppDraft)}>Cancel</button>
+            </ButtonRow>
+          </div>
+        </div>
+      )}
       {emailDraft.open && (
         <div
           className="email-modal-backdrop"
