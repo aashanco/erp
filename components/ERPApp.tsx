@@ -682,6 +682,7 @@ export default function ERPApp() {
   const [emailSending, setEmailSending] = useState(false);
   const [documentAttachments, setDocumentAttachments] = useState<DocumentAttachment[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<DocumentAttachment[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [printTemplates, setPrintTemplates] = useState<PrintTemplate[]>([]);
   const [printTemplate, setPrintTemplate] =
     useState<PrintTemplate>(emptyPrintTemplate);
@@ -2415,6 +2416,7 @@ export default function ERPApp() {
     const maxSize = 25 * 1024 * 1024;
     const next: DocumentAttachment[] = [];
 
+    setAttachmentBusy(true);
     try {
       for (const file of Array.from(files)) {
         const allowed = file.type.startsWith("image/") || /\.(heic|heif|pdf|doc|docx|xls|xlsx|txt|csv)$/i.test(file.name || "");
@@ -2427,24 +2429,23 @@ export default function ERPApp() {
           continue;
         }
 
-        if (autoSave) {
-          const row = await uploadAttachmentFile(documentType, documentNo, file);
-          const { error } = await supabase.from("document_attachments").insert(row);
-          if (error) throw error;
-        } else {
-          // Upload immediately even before Save. The row is inserted only after Save, but the file is already safe in Supabase Storage.
-          const row = await uploadAttachmentFile(documentType, documentNo, file);
-          next.push(row);
-        }
+        // v5.8.1: persist the attachment row immediately after Storage upload.
+        // This makes Camera/Files reliable on mobile/PWA and desktop even before the Quote/Invoice Save button is pressed.
+        const row = await uploadAttachmentFile(documentType, documentNo, file);
+        const { data: inserted, error } = await supabase
+          .from("document_attachments")
+          .insert(row)
+          .select("*")
+          .single();
+        if (error) throw error;
+        next.push((inserted || row) as DocumentAttachment);
       }
 
-      if (autoSave) {
-        await loadData();
-        return;
-      }
-      if (next.length) setPendingAttachments((prev) => [...prev, ...next]);
+      if (next.length) await loadData();
     } catch (error: any) {
-      alert(`Photo save failed: ${error?.message || "Unable to save photo. Please try again."}`);
+      alert(`Attachment save failed: ${error?.message || "Unable to save attachment. Please try again."}`);
+    } finally {
+      setAttachmentBusy(false);
     }
   }
 
@@ -2516,6 +2517,7 @@ export default function ERPApp() {
             </label>
           </div>
         </div>
+        {attachmentBusy && <p className="doc-photo-uploading">Uploading attachment… please wait.</p>}
         {all.length > 0 ? (
           <div className="doc-photo-grid">
             {all.map((a, idx) => (
@@ -6315,6 +6317,17 @@ LINES_JSON:${JSON.stringify(lines)}`.trim(),
 .bc-totals div:last-child { border-bottom: 0; }
 .bc-grand { font-size: 18px; color: #0f6270; }
 
+
+/* v5.8.1 Attachment persistence + mobile transaction list stability */
+.doc-photo-uploading { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: #ecfeff; color: #0f766e; font-weight: 800; }
+@media (max-width: 900px) {
+  .data-table-quotes, .data-table-invoices { -webkit-overflow-scrolling: touch; overflow-x: auto !important; padding-bottom: 8px; }
+  .data-table-quotes table { min-width: 980px !important; table-layout: fixed; }
+  .data-table-invoices table { min-width: 920px !important; table-layout: auto; }
+  .data-table-quotes th:nth-child(4), .data-table-quotes td:nth-child(4) { width: 340px !important; min-width: 340px !important; white-space: normal !important; overflow-wrap: anywhere !important; line-height: 1.35; vertical-align: top; }
+  .data-table-quotes th:not(:nth-child(4)), .data-table-quotes td:not(:nth-child(4)),
+  .data-table-invoices th, .data-table-invoices td { white-space: nowrap !important; vertical-align: top; }
+}
 .doc-photos-box { grid-column: 1 / -1; border: 1px solid #dbe5ef; border-radius: 14px; padding: 14px; background: #f8fafc; margin-top: 10px; }
 .doc-photos-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
 .doc-photos-head b { display: block; color: #0f172a; font-weight: 900; }
@@ -12449,7 +12462,7 @@ function DataTable({ title, headers, children }: any) {
   return (
     <div style={styles.sectionCard}>
       <h2 style={styles.sectionTitle}>{title}</h2>
-      <div style={{ overflowX: "auto" }}>
+      <div className={`data-table-scroll data-table-${String(title || "table").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} style={{ overflowX: "auto" }}>
         <table style={styles.table}>
           <thead>
             <tr>
